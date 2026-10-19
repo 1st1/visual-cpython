@@ -1,3 +1,4 @@
+import {OpcodeTrail} from './opcode-trail.mjs';
 import {connector} from './connector.mjs';
 import {surfaceText,textAtlasStats,disposeTextAtlas} from './text-atlas.mjs';
 import {Starfield} from './starfield.mjs';
@@ -117,6 +118,7 @@ export class Factory {
     sun.shadow.mapSize.set(2048,2048);sun.shadow.radius=1.5;sun.shadow.intensity=.45;sun.shadow.bias=-.00015;sun.shadow.normalBias=.035;
     this.scene.add(sun,sun.target);
     this.world=new THREE.Group(); this.scene.add(this.world);
+    this.opcodeTrail=new OpcodeTrail(this.scene);
     this.raycaster=new THREE.Raycaster(); this.pointer=new THREE.Vector2();
     let down;
     this.renderer.domElement.addEventListener('pointerdown',e=>{ down=[e.clientX,e.clientY]; });
@@ -175,6 +177,8 @@ export class Factory {
         if(age>1600) {release(ghost);this.ghosts.remove(ghost);}
       }
       if(this.ghosts)this.host.dataset.ghostCount=String(this.ghosts.children.length);
+      this.opcodeTrail.update(now,this.reduced.matches);
+      host.dataset.opcodeTrail=String(this.opcodeTrail.mesh.visible);
       this.renderer.render(this.scene,this.camera);
       this.placeLabels();this.minimap?.draw();
       host.dataset.textAtlas=JSON.stringify(textAtlasStats());
@@ -188,6 +192,7 @@ export class Factory {
   }
   load(layout, graph, events = [], source = '', parsing = null, preserveCamera = false) {
     const previous=preserveCamera&&this.extent&&(layout||parsing)?{center:this.mapCenter(),size:this.projectedSize()}:null;
+    this.opcodeTrail.clear();this.previousOpcodeTile=null;
     release(this.world); this.nodes.clear(); this.edges.clear(); this.pickables=[]; this.lastSeq=null; this.pulsePath=null;
     this.labels.replaceChildren(); this.annotations=[];
     this.graph=graph; this.panelBlock=null; this.replaySource=null;this.replayTile=null;
@@ -375,7 +380,14 @@ export class Factory {
       const tile=this.instructionTiles.get(`${event?.code}:${event?.offset}`);
       this.activeLabel.position.copy(active.group.position).add(new THREE.Vector3(tile?.x || 0,.8,tile?.y || 0));
     }
+    if(terminal||!event||event.seq<this.lastSeq){this.opcodeTrail.clear();this.previousOpcodeTile=null;}
     if(event?.seq!==this.lastSeq) {
+      const nextTile=!terminal&&event?.kind==='opcode'?this.instructionTiles.get(`${event.code}:${event.offset}`):null;
+      if(nextTile){
+        if(this.previousOpcodeTile&&this.previousOpcodeTile!==nextTile&&!this.reduced.matches)
+          this.opcodeTrail.start(this.previousOpcodeTile,nextTile,performance.now());
+        this.previousOpcodeTile=nextTile;
+      }
       if(this.lastSeq!==null) this.finishConstruction();
       this.lastSeq=event?.seq;
       this.pulsePath=this.edges.get(state?.edge)?.path || null;
@@ -492,12 +504,14 @@ export class Factory {
     this.host.dataset.activeTokens=String(tokenCount);this.host.dataset.activeAst=String(astCount);
   }
   loadParsing() {
+    this.opcodeTrail.clear();this.previousOpcodeTile=null;
     this.finishConstruction();this.highlightArtifacts(null);
     for(const node of this.nodes.values()) node.group.visible=false;
     for(const edge of this.edges.values()) {edge.line.visible=false;edge.arrow.visible=false;}
     this.host.dataset.phase='parsing';
   }
   setParsingState(frame,final) {
+    this.opcodeTrail.clear();this.previousOpcodeTile=null;
     if(!this.parseTokens) return;
     const spanTokens=new Set(tokensForConstruction(final?null:frame?.event,this.parseTokens.map(t=>t.event)));
     for(const [i,tile] of this.parseTokens.entries()) {
@@ -679,5 +693,5 @@ export class Factory {
     const span=Math.max(size.depth+1.2,(size.width+1.4)/aspect);
     this.viewSize=span;this.camera.zoom=1;this.updateProjection(); this.controls.update();
   }
-  dispose() { this.starfield?.dispose(); for(const [name,handler] of [['gesturestart',this.gestureStart],['gesturechange',this.gestureChange],['gestureend',this.gestureEnd]]) this.renderer.domElement.removeEventListener(name,handler,true); this.renderer.domElement.removeEventListener('wheel',this.wheelPan,true); this.minimap?.dispose(); this.resizeObserver.disconnect(); this.renderer.setAnimationLoop(null); this.controls.dispose(); release(this.world); disposeTextAtlas();this.sun.shadow.dispose();this.renderer.dispose(); this.renderer.domElement.remove(); this.labels.remove(); this.opcodePanel.remove(); }
+  dispose() { this.opcodeTrail.dispose(); this.starfield?.dispose(); for(const [name,handler] of [['gesturestart',this.gestureStart],['gesturechange',this.gestureChange],['gestureend',this.gestureEnd]]) this.renderer.domElement.removeEventListener(name,handler,true); this.renderer.domElement.removeEventListener('wheel',this.wheelPan,true); this.minimap?.dispose(); this.resizeObserver.disconnect(); this.renderer.setAnimationLoop(null); this.controls.dispose(); release(this.world); disposeTextAtlas();this.sun.shadow.dispose();this.renderer.dispose(); this.renderer.domElement.remove(); this.labels.remove(); this.opcodePanel.remove(); }
 }

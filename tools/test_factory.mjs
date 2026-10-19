@@ -131,6 +131,8 @@ try {
   await page.screenshot({path:'artifacts/factory-stack.png',fullPage:true});
   await page.locator('#next').click();
   assert.match(await page.locator('.opcode-list .current').textContent(),/STORE_NAME\s+c/);
+  await page.waitForFunction(()=>document.querySelector('#factory').dataset.opcodeTrail==='true');
+  await page.waitForFunction(()=>document.querySelector('#factory').dataset.opcodeTrail==='false');
   const afterStack=JSON.parse(await page.locator('#factory').getAttribute('data-stack'));
   assert.equal(afterStack.slots.length,1); assert.match(afterStack.slots[0].text,/int 5/);
   await page.locator('#back').click();

@@ -125,3 +125,11 @@ World-space labels share a bounded glyph atlas, keeping text sharp across zoom l
 Each label batches glyph quads by atlas page. A derivative-based shader reconstructs antialiased edges at the current pixel scale. Source syntax colors and execution highlighting are vertex colors, and tile backgrounds are ordinary colored planes. Labels remain real depth-tested geometry on block surfaces; no HTML label overlay is substituted. Memory savings fund the higher-resolution scene buffer, while the starfield retains its lower pixel budget.
 
 Backing planes and glyphs use successively stronger constant and slope depth biases, with physical separation between layers. This prevents both crawling patches on tile faces during panning and missing letter fragments. Depth testing remains enabled for occlusion. [tools/test_text.mjs](../../tools/test_text.mjs) compares the complete tile surface above a solid block against an unoccluded reference at 45 combinations of pan, distance, and elevation.
+
+## Opcode transition trail
+
+A brief cyan-violet trail connects the previous and current opcode tiles during forward replay, retracting toward the newly active instruction without covering either endpoint label.
+
+[web/opcode-trail.mjs](../../web/opcode-trail.mjs) implements a world-space shader inspired by [cursor_blaze](https://github.com/0xhckr/ghostty-shaders/blob/main/cursor_blaze.glsl), using original GLSL with a bright, broad core, soft edges, and a half-second retracting fade. The ribbon spans each tile’s footprint perpendicular to travel and interpolates between the two endpoint widths. One reused plane and material require no texture or framebuffer allocations. It shows observed execution-cursor movement, not an additional control-flow edge.
+
+[web/factory.mjs](../../web/factory.mjs) triggers it only when the recorded event changes to a different opcode. Selection updates do not restart it. Reset, backward seeking, parsing, recapture, terminal events, and reduced motion clear or suppress the effect; teardown disposes its resources. [tools/test_opcode_trail.mjs](../../tools/test_opcode_trail.mjs) verifies orientation in every direction, expiry, reduced motion, and disposal. Headless Chrome scene checks verify the effect starts on a replay step and expires afterward.
