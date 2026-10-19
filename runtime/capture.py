@@ -12,6 +12,7 @@ import itertools
 import json
 import sys
 import tokenize
+import token
 import types
 from pathlib import Path
 
@@ -104,7 +105,8 @@ class Observer:
                                  "argrepr": (f"<code {ins.argval.co_name}>" if type(ins.argval) is types.CodeType else ins.argrepr)[:100],
                                  "target": target, "encoded_target": ins.argval if ins.opcode in dis.hasjump else None,
                                  "flow": flow,
-                                 "line": ins.positions.lineno, "column": ins.positions.col_offset})
+                                 "line": ins.positions.lineno, "column": ins.positions.col_offset,
+                                 "end_line": ins.positions.end_lineno, "end_column": ins.positions.end_col_offset})
         self.artifacts.append({"id": identity, "name": code.co_name, "first_line": code.co_firstlineno,
                                "locals": list(code.co_varnames), "instructions": instructions})
         for value in code.co_consts:
@@ -163,10 +165,41 @@ def capture(source, max_events=2000):
             raise ValueError("source exceeds 16 KiB")
         ignored = {tokenize.ENCODING, tokenize.ENDMARKER, tokenize.COMMENT, tokenize.NL,
                    tokenize.NEWLINE, tokenize.INDENT, tokenize.DEDENT}
-        tokens = list(tokenize.generate_tokens(io.StringIO(source).readline))
+        try:
+            tokens = list(tokenize.generate_tokens(io.StringIO(source).readline))
+        except (tokenize.TokenError, IndentationError):
+            # Let the real parser produce its diagnostic and observable failure.
+            tokens = []
         if sum(t.type not in ignored for t in tokens) > 200:
             raise ValueError("source exceeds 200 Python tokens")
-        tree = ast.parse(source, FILENAME)
+        from _factory_probe import parse_begin, parse_end, ast_id
+        parse_begin()
+        try:
+            tree = ast.parse(source, FILENAME)
+        finally:
+            parsing = parse_end()
+            for event in parsing["events"]:
+                if event["kind"] == 2:
+                    event["token"] = token.tok_name.get(event["end"], str(event["end"]))
+            result["parsing"] = parsing
+        nodes = []
+        def record_ast(node, parent=None):
+            if isinstance(node, (ast.operator, ast.unaryop, ast.boolop, ast.cmpop, ast.expr_context)):
+                return
+            identity = len(nodes)
+            nodes.append({"id": identity, "parent": parent, "kind": type(node).__name__,
+                          "line": getattr(node, "lineno", None), "created": ast_id(node),
+                          "operator": type(node.op).__name__ if hasattr(node, "op") else "",
+                          "label": str(getattr(node, "id", getattr(node, "name", getattr(node, "value", ""))))[:80]})
+            for child in ast.iter_child_nodes(node):
+                record_ast(child, identity)
+        record_ast(tree)
+        parsing["ast"] = nodes
+        retained = {node["created"]: node["id"] for node in nodes if node["created"] is not None}
+        for seq, event in enumerate(parsing["events"]):
+            if event["kind"] == 3:
+                event["node"] = retained.get(seq)
+                event["retained"] = seq in retained
         for node in ast.walk(tree):
             if type(node).__name__ not in ALLOWED:
                 raise ValueError(f"unsupported construct: {type(node).__name__}")

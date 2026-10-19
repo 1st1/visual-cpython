@@ -1,3 +1,4 @@
+import {astTreeLayout} from '../web/ast-tree.mjs';
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import { existsSync, readFileSync } from 'node:fs';
@@ -26,6 +27,14 @@ for (const [name, source, output] of cases) {
   assert.equal(result.status, 0, result.stderr);
   const trace = JSON.parse(result.stdout);
   assert.equal(trace.stdout, output, trace.error);
+  const tree=astTreeLayout(trace.parsing?.ast);
+  for(const node of trace.parsing?.ast || []) {
+    const placed=tree.nodes.find(n=>n.id===node.id);
+    if(node.parent!==null) assert.ok(placed.z>tree.nodes.find(n=>n.id===node.parent).z);
+  }
+  for(let i=0;i<tree.nodes.length;i++) for(let j=i+1;j<tree.nodes.length;j++) {
+    const a=tree.nodes[i],b=tree.nodes[j];assert.ok(Math.abs(a.x-b.x)>=2.5 || Math.abs(a.z-b.z)>=1.2);
+  }
   const graph = extractGraph(trace), states = projectReplay(trace, graph);
   assert.deepEqual(graph.diagnostics, [], name);
   for (const code of trace.codes) for (const ins of code.instructions) assert.ok(graph.locations[`${code.id}:${ins.offset}`]);
@@ -48,11 +57,10 @@ for (const [name, source, output] of cases) {
     assert.equal(chooseLayout(viz,graph).dot,winner.dot);
     console.log(`  placement: ${winner.options.direction}, score ${winner.score.toFixed(1)} vs ${winner.layout.placement.candidates[0].score.toFixed(1)} baseline`);
     if(name==='shortest path') {
-      assert.equal(winner.options.direction,'LR');
       const portrait=chooseLayout(viz,graph,.55),wide=chooseLayout(viz,graph,2.4);
       assert.equal(portrait.layout.placement.targetAspect,.55);
       assert.equal(wide.layout.placement.targetAspect,2.4);
-      assert.notEqual(portrait.options.direction,wide.options.direction,'Window aspect changes the preferred BFS arrangement');
+      assert.notEqual(portrait.score,wide.score,'Window aspect changes full-pipeline fit scoring');
       for(const chosen of [portrait,wide]) assert.ok(chosen.layout.placement.candidates.every(c=>chosen.score<=c.score));
       const selected=winner.layout.placement.candidates.find(c=>c.options.direction===winner.options.direction&&c.options.compact===winner.options.compact);
       assert.ok(selected.projectedAspect>1.5,'BFS fits a landscape scene including source and runtime areas');

@@ -15,7 +15,7 @@ async function capture(source) {
 try {
   await page.goto(process.env.FACTORY_URL || 'http://127.0.0.1:8000');
   await page.waitForFunction(()=>document.querySelector('#factory').dataset.rendered==='true');
-  assert.equal(await page.locator('#factory canvas').count(),1);
+  assert.equal(await page.locator('#factory > canvas').count(),1);
   assert.equal(await page.locator('#factory').getAttribute('data-blocks'),'0');
   const viewport=await page.locator('#factory').boundingBox();
   assert.equal(viewport.width,1600);assert.equal(viewport.height,1100);
@@ -24,6 +24,39 @@ try {
   await page.waitForFunction(()=>document.querySelector('#factory').dataset.sourceTiles==='3');
   await page.locator('#toggle-editor').click();
   assert.equal(await page.locator('#editor-panel').isHidden(),true);
+  const minimap=page.locator('.minimap canvas');
+  const sceneCanvas=page.locator('#factory > canvas');
+  const originalZoom=await page.locator('#factory').getAttribute('data-zoom');
+  const beforeScroll=await minimap.getAttribute('data-target');
+  await sceneCanvas.dispatchEvent('wheel',{deltaX:80,deltaY:50,deltaMode:0,bubbles:true,cancelable:true});
+  await page.waitForFunction(value=>document.querySelector('.minimap canvas').dataset.target!==value,beforeScroll);
+  assert.equal(await page.locator('#factory').getAttribute('data-zoom'),originalZoom,'Ordinary trackpad scrolling pans without zooming');
+  await sceneCanvas.dispatchEvent('wheel',{deltaY:-10,deltaMode:0,ctrlKey:true,bubbles:true,cancelable:true});
+  await page.waitForFunction(value=>Number(document.querySelector('#factory').dataset.zoom)>Number(value),originalZoom);
+  await page.locator('#camera-iso').click();
+  await page.locator('#toggle-editor').click();
+  const panelBefore=await page.locator('#editor-panel').boundingBox();
+  const gestureZoom=Number(await page.locator('#factory').getAttribute('data-zoom'));
+  const prevented=await sceneCanvas.evaluate(canvas=>{
+    return [['gesturestart',1],['gesturechange',1.3],['gestureend',1.3]].map(([type,scale])=>{
+      const event=new Event(type,{bubbles:true,cancelable:true});Object.defineProperty(event,'scale',{value:scale});canvas.dispatchEvent(event);return event.defaultPrevented;
+    });
+  });
+  assert.deepEqual(prevented,[true,true,true],'Safari gesture defaults are cancelled on the scene');
+  await page.waitForFunction(z=>Math.abs(Number(document.querySelector('#factory').dataset.zoom)-z*1.3)<.001,gestureZoom);
+  assert.deepEqual(await page.locator('#editor-panel').boundingBox(),panelBefore,'Pinch leaves overlay geometry unchanged');
+  assert.equal(await page.evaluate(()=>scrollX===0&&scrollY===0&&document.documentElement.scrollWidth<=innerWidth),true);
+  await page.locator('#camera-iso').click();
+  await page.locator('#toggle-editor').click();
+  const beforePan=JSON.parse(await minimap.getAttribute('data-target'));
+  await page.getByRole('button',{name:'Pan right',exact:true}).click();
+  const afterPan=JSON.parse(await minimap.getAttribute('data-target'));
+  assert.ok(afterPan[0]>beforePan[0]);
+  await minimap.focus();await minimap.press('ArrowLeft');
+  assert.ok(JSON.parse(await minimap.getAttribute('data-target'))[0]<afterPan[0]);
+  await minimap.click({position:{x:20,y:30}});
+  assert.notDeepEqual(JSON.parse(await minimap.getAttribute('data-target')),beforePan);
+  await page.locator('#camera-iso').click();
   await page.screenshot({path:'artifacts/factory-empty.png',fullPage:true});
   await capture('a=2\nb=3\nc=a+b\nprint(c)');
   for(let i=0;i<30;i++) {
@@ -32,6 +65,12 @@ try {
   }
   assert.equal(Number(await page.locator('#factory').getAttribute('data-opcode-tiles')),await page.locator('#instructions .instruction').count());
   assert.equal(await page.locator('#factory').getAttribute('data-active-source'),'3');
+  const pipeline=JSON.parse(await page.locator('#factory').getAttribute('data-pipeline'));
+  assert.ok(pipeline.source<pipeline.tokens&&pipeline.tokens<pipeline.ast&&pipeline.ast<pipeline.opcodes);
+  assert.ok(Number(await page.locator('#factory').getAttribute('data-active-tokens'))>0);
+  assert.ok(Number(await page.locator('#factory').getAttribute('data-active-ast'))>0);
+  const links=JSON.parse(await page.locator('#factory').getAttribute('data-pipeline-links'));
+  assert.ok(links.sourceToken>1&&links.tokenAst>1&&links.astOpcode>1,'Dashed connections traverse all three pipeline stages');
   const beforeStack=JSON.parse(await page.locator('#factory').getAttribute('data-stack'));
   assert.match(await page.locator('.opcode-list .current').textContent(),/BINARY_OP\s+\+/);
   const opcode=await page.locator('.opcode-list .current').getAttribute('data-offset');
@@ -92,7 +131,7 @@ try {
   assert.equal(await page.locator('#factory').getAttribute('data-selected-block'),option,'Raycast selects the building beneath its screen label');
   await page.locator('#zoom-in').click(); await page.locator('#toggle-inspector').click(); await page.locator('#focus-block').click(); await page.locator('#toggle-inspector').click();
   await page.locator('#camera-iso').click();
-  const canvas=await page.locator('#factory canvas').boundingBox();
+  const canvas=await page.locator('#factory > canvas').boundingBox();
   await page.mouse.move(canvas.x+canvas.width*.5,canvas.y+canvas.height*.5);
   await page.mouse.down(); await page.mouse.move(canvas.x+canvas.width*.65,canvas.y+canvas.height*.55,{steps:8}); await page.mouse.up();
   await page.locator('#view-map').click();

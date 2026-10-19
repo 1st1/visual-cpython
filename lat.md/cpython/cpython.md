@@ -13,6 +13,7 @@ Current implementation scope is the adaptive interpreter only. JIT research is r
 - [[v1-plan]] defines the interpreter-only first release, implementation milestones, feasibility gates, and acceptance criteria.
 - [[scene]] describes the shared 3D geometry, camera, runtime indicators, and scene validation.
 - [[graph]] describes bytecode block extraction, replay projection, and the Graphviz schematic.
+- [[parsing]] documents observed tokenizer/PEG capture and the parsing replay map.
 - [[runtime]] describes the implemented capture probe, build recipes, bounded recording, and diagnostic workbench.
 
 ## Source baseline

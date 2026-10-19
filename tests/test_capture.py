@@ -7,6 +7,58 @@ from runtime.capture import capture
 
 
 class CaptureTests(unittest.TestCase):
+    def test_parser_budget_keeps_compilation_working(self):
+        import ast
+        from _factory_probe import parse_begin, parse_end
+        parse_begin()
+        try:
+            tree = ast.parse("\n".join("x=1" for _ in range(300)))
+        finally:
+            trace = parse_end()
+        self.assertEqual(len(tree.body), 300)
+        self.assertEqual(len(trace["events"]), 24000)
+        self.assertGreater(trace["dropped"], 0)
+        self.assertEqual(capture("print(7)")["stdout"], "7\n")
+
+    def test_ast_constructor_identity_and_order(self):
+        result = capture("x = 1 + 2\nprint(x)")
+        parsing = result["parsing"]
+        nodes, events = parsing["ast"], parsing["events"]
+        self.assertTrue(all(n["created"] is not None for n in nodes))
+        for node in nodes:
+            event = events[node["created"]]
+            self.assertEqual(event["kind"], 3)
+            self.assertEqual(event["node"], node["id"])
+            self.assertEqual(event["text"], node["kind"])
+            self.assertTrue(event["retained"])
+            if node["parent"] is not None:
+                self.assertLess(node["created"], nodes[node["parent"]]["created"])
+        binary = next(n for n in nodes if n["kind"] == "BinOp")
+        event = events[binary["created"]]
+        self.assertEqual((event["line"], event["column"], event["end_column"]), (1, 4, 9))
+        self.assertTrue(any(e["kind"] == 3 and not e["retained"] for e in events))
+
+    def test_real_parser_observation(self):
+        result = capture("def f(x):\n    return x+1\nprint(f(2))")
+        parsing = result["parsing"]
+        events = parsing["events"]
+        tokens = [e for e in events if e["kind"] == 2]
+        self.assertEqual([e["cursor"] for e in tokens], list(range(len(tokens))))
+        self.assertIn("INDENT", [e["token"] for e in tokens])
+        self.assertIn("DEDENT", [e["token"] for e in tokens])
+        self.assertTrue(any(e["kind"] == 1 and e["cursor"] > e["end"] for e in events))
+        self.assertTrue(any(e["kind"] == 0 and "succeeded" in e["text"] for e in events))
+        self.assertEqual(parsing["ast"][0]["kind"], "Module")
+        self.assertEqual(parsing["dropped"], 0)
+        failure = capture("x = (")
+        self.assertEqual(failure["status"], "error")
+        self.assertTrue(failure["parsing"]["events"])
+        self.assertNotIn("ast", failure["parsing"])
+        fresh = capture("x=1")["parsing"]
+        self.assertEqual(fresh["events"][0]["cursor"], 0)
+        self.assertLess(len(fresh["events"]), len(events))
+
+
     def test_observed_addition_stack(self):
         result = capture("a = 2\nb = 3\nc = a + b\nprint(c)")
         self.assertEqual(result["status"], "completed")

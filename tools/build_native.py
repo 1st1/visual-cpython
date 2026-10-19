@@ -6,6 +6,8 @@ import subprocess
 import tarfile
 from pathlib import Path
 
+from instrument_parser import instrument
+
 ROOT = Path(__file__).resolve().parents[1]
 
 
@@ -23,6 +25,7 @@ def build(jobs=8):
         stamp.write_text(revision + "\n")
     if stamp.read_text().strip() != revision:
         raise SystemExit("Build revision differs; move .build/native aside")
+    instrument(target)
     shutil.copy2(ROOT / "runtime/probe.c", target / "Modules/_factory_probe.c")
     (target / "Modules/Setup.local").write_text("*static*\n_factory_probe _factory_probe.c -DPy_BUILD_CORE\n")
     if not (target / "Makefile").exists():

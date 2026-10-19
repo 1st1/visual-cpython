@@ -1,3 +1,6 @@
+import {Minimap} from './minimap.mjs';
+import {parsingFrames} from './parsing.mjs';
+import {astTreeLayout,tokensForConstruction,instructionAst} from './ast-tree.mjs';
 import * as THREE from 'three';
 import { OrbitControls } from './vendor/OrbitControls.js';
 import { factoryFootprint, sourceFootprint } from './placement.mjs';
@@ -87,7 +90,7 @@ export class Factory {
     this.renderer=new THREE.WebGLRenderer({ antialias:true, alpha:false });
     this.renderer.setPixelRatio(Math.min(devicePixelRatio,2));
     this.renderer.outputColorSpace=THREE.SRGBColorSpace;
-    this.renderer.domElement.setAttribute('aria-label','Interactive CPython factory. Drag to orbit, right-drag to pan, scroll to zoom. Select blocks with the block menu.');
+    this.renderer.domElement.setAttribute('aria-label','Interactive CPython factory. Drag to orbit, right-drag or scroll to pan, pinch to zoom. Select blocks with the block menu.');
     this.renderer.domElement.setAttribute('role','img');
     this.renderer.domElement.addEventListener('webglcontextlost', e => { e.preventDefault(); host.dataset.error='Graphics context lost; use Schematic or reload.'; });
     host.append(this.renderer.domElement);
@@ -100,6 +103,32 @@ export class Factory {
     this.opcodePanel.querySelector('button').onclick=()=>this.onSelect('');
     this.camera=new THREE.OrthographicCamera(-15,15,12,-12,.1,500);
     this.controls=new OrbitControls(this.camera,this.renderer.domElement);
+    this.controls.mouseButtons.MIDDLE=THREE.MOUSE.PAN;
+    this.wheelPan=event=>{
+      event.preventDefault();event.stopImmediatePropagation();
+      if(!this.controls.enabled) return;
+      if(event.ctrlKey) {
+        if(!this.safariGesture) this.zoom(Math.exp(-Math.max(-100,Math.min(100,event.deltaY))*.01));
+        return;
+      }
+      const unit=event.deltaMode===1?16:event.deltaMode===2?this.host.clientHeight:1;
+      const dx=event.shiftKey&&!event.deltaX?event.deltaY:event.deltaX;
+      const dy=event.shiftKey&&!event.deltaX?0:event.deltaY;
+      this.controls.pan(-dx*unit,-dy*unit);
+    };
+    this.renderer.domElement.addEventListener('wheel',this.wheelPan,{capture:true,passive:false});
+    this.gestureStart=event=>{
+      event.preventDefault();event.stopImmediatePropagation();
+      this.safariGesture=true;this.gestureScale=Number.isFinite(event.scale)&&event.scale>0?event.scale:1;
+    };
+    this.gestureChange=event=>{
+      event.preventDefault();event.stopImmediatePropagation();
+      if(!this.safariGesture||!this.controls.enabled||!Number.isFinite(event.scale)||event.scale<=0)return;
+      this.zoom(event.scale/this.gestureScale);this.gestureScale=event.scale;
+    };
+    this.gestureEnd=event=>{event.preventDefault();event.stopImmediatePropagation();this.safariGesture=false;};
+    for(const [name,handler] of [['gesturestart',this.gestureStart],['gesturechange',this.gestureChange],['gestureend',this.gestureEnd]])
+      this.renderer.domElement.addEventListener(name,handler,{capture:true,passive:false});
     this.controls.enableDamping=true; this.controls.dampingFactor=.12;
     this.controls.maxPolarAngle=Math.PI*.48; this.controls.minZoom=.3; this.controls.maxZoom=12;
     this.scene.add(new THREE.HemisphereLight(0xc9e2d7,0x19201d,2.2));
@@ -117,14 +146,21 @@ export class Factory {
     });
     this.resizeObserver=new ResizeObserver(()=>this.resize()); this.resizeObserver.observe(host);
     this.load(null,null);
+    this.minimap=new Minimap(host,this);
     this.renderer.setAnimationLoop(now=>{
       if (document.hidden || !host.clientWidth || host.hidden) return;
       this.controls.update();
       if (this.revealStart) {
         let complete=true, latest=null;
+        const elapsed=now-this.revealStart;
+        const frontDelay=this.artifactFrames.length*60+300;
+        if(this.artifactFrames.length&&elapsed<frontDelay) {
+          const frame=this.artifactFrames[Math.min(this.artifactFrames.length-1,Math.max(0,Math.floor(elapsed/60)))];
+          if(this.autoFrame!==frame.seq) {this.autoFrame=frame.seq;this.setParsingState(frame,false);}
+        }
         const delay=Math.min(100,3500/Math.max(1,this.revealTiles.length));
         this.revealTiles.forEach((tile,i)=>{
-          const t=this.reduced.matches?1:Math.min(1,Math.max(0,(now-this.revealStart-i*delay)/240));
+          const t=this.reduced.matches?1:Math.min(1,Math.max(0,(elapsed-frontDelay-i*delay)/240));
           tile.group.visible=t>0; tile.group.scale.y=Math.max(.001,t);
           if(t>0) latest=tile; if(t<1) complete=false;
         });
@@ -137,12 +173,26 @@ export class Factory {
         this.pulse.visible=!this.reduced.matches && t<1;
         this.pulse.position.copy(this.pulsePath.getPointAt(t));
       }
+      if(this.constructionFlights?.children.length) {
+        for(const particle of [...this.constructionFlights.children]) {
+          const t=Math.min(1,(now-particle.userData.start)/650);
+          particle.position.copy(particle.userData.path.getPoint(t));particle.visible=!this.reduced.matches&&t<1;
+          if(t===1) {particle.geometry.dispose();particle.material.dispose();this.constructionFlights.remove(particle);}
+        }
+      }
+      for(const ghost of [...(this.ghosts?.children || [])]) {
+        const age=now-ghost.userData.born;
+        const fade=this.reduced.matches?1:Math.min(1,Math.max(0,(1600-age)/500));
+        ghost.traverse(o=>{if(o.material)o.material.opacity=o.userData.ghostOpacity*fade;});
+        if(age>1600) {release(ghost);this.ghosts.remove(ghost);}
+      }
+      if(this.ghosts)this.host.dataset.ghostCount=String(this.ghosts.children.length);
       this.renderer.render(this.scene,this.camera);
-      this.placeLabels();
-      host.dataset.rendered='true';
+      this.placeLabels();this.minimap?.draw();
+      host.dataset.rendered='true';host.dataset.zoom=String(this.camera.zoom);
     });
   }
-  load(layout, graph, events = [], source = '') {
+  load(layout, graph, events = [], source = '', parsing = null) {
     release(this.world); this.nodes.clear(); this.edges.clear(); this.pickables=[]; this.lastSeq=null; this.pulsePath=null;
     this.labels.replaceChildren(); this.annotations=[];
     this.graph=graph; this.panelBlock=null; this.replaySource=null;this.replayTile=null;
@@ -154,7 +204,11 @@ export class Factory {
     this.opcodePanel.querySelector('.opcode-caption').textContent='Run a program to inspect its bytecode.';
     const footprint=factoryFootprint(layout), w=footprint.width, d=footprint.depth;
     this.sourceLines=source.split('\n');
-    const sourceBounds=sourceFootprint(layout,this.sourceLines.length);
+    this.parsing=parsing;this.autoFrame=null;
+    this.artifactFrames=parsing?parsingFrames(parsing).frames.filter(f=>f.event.kind===2||f.event.kind===3):[];
+    const tokens=parsing?.events.filter(e=>e.kind===2) || [],ast=parsing?.ast || [];
+    this.astLayout=astTreeLayout(ast);
+    const sourceBounds=sourceFootprint(layout,this.sourceLines.length,{tokenCount:tokens.length,astWidth:this.astLayout.width,astDepth:this.astLayout.depth});
     const {rows,sourceWidth,sourceDepth}=sourceBounds;
     this.sourceOrigin=new THREE.Vector3(sourceBounds.sourceX,0,0);
     this.extent=sourceBounds;
@@ -174,8 +228,9 @@ export class Factory {
       this.annotate(name,new THREE.Vector3(x,1.2,z),'machine');
       return {body,paint};
     };
-    machine('PARSER','source → syntax',-d/2-1.75,-2);
-    machine('COMPILER','syntax → bytecode',-d/2-1.75,2);
+    this.tokenizerDisplay=machine('TOKENIZER','source → tokens',-sourceBounds.tokenDepth/2-1.75,sourceBounds.tokenX);
+    this.parserDisplay=machine('PEG PARSER','tokens → AST',-sourceBounds.astDepth/2-1.75,sourceBounds.astX);
+    machine('COMPILER','AST → bytecode',-d/2-1.75,this.serviceX);
     this.evaluator=machine('EVALUATOR','waiting',-d/2+1);
     this.frameDisplay=machine('FRAMES','0 activations',-d/2+3.5);
     this.stackOrigin=new THREE.Vector3(this.serviceX,0,footprint.stackZ);
@@ -195,7 +250,7 @@ export class Factory {
     this.sourceTiles=[];this.sourceHighlight=null;
     box(this.world,this.sourceOrigin.x,.08,0,sourceWidth,.15,sourceDepth,0x1a2630);
     this.annotate('01 / SOURCE · parsing quadrant',this.sourceOrigin.clone().add(new THREE.Vector3(0,.5,-sourceDepth/2)),'enclosure');
-    this.annotate('02 / BYTECODE · opcode quadrant',new THREE.Vector3(0,.5,-d/2-.5),'enclosure');
+    this.annotate('04 / OPCODES',new THREE.Vector3(0,.5,-d/2-.5),'enclosure');
     this.sourceLines.forEach((text,i)=>{
       const group=new THREE.Group(); group.position.set(this.sourceOrigin.x-sourceWidth/2+.6+4.1+Math.floor(i/rows)*8.7,0,-sourceDepth/2+1.2+(i%rows)*1.15);this.world.add(group);
       const body=box(group,0,.18,0,8.2,.26,1.025,0x293947);
@@ -240,7 +295,7 @@ export class Factory {
         const body=box(tileGroup,0,.49,0,entry.width,.38,entry.height);
         body.userData={block:block.id,offset:entry.instruction.offset};this.pickables.push(body);
         const paint=opcodeTile(tileGroup,entry.width-.08,entry.height-.08,.69,entry.instruction,this.renderer.capabilities.getMaxAnisotropy());paint(false);
-        const tile={...entry,group:tileGroup,body,paint,position:new THREE.Vector3(placed.x+entry.x,.8,placed.y+entry.y)};tiles.push(tile);
+        const tile={...entry,code:block.code,group:tileGroup,body,paint,position:new THREE.Vector3(placed.x+entry.x,.8,placed.y+entry.y)};tiles.push(tile);
         this.instructionTiles.set(`${block.code}:${entry.instruction.offset}`,tile);
       }
       for(let i=1;i<tiles.length;i++) {
@@ -260,11 +315,20 @@ export class Factory {
     if(this.revealStart) for(const tile of this.revealTiles) tile.group.visible=false;
     this.host.dataset.revealedOpcodes=String(this.revealStart?0:this.revealTiles.length);
     this.host.dataset.phase=this.revealStart?'compilation reveal':layout?'replay':'source';
-    this.link=new THREE.Line(new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(),new THREE.Vector3()]),new THREE.LineDashedMaterial({color:0xa6cef3,dashSize:.18,gapSize:.13}));
-    this.world.add(this.link);this.link.visible=false;
+    this.link=new THREE.Group();this.world.add(this.link);
+    this.buildFrontEnd(tokens,ast);
     this.view('iso');
   }
   setState(state,event,selected,terminal=false) {
+    for(const node of this.nodes.values()) node.group.visible=true;
+    for(const edge of this.edges.values()) {edge.line.visible=true;edge.arrow.visible=true;}
+    this.astGroup.visible=Boolean(this.astTiles.length);
+    for(const tile of this.astTiles) tile.group.visible=true;
+    for(const {edge} of this.astEdges) edge.visible=true;
+    this.clearGhosts();this.constructionFlights.visible=false;
+    for(const tile of this.parseTokens) tile.group.visible=true;
+    const executionLine=event?.kind==='opcode'&&!terminal?event.line:null;
+    this.highlightArtifacts(executionLine);
     this.replaySource=event?.kind==='opcode'&&!terminal?event.line:null;
     this.replayTile=event?.kind==='opcode'&&!terminal?this.instructionTiles.get(`${event.code}:${event.offset}`):null;
     if(!this.revealStart) this.highlightSource(this.replaySource,this.replayTile?.position);
@@ -361,6 +425,133 @@ export class Factory {
       if(!element.hidden) placed.push(r);
     }
   }
+  buildFrontEnd(tokens,ast) {
+    const e=this.extent;
+    this.parseTokens=[];this.astTiles=[];this.astGroup=new THREE.Group();this.world.add(this.astGroup);
+    box(this.world,e.tokenX,.08,0,14,.15,e.tokenDepth,0x1b2930);
+    box(this.world,e.astX,.08,0,e.astWidth,.15,e.astDepth,0x282132);
+    this.annotate('02 / TOKENS · tokenizer',new THREE.Vector3(e.tokenX,.7,-e.tokenDepth/2-1),'enclosure');
+    this.annotate('03 / AST · PEG parser',new THREE.Vector3(e.astX,.7,-e.astDepth/2-1),'enclosure');
+    for(const [from,to] of [[e.sourceX+e.sourceWidth/2,e.tokenX-7],[e.tokenX+7,e.astX-e.astWidth/2],[e.astX+e.astWidth/2,e.serviceX-2]]) {
+      this.world.add(new THREE.ArrowHelper(new THREE.Vector3(1,0,0),new THREE.Vector3(from,.35,0),Math.max(.2,to-from),0x89adbd,.5,.35));
+    }
+    tokens.forEach((event,i)=>{
+      const group=new THREE.Group();group.position.set(e.tokenX+(i%4-1.5)*3.4,0,-e.tokenDepth/2+1+Math.floor(i/4)*1.2);this.world.add(group);
+      const body=box(group,0,.3,0,3.15,.45,1,0x31404b);
+      const paint=opcodeTile(group,3.05,.9,.54,{offset:event.cursor,opname:event.token,argrepr:event.text,arg:null},this.renderer.capabilities.getMaxAnisotropy());paint(false);
+      this.parseTokens.push({group,body,paint,event});
+    });
+    const positions=new Map();this.astEdges=[];
+    const treePositions=new Map(this.astLayout.nodes.map(n=>[n.id,n]));
+    ast.forEach((node,i)=>{
+      const tree=treePositions.get(node.id);
+      const pos=new THREE.Vector3(e.astX+tree.x,.4,tree.z);positions.set(node.id,pos);
+      const group=new THREE.Group();group.position.copy(pos);this.astGroup.add(group);
+      const body=box(group,0,0,0,2.5,.4,1.2,0x3e354e);
+      const paint=opcodeTile(group,2.4,1.1,.22,{offset:node.id,opname:node.kind,argrepr:[node.label,node.operator].filter(Boolean).join(' · '),arg:null},this.renderer.capabilities.getMaxAnisotropy());paint(false);
+      this.astTiles.push({node,group,body,paint});
+      if(node.parent!==null) {
+        const parent=positions.get(node.parent).clone();parent.z+=.6;parent.y=.22;
+        const end=pos.clone();end.z-=.6;end.y=.22;
+        const middle=(parent.z+end.z)/2;
+        const edge=new THREE.Line(new THREE.BufferGeometry().setFromPoints([parent,new THREE.Vector3(parent.x,.22,middle),new THREE.Vector3(end.x,.22,middle),end]),new THREE.LineBasicMaterial({color:0xa08db6}));
+        this.astGroup.add(edge);this.astEdges.push({edge,parent:node.parent,child:node.id});
+      }
+    });
+    this.constructionFlights=new THREE.Group();this.world.add(this.constructionFlights);this.lastConstruction=null;
+    this.ghosts=new THREE.Group();this.world.add(this.ghosts);this.host.dataset.ghostCount='0';
+    this.parseRulePaint=label(this.world,e.astX,.4,-e.astDepth/2-2,9,.8,['PEG → AST']);
+    this.host.dataset.parseTokens=String(tokens.length);this.host.dataset.astNodes=String(ast.length);
+    this.host.dataset.pipeline=JSON.stringify({source:e.sourceX,tokens:e.tokenX,ast:e.astX,opcodes:0});
+    this.host.dataset.astVisible=String(ast.length>0);
+  }
+  clearGhosts() {
+    if(this.ghosts) release(this.ghosts);
+    this.host.dataset.ghostCount='0';this.host.dataset.ghostEvent='';
+  }
+  createGhost(event,seq) {
+    if(this.ghosts.children.length>=12) {const first=this.ghosts.children[0];release(first);this.ghosts.remove(first);}
+    const counterpart=this.astTiles.find(t=>{
+      const span=this.parsing?.events[t.node.created];
+      return t.node.kind===event.text&&span?.line===event.line&&span?.column===event.column;
+    });
+    const group=new THREE.Group();
+    if(counterpart) group.position.copy(counterpart.group.position).add(new THREE.Vector3(0,.45,0));
+    else group.position.set(this.extent.astX-this.extent.astWidth/2+1.6+(seq%2)*3,.7,-this.extent.astDepth/2+1+(seq%3)*1.6);
+    this.ghosts.add(group);
+    box(group,0,0,0,2.5,.4,1.2,0x3e354e);
+    opcodeTile(group,2.4,1.1,.22,{offset:seq,opname:event.text,argrepr:'temporary',arg:null},this.renderer.capabilities.getMaxAnisotropy())(false);
+    group.traverse(o=>{if(o.material){o.material.transparent=true;o.material.depthWrite=false;o.userData.ghostOpacity=o.isLineSegments ? .55 : o.material.map ? .6 : .25;o.material.opacity=o.userData.ghostOpacity;}});
+    group.userData.born=performance.now();group.userData.event=seq;
+    this.host.dataset.ghostCount=String(this.ghosts.children.length);this.host.dataset.ghostEvent=String(seq);
+    return group.position.clone();
+  }
+  highlightArtifacts(line) {
+    let tokenCount=0,astCount=0;
+    for(const tile of this.parseTokens) {const active=Boolean(line)&&tile.event.line===line;tile.paint(active);if(active)tokenCount++;}
+    for(const tile of this.astTiles) {const active=Boolean(line)&&tile.node.line===line;tile.paint(active);if(active)astCount++;}
+    this.host.dataset.activeTokens=String(tokenCount);this.host.dataset.activeAst=String(astCount);
+  }
+  loadParsing() {
+    this.finishConstruction();this.highlightArtifacts(null);
+    for(const node of this.nodes.values()) node.group.visible=false;
+    for(const edge of this.edges.values()) {edge.line.visible=false;edge.arrow.visible=false;}
+    this.host.dataset.phase='parsing';
+  }
+  setParsingState(frame,final) {
+    if(!this.parseTokens) return;
+    const spanTokens=new Set(tokensForConstruction(final?null:frame?.event,this.parseTokens.map(t=>t.event)));
+    for(const [i,tile] of this.parseTokens.entries()) {
+      tile.group.visible=final||i<(frame?.tokenCount || 0);
+      const active=!final&&(spanTokens.size?spanTokens.has(tile.event):tile.event.cursor===frame?.cursor)&&tile.group.visible;
+      tile.paint(active);tile.body.material.color.setHex(active?0x58743b:0x31404b);
+    }
+    const visible=new Set();
+    for(const tile of this.astTiles) {
+      tile.group.visible=final || tile.node.created!==null&&tile.node.created!==undefined&&tile.node.created<=(frame?.seq ?? -1);
+      if(tile.group.visible) visible.add(tile.node.id);
+      tile.paint(!final&&tile.node.created===frame?.seq);
+    }
+    for(const {edge,parent,child} of this.astEdges) edge.visible=visible.has(parent)&&visible.has(child);
+    this.astGroup.visible=visible.size>0;
+    this.host.dataset.visibleAst=String(visible.size);
+    if(final) this.clearGhosts();
+    const construction=!final&&frame?.event.kind===3?frame.event:null;
+    const target=this.astTiles.find(t=>t.node.id===construction?.node);
+
+    this.constructionFlights.visible=true;
+    if(this.lastConstruction!==frame?.seq) {
+      if(final||frame?.seq<this.lastConstruction) {release(this.constructionFlights);this.clearGhosts();}
+      this.lastConstruction=frame?.seq;
+      const matched=tokensForConstruction(construction,this.parseTokens.slice(0,frame?.tokenCount || 0).map(t=>t.event));
+      this.host.dataset.constructionTokens=String(matched.length);
+      this.host.dataset.constructionNode=target?String(target.node.id):'';
+      if(construction) {
+        const end=target?target.group.position:this.createGhost(construction,frame.seq);
+        for(const token of matched) {
+          if(this.constructionFlights.children.length>=512) break;
+          const from=this.parseTokens.find(t=>t.event===token).group.position.clone().add(new THREE.Vector3(0,.6,0));
+          const mid=from.clone().lerp(end,.5);mid.y=3;
+          const particle=new THREE.Mesh(new THREE.SphereGeometry(.13,6,4),new THREE.MeshBasicMaterial({color:0xc4ee89}));
+          particle.userData.start=performance.now();
+          particle.userData.path=new THREE.QuadraticBezierCurve3(from,mid,end.clone());
+          particle.visible=!this.reduced.matches;this.constructionFlights.add(particle);
+        }
+        this.flightStart=performance.now();
+      }
+    }
+    this.parserDisplay.paint(['PEG PARSER',final?'parse finished':`token ${frame?.cursor ?? 0}`]);
+    this.frameDisplay.paint(['RULE CHECKPOINTS',`${frame?.attempts.length || 0} recent levels`]);
+    this.stackLabel.element.textContent=`INDENT NESTING · ${frame?.indent || 0} · token-derived`;
+    this.stackPaint(['INDENT / DEDENT']);this.stackTop.element.textContent='';
+    this.stackSlots.forEach((slot,i)=>{slot.group.visible=i<Math.min(8,frame?.indent || 0);slot.paint([`INDENT · level ${i+1}`]);});
+    this.host.dataset.astVisible=String(this.astGroup.visible);
+    this.host.dataset.parseCursor=String(frame?.cursor ?? 0);
+    this.host.dataset.visibleTokens=String(final?this.parseTokens.length:frame?.tokenCount || 0);
+    const token=this.parseTokens.find(t=>t.event.cursor===frame?.cursor);
+    this.highlightSource(final?null:token?.event.line,final?null:token?.group.position);
+    this.parseRulePaint([final?'AST · completed parse result':`PEG · token ${frame?.cursor ?? 0}`,final?'':frame?.attempts.at(-1)?.slice(0,70) || 'Tokenizer']);
+  }
   highlightSource(line,target) {
     const signature=`${line}:${target?.x}:${target?.z}`;
     if(signature===this.sourceHighlight) return;
@@ -371,21 +562,49 @@ export class Factory {
     }
     const source=this.sourceTiles.find(t=>t.line===line);
     this.host.dataset.activeSource=source?String(line):'';
-    if(this.link) {
-      this.link.visible=Boolean(source&&target);
-      if(this.link.visible) {
-        const start=source.group.position.clone().add(new THREE.Vector3(4.1,.5,0));
-        const mid=start.clone().lerp(target,.5);mid.y=3;
-        const curve=new THREE.QuadraticBezierCurve3(start,mid,target);
-        this.link.geometry.dispose();this.link.geometry=new THREE.BufferGeometry().setFromPoints(curve.getPoints(24));this.link.computeLineDistances();
+    if(!this.link) return;
+    release(this.link);
+    const counts={sourceToken:0,tokenAst:0,astOpcode:0};
+    const connect=(from,to,color,stage,active=false)=>{
+      const mid=from.clone().lerp(to,.5);mid.y=active?2:1.3;
+      const path=new THREE.QuadraticBezierCurve3(from,mid,to);
+      const link=new THREE.Line(new THREE.BufferGeometry().setFromPoints(path.getPoints(20)),new THREE.LineDashedMaterial({color,dashSize:.2,gapSize:.13,transparent:true,opacity:active?1:.55}));
+      link.computeLineDistances();this.link.add(link);counts[stage]++;
+    };
+    const selected=[...this.instructionTiles.values()].find(t=>t.position===target);
+    const tokens=this.parseTokens.filter(t=>t.event.line===line&&t.group.visible);
+    if(source&&target) for(const token of tokens) connect(source.group.position.clone().add(new THREE.Vector3(4.1,.5,0)),token.group.position.clone().add(new THREE.Vector3(0,.7,0)),0x91c8dd,'sourceToken');
+    if(selected) {
+      const assignments=[];
+      for(const tile of this.instructionTiles.values()) if(tile.code===selected.code&&tile.instruction.line===line) {
+        const node=instructionAst(tile.instruction,this.parsing?.ast || [],this.parsing?.events || []);
+        if(node) assignments.push({tile,node});
+      }
+      for(const id of new Set(assignments.map(a=>a.node.id))) {
+        const ast=this.astTiles.find(t=>t.node.id===id);
+        const span=this.parsing.events[ast.node.created];
+        const matched=new Set(tokensForConstruction(span,tokens.map(t=>t.event)));
+        for(const token of tokens) if(matched.has(token.event)) connect(token.group.position.clone().add(new THREE.Vector3(0,.7,0)),ast.group.position.clone().add(new THREE.Vector3(0,.4,0)),0xc6a5e9,'tokenAst');
+      }
+      for(const {tile,node} of assignments) {
+        const ast=this.astTiles.find(t=>t.node.id===node.id);
+        connect(ast.group.position.clone().add(new THREE.Vector3(0,.4,0)),tile.position, tile===selected?0xd4f7a1:0x91ac7d,'astOpcode',tile===selected);
       }
     }
+    this.host.dataset.pipelineLinks=JSON.stringify(counts);
   }
+
   finishConstruction() {
     this.revealStart=0;
     for(const tile of this.revealTiles || []) { tile.group.visible=true;tile.group.scale.y=1; }
     this.host.dataset.revealedOpcodes=String(this.revealTiles?.length || 0);
     this.host.dataset.phase=this.graph?'replay':'source';
+    for(const tile of this.parseTokens || []) tile.group.visible=true;
+    if(this.astGroup) this.astGroup.visible=Boolean(this.astTiles.length);
+    for(const tile of this.astTiles || []) tile.group.visible=true;
+    for(const {edge} of this.astEdges || []) edge.visible=true;
+    this.clearGhosts();
+    this.highlightArtifacts(this.replaySource);
     this.highlightSource(this.replaySource,this.replayTile?.position);
   }
   focusSource() {
@@ -440,5 +659,5 @@ export class Factory {
     const span=Math.max(size.depth+1.2,(size.width+1.4)/aspect);
     this.camera.zoom=THREE.MathUtils.clamp(this.viewSize/span,1,12); this.camera.updateProjectionMatrix(); this.controls.update();
   }
-  dispose() { this.resizeObserver.disconnect(); this.renderer.setAnimationLoop(null); this.controls.dispose(); release(this.world); this.renderer.dispose(); this.renderer.domElement.remove(); this.labels.remove(); this.opcodePanel.remove(); }
+  dispose() { for(const [name,handler] of [['gesturestart',this.gestureStart],['gesturechange',this.gestureChange],['gestureend',this.gestureEnd]]) this.renderer.domElement.removeEventListener(name,handler,true); this.renderer.domElement.removeEventListener('wheel',this.wheelPan,true); this.minimap?.dispose(); this.resizeObserver.disconnect(); this.renderer.setAnimationLoop(null); this.controls.dispose(); release(this.world); this.renderer.dispose(); this.renderer.domElement.remove(); this.labels.remove(); this.opcodePanel.remove(); }
 }

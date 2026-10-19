@@ -1,16 +1,20 @@
 // Each capture gets a new worker and a new interpreter instance.
 self.onmessage = async ({ data }) => {
   try {
+    const manifest = await fetch('./vendor/runtime.json', { cache: 'no-store' }).then(check).then(r => r.json());
+    if (!/^[a-f0-9]{64}$/.test(manifest.version)) throw new Error('Invalid runtime manifest. Run tools/package_web.py again.');
+    const asset = name => new URL(`./vendor/${name}?build=${manifest.version}`, import.meta.url).href;
     const [{ default: createModule }, stdlib, capture] = await Promise.all([
-      import("./vendor/python.mjs"),
-      fetch("./vendor/python3.16.zip").then(check).then(r => r.arrayBuffer()),
-      fetch("./vendor/capture.py").then(check).then(r => r.text()),
+      import(asset("python.mjs")),
+      fetch(asset("python3.16.zip")).then(check).then(r => r.arrayBuffer()),
+      fetch(asset("capture.py")).then(check).then(r => r.text()),
     ]);
     const lines = [], errors = [];
     let finish;
     const exited = new Promise(resolve => { finish = resolve; });
     const runtime = await createModule({
       noInitialRun: true,
+      locateFile: name => asset(name),
       onExit: code => finish(code),
       print: text => lines.push(text),
       printErr: text => errors.push(text),

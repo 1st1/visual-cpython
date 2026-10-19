@@ -1,8 +1,10 @@
+import {astTreeLayout} from './ast-tree.mjs';
 import { instructionGrid } from './opcodes.mjs';
 // Runtime CFG derived from assembled bytecode, not the compiler's internal CFG.
 export function extractGraph(recording) {
   if (recording.schema !== 2) throw new Error('Unsupported capture schema; run a fresh capture.');
-  const graph = { schema: 1, sourceLineCount: recording.source.split('\n').length, codes: [], blocks: [], edges: [], locations: {}, diagnostics: [] };
+  const tree=astTreeLayout(recording.parsing?.ast);
+  const graph = { schema: 1, pipeline: {astWidth:tree.width,astDepth:tree.depth,tokenCount:recording.parsing?.events.filter(e=>e.kind===2).length || 0,astCount:recording.parsing?.ast?.length || 0}, sourceLineCount: recording.source.split('\n').length, codes: [], blocks: [], edges: [], locations: {}, diagnostics: [] };
   for (const code of recording.codes) {
     const instructions = code.instructions;
     if (!instructions.length) continue;

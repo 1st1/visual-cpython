@@ -91,3 +91,7 @@ and code objects are larger enclosures. Use **Focus opcode** for an overhead
 reading view, or the **Opcodes** panel for full instruction text. Clicking a
 visited opcode seeks its next recorded occurrence. Select **Shortest path ·
 breadth-first search** for a complete queue-and-dictionary graph-search example.
+
+The **Parsing** view replays real C tokenizer and PEG checkpoints from the instrumented runtime, including token acquisition, cursor rewinds, indentation nesting, and the resulting AST. Run `npm run test:parsing` for its headless Chrome checks. Rebuild both native and WASM runtimes and run `python3 tools/package_web.py` after changing the parser hooks.
+
+AST trees grow at captured C constructor checkpoints. Token-span flights distinguish retained nodes from constructions absent in the final tree. The bottom minimap supports click/drag navigation and left/right panning.

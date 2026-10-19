@@ -1,4 +1,5 @@
 import { extractGraph, projectReplay } from './graph.mjs';
+import { ParsingReplay } from './parsing.mjs';
 import { Factory } from './factory.mjs';
 import { instructionText } from './opcodes.mjs';
 const $ = id => document.getElementById(id);
@@ -11,6 +12,7 @@ const examples = {
 };
 let worker, timer, playback, recording, index = 0, generation = 0;
 let layoutWorker, layoutTimer, graph, mapStates = [], selectedBlock, zoom = 1;
+let parsingReplay, parsingMode=false, lastLayout;
 let factory, viewMode = '3d', layoutAspect, resizeTimer;
 const windowAspect=()=>window.innerWidth/Math.max(1,window.innerHeight);
 $('source').value = examples.accumulate;
@@ -32,13 +34,14 @@ function stopWorker() { generation++; clearTimeout(timer); worker?.terminate(); 
 function fail(message) { stopWorker(); $('state').textContent = 'Stopped'; $('message').textContent = message; }
 $('cancel').onclick = () => fail('Capture cancelled. Run again to start a fresh interpreter.');
 $('run').onclick = () => {
+  parsingReplay?.stop();parsingMode=false;setParsingUI(false);$('view-parsing').disabled=true;lastLayout=null;
   layoutWorker?.terminate(); clearTimeout(layoutTimer); graph = null; mapStates = []; selectedBlock = null;
   factory?.load(null,null,[],$('source').value); $('block-select').replaceChildren(new Option('Select a building or block…',''));
   $('map').replaceChildren(); $('map-status').textContent = 'Waiting for capture'; $('block-detail').textContent = '';
   stopPlayback(); stopWorker(); recording = null; render();
   $('message').textContent = '';
   $('run').disabled = true; $('cancel').disabled = false; $('state').textContent = 'Loading WASM';
-  worker = new Worker('./worker.mjs', { type: 'module' });
+  worker = new Worker('./worker.mjs?loader=2', { type: 'module' });
   const runGeneration = generation;
   timer = setTimeout(() => fail('Runtime loading exceeded 60 seconds.'), 60000);
   worker.onerror = e => { if (generation === runGeneration) fail(e.message); };
@@ -52,6 +55,8 @@ $('run').onclick = () => {
       $('state').textContent = recording.status;
       $('message').textContent = recording.error || '';
       $('provenance').textContent = `CPython ${recording.provenance.python.split(' ')[0]} · ${recording.provenance.revision.slice(0, 8)}`;
+      factory?.load(null,null,[],recording.source,recording.parsing);
+      $('view-parsing').disabled=!factory||!recording.parsing;
       render();
       buildMap();
     } else if (data.type === 'error') fail(data.message);
@@ -133,8 +138,11 @@ function buildMap(relayout=false) {
       svg.setAttribute('aria-label', 'Program control-flow map');
       svg.removeAttribute('width'); svg.removeAttribute('height');
       $('map').replaceChildren(document.importNode(svg, true)); zoom = 1; setZoom();
-      factory?.load(data.layout,graph,recording.events,recording.source);
-      if(relayout) factory?.finishConstruction();
+      lastLayout=data.layout;
+      factory?.load(data.layout,graph,recording.events,recording.source,recording.parsing);
+      if(parsingMode) {factory?.loadParsing();parsingReplay.render();}
+      if(relayout&&!parsingMode) factory?.finishConstruction();
+      if(relayout&&parsingMode) factory?.view('iso');
       $('factory').dataset.layoutAspect=String(data.layout.placement.targetAspect);
       $('block-select').replaceChildren(new Option('Select a building or block…',''), ...graph.blocks.map(b=>new Option(`${b.id} · ${b.instructions.at(-1).opname}`,b.id)));
       $('block-select').value=selectedBlock || '';
@@ -168,7 +176,7 @@ $('visit-block').onclick = () => {
 };
 function renderMapState() {
   const state = mapStates[Math.min(index, mapStates.length - 1)];
-  factory?.setState(state,recording?.events[Math.min(index,mapStates.length-1)],selectedBlock,index===mapStates.length);
+  if(!parsingMode) factory?.setState(state,recording?.events[Math.min(index,mapStates.length-1)],selectedBlock,index===mapStates.length);
   $('map').querySelectorAll('.executing,.traversed,.selected').forEach(n => n.classList.remove('executing', 'traversed', 'selected'));
   if (state) {
     document.getElementById(state.block)?.classList.add('executing');
@@ -185,6 +193,7 @@ function renderMapState() {
 
 function selectBlock(id) { selectedBlock=id; $('block-select').value=id; renderMapState(); }
 function changeView(mode) {
+  if(mode==='map'&&parsingMode) showExecution();
   viewMode=mode; $('factory').hidden=mode!=='3d'; $('map').hidden=mode!=='map'; $('scene-hint').hidden=mode!=='3d';
   $('view-3d').setAttribute('aria-pressed',String(mode==='3d')); $('view-map').setAttribute('aria-pressed',String(mode==='map'));
   for(const id of ['camera-iso','camera-top','finish-build','focus-block','focus-stack','focus-source','show-opcodes']) $(id).disabled=mode!=='3d';
@@ -214,7 +223,7 @@ for(const name of ['editor','inspector']) $('toggle-'+name).onclick=()=>{
   const panel=$(name+'-panel'); panel.hidden=!panel.hidden;
   $('toggle-'+name).setAttribute('aria-expanded',String(!panel.hidden));
 };
-try { factory=new Factory($('factory'),selectBlock,seekInstruction); previewSource(); }
+try { factory=new Factory($('factory'),selectBlock,seekInstruction); parsingReplay=new ParsingReplay(factory); previewSource(); }
 catch(error) { $('scene-hint').textContent=`3D unavailable: ${error.message}. The schematic is available.`; changeView('map'); $('view-3d').disabled=true; $('message').textContent='3D graphics unavailable; using the schematic.'; }
 window.addEventListener('pagehide',event=>{ if(!event.persisted) factory?.dispose(); });
 
@@ -225,3 +234,22 @@ window.addEventListener('resize',()=>{
     else if(!recording&&!worker) factory?.view('iso');
   },250);
 });
+
+function setParsingUI(active) {
+  $('parse-panel').hidden=!active;
+  $('map-status').hidden=active;$('scene-hint').hidden=active||viewMode!=='3d';
+  for(const id of ['finish-build','show-opcodes']) $(id).disabled=active||viewMode!=='3d';
+  document.querySelector('.transport').hidden=active;
+  $('view-parsing').setAttribute('aria-pressed',String(active));
+  $('view-execution').setAttribute('aria-pressed',String(!active));
+  factory?.showOpcodes(!active&&$('show-opcodes').getAttribute('aria-pressed')==='true');
+}
+function showExecution() {
+  parsingReplay?.stop();parsingMode=false;setParsingUI(false);
+  if(!recording) factory?.load(null,null,[],$('source').value);
+  factory?.finishConstruction();renderMapState();
+}
+$('view-execution').onclick=showExecution;
+$('view-parsing').onclick=()=>{
+  stopPlayback();changeView('3d');parsingMode=true;setParsingUI(true);parsingReplay.load(recording);
+};

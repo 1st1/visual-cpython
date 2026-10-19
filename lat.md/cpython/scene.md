@@ -18,9 +18,9 @@ Graphviz's baseline routes still lack semantic ports, verified obstacle clearanc
 
 The layout worker compares the original top-down arrangement with compact top-down and left-to-right alternatives. It fits the current window aspect ratio, then freezes geometry for playback.
 
-[web/placement.mjs](../../web/placement.mjs) owns candidate scoring and the shared factory footprint. The score estimates the viewport area needed at the current window width-to-height ratio, includes source tiles and runtime infrastructure, and uses projected area and route length as secondary costs. It matches the landscape camera orientation. This is a readability heuristic, not a globally optimal routing claim. The selected options and all candidate scores, ground areas, and route lengths are retained in the layout artifact. Both schematic and 3D use the winning Graphviz output. The browser passes its window aspect to the layout worker; non-browser callers default to 1.8. Layout chooses the best-fitting candidate without stretching tiles to force an exact ratio.
+[web/placement.mjs](../../web/placement.mjs) owns candidate scoring and the shared factory footprint. The score estimates the viewport area needed at the current window width-to-height ratio, includes source, token, and AST lanes plus runtime infrastructure, and uses projected area and route length as secondary costs. It matches the landscape camera orientation. This is a readability heuristic, not a globally optimal routing claim. The selected options and all candidate scores, ground areas, and route lengths are retained in the layout artifact. Both schematic and 3D use the winning Graphviz output. The browser passes its window aspect to the layout worker; non-browser callers default to 1.8. Layout chooses the best-fitting candidate without stretching tiles to force an exact ratio.
 
-Parser/compiler landmarks sit behind the program. Evaluator and frames share a compact side strip with a reserved stack rack. Ground size follows the program bounds with a smaller minimum plot; the previous long row of five machines no longer determines the map depth. [web/graph.mjs](../../web/graph.mjs) supplies the compact block dimensions and wraps long operation labels to keep text inside them.
+Tokenizer and PEG landmarks sit above their artifact lanes; the compiler sits beside the opcode area. Evaluator and frames share a compact side strip with a reserved stack rack. Ground size follows the program bounds with a smaller minimum plot; the previous long row of five machines no longer determines the map depth. [web/graph.mjs](../../web/graph.mjs) supplies the compact block dimensions and wraps long operation labels to keep text inside them.
 
 ## Operand-stack rack
 
@@ -34,9 +34,11 @@ The top slot is highlighted and labeled in screen space as well as on its tile. 
 
 ## Runtime activity and construction
 
-The map has a parser, compiler, evaluator, frames display, and operand-stack rack beside the generated program. Only runtime indicators respond to recorded execution; parser/compiler buildings are explanatory landmarks.
+The map has a parser, compiler, evaluator, frames display, and operand-stack rack beside the generated program. Only runtime indicators respond to recorded execution; parser/compiler buildings are explanatory landmarks in execution mode.
 
-Before a capture, source-line tiles appear beside the landmarks and empty opcode plot. Once the complete layout arrives, individual opcode tiles rise in source-line order, with the corresponding source tile highlighted. This skippable reveal stages already compiled artifacts; it is not a recording of parser/compiler timing or intermediate AST construction. Starting another run clears the prior opcode program immediately and retains the submitted source tiles.
+The [[parsing]] timeline on the shared map drives parser indicators from real capture checkpoints.
+
+Before a capture, source-line tiles appear beside the landmarks and empty opcode plot. Once the complete layout arrives, the staged reveal replays observed token and AST-construction checkpoints, then reveals individual opcode tiles in source-line order. This skippable reveal stages already compiled artifacts; it is not a recording of parser/compiler timing or intermediate AST construction. Starting another run clears the prior opcode program immediately and retains the submitted source tiles.
 
 [web/factory.mjs](../../web/factory.mjs) colors the active opcode tile, its containing tray, and the incoming recorded connection, distinguishes exception/unwind events, and updates evaluator, frame-count, and the operand-stack rack from the same event used by the inspector. Function activations reuse their code-object buildings. Detailed locals, operand values, output, and terminating frame chains remain in the inspector.
 
@@ -44,21 +46,31 @@ A brief pulse follows an observed incoming edge when event selection changes. It
 
 ## Source quadrant and fullscreen workspace
 
-The 3D world fills the viewport. Source and opcode quadrants share one map, with collapsible editor and inspector overlays, persistent camera controls, and a bottom replay transport.
+The 3D world fills the viewport. Source, token, PEG/AST, and opcode lanes share one map, with collapsible editor and inspector overlays, persistent camera controls, and a bottom replay transport.
 
 [web/app.mjs](../../web/app.mjs) previews editor changes before a recording exists. During and after capture, the world retains the submitted source; subsequent edits take effect on the next run. Each physical source line, including blank and comment lines, gets a tile. Columns contain at most 24 lines. Long tile text is ellipsized; the editor and source inspector retain the complete text.
 
-[web/factory.mjs](../../web/factory.mjs) highlights the recorded source line together with the exact opcode, joining them with a dashed correspondence arc. The arc is a source-location relationship, not control flow or an observed data transfer. Missing source locations and non-opcode events have no execution-line highlight. Rewind restores both highlights; source and opcode geometry remain fixed. The Source quadrant camera preset provides an overhead reading view.
+[web/factory.mjs](../../web/factory.mjs) highlights the recorded source line together with the exact opcode, connecting source → tokens → AST → opcodes with dashed fan-out and convergence links. These links represent source-location relationships, not control flow or observed compiler data transfers. Missing source locations and non-opcode events have no execution-line highlight. Rewind restores both highlights; source and opcode geometry remain fixed. The Source quadrant camera preset provides an overhead reading view.
 
-[web/placement.mjs](../../web/placement.mjs) shares source-quadrant dimensions between scene construction and candidate scoring. Source-line count is part of the derived graph. Window resizing debounces a fresh layout selection and camera fit; replay position, output, and selected block survive, and the compilation reveal does not restart. Resizing does not rerun Python. The initial opcode reveal illustrates completed compilation, not live parsing; reduced motion or advancing replay immediately reveals all instructions.
+[web/placement.mjs](../../web/placement.mjs) shares source-quadrant dimensions between scene construction and candidate scoring. Source-line, token, and AST-node counts are part of the derived graph. Window resizing debounces a fresh layout selection and camera fit; replay position, output, and selected block survive, and the compilation reveal does not restart. Resizing does not rerun Python. The initial opcode reveal illustrates completed compilation, not live parsing; reduced motion or advancing replay immediately reveals all instructions.
 
 ## Camera and selection
 
-An orthographic camera supports isometric and top presets, orbit, pan, zoom, fit, and focus. Building selection and the accessible block menu share the existing instruction inspector and recorded-visit navigation.
+An orthographic camera supports isometric and top presets, orbit, pan, zoom, fit, and focus. Trackpad scrolling pans; pinch gestures zoom.
 
-[web/app.mjs](../../web/app.mjs) switches between 3D and schematic without recapturing Python or recomputing layout. Pointer raycasts select buildings; the block menu offers keyboard access. Screen-aligned labels identify machines, enclosures, and the active block, hiding collisions rather than overlapping text. Focus opcode centers the current instruction (or the first instruction of a selected tray) in an overhead reading view.
+Building selection and the accessible block menu share the existing instruction inspector and recorded-visit navigation.
+
+[web/app.mjs](../../web/app.mjs) switches between 3D and schematic without recapturing Python or recomputing layout. Ordinary wheel events pan in both screen axes, with line/page delta normalization and Shift-wheel horizontal panning. Ctrl-wheel pinch events zoom the camera directly and cancel browser defaults. Safari gesturestart/change/end events use relative gesture scale, also cancelling page magnification; duplicate Ctrl-wheel input during those gestures is ignored. Middle-drag pans, and touchscreen two-finger pan/pinch remains available. Toolbar zoom buttons remain explicit controls. The root document cannot scroll, and overlay scroll containers contain overscroll to prevent gestures from moving the page frame. Browser tests exercise ordinary wheel input and synthetic Safari gesture events, checking cancellation, camera zoom, and unchanged overlay bounds.
+
+Pointer raycasts select buildings; the block menu offers keyboard access. Screen-aligned labels identify machines, enclosures, and the active block, hiding collisions rather than overlapping text. Focus opcode centers the current instruction (or the first instruction of a selected tray) in an overhead reading view.
 
 [web/factory.mjs](../../web/factory.mjs) caps pixel ratio, resizes the renderer with its container, disposes old geometries/materials/textures on replacement, and pauses scene updates when hidden. If WebGL initialization fails, the workbench selects the schematic; runtime capture remains available. A lost graphics context displays a message directing the user to the schematic or reload.
+
+## Minimap navigation
+
+A bottom minimap shows the four pipeline regions, the camera target, and the projected viewport footprint. Clicking or dragging recenters the camera without changing zoom or replay state.
+
+[web/minimap.mjs](../../web/minimap.mjs) translates camera and orbit target together on the ground plane. Left/right buttons and arrow keys on the focused minimap pan along the pipeline. The footprint updates during orbit, zoom, focus, and resize. [tools/test_factory.mjs](../../tools/test_factory.mjs) checks pointer navigation and button/keyboard panning.
 
 ## Opcode tiles and inspection
 
@@ -82,6 +94,6 @@ The example selector includes a complete breadth-first search over a small unwei
 
 Geometry tests verify stable IDs, finite route coordinates, matching node/enclosure counts, and route endpoints at target bounds. Headless Chrome exercises actual WebGL rendering and the fallback path.
 
-[tools/test_graph.mjs](../../tools/test_graph.mjs) validates normalized geometry across the existing semantic fixtures, deterministic candidate selection, and a score no worse than the original candidate. [tools/test_factory.mjs](../../tools/test_factory.mjs) verifies idle infrastructure, capture-driven buildings, rewind, block-menu selection, ray picking, camera controls, view switching, clearing after syntax errors, observed addition operands/results, stack rewind, NULL versus None, bounded stack overflow, reduced motion, mobile overflow, and capture with WebGL disabled. Opcode checks cover one tile per decoded instruction, decoded operands, exact highlights, seeking, and the shortest-path output. Fullscreen checks cover viewport coverage, editor toggling, source preview with blank/comment lines, tandem source highlights, complete reveal, and clearing highlights at the terminal position. The shortest-path layout regression checks different selections for portrait and wide windows. Browser coverage verifies resize-driven layout uses the actual window ratio while retaining replay position and output. It saves screenshots for visual review.
+[tools/test_graph.mjs](../../tools/test_graph.mjs) validates normalized geometry across the existing semantic fixtures, deterministic candidate selection, and a score no worse than the original candidate. [tools/test_factory.mjs](../../tools/test_factory.mjs) verifies idle infrastructure, capture-driven buildings, rewind, block-menu selection, ray picking, camera controls, view switching, clearing after syntax errors, observed addition operands/results, stack rewind, NULL versus None, bounded stack overflow, reduced motion, mobile overflow, and capture with WebGL disabled. Opcode checks cover one tile per decoded instruction, decoded operands, exact highlights, seeking, and the shortest-path output. Fullscreen checks cover viewport coverage, editor toggling, source preview with blank/comment lines, ordered pipeline lanes, tandem source/token/AST/opcode highlights, complete reveal, and clearing highlights at the terminal position. The shortest-path layout regression checks different selections for portrait and wide windows. Browser coverage verifies resize-driven layout uses the actual window ratio while retaining replay position and output. It saves screenshots for visual review.
 
 [tools/package_web.py](../../tools/package_web.py) stages the pinned Three.js module, core, OrbitControls, and license from npm beside the other local browser assets. No CDN dependency is required. The existing schematic browser tests remain separate from the new scene checks.

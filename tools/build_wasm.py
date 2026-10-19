@@ -5,6 +5,8 @@ import subprocess
 import tarfile
 from pathlib import Path
 
+from instrument_parser import instrument
+
 ROOT = Path(__file__).resolve().parents[1]
 
 
@@ -24,6 +26,7 @@ def build():
         (source / ".factory-revision").write_text(revision)
     if (source / ".factory-revision").read_text() != revision:
         raise SystemExit("WASM source revision mismatch")
+    instrument(source)
     shutil.copy2(ROOT / "runtime/probe.c", source / "Modules/_factory_probe.c")
     output = ROOT / ".build/wasm"
     output.mkdir(exist_ok=True)

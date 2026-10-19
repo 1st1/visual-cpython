@@ -46,7 +46,78 @@ snapshot(PyObject *self, PyObject *arg)
     return result;
 }
 
+
+/* Fixed-size C records avoid allocating Python objects while parsing. */
+#include <stdarg.h>
+#define PARSE_LIMIT 24000
+int _FactoryParserEnabled = 0;
+typedef struct {
+    int kind, depth, cursor, end, line, column, end_line, end_column;
+    void *ast_address; PyObject *ast_object;
+    char text[384];
+} ParseEvent;
+static ParseEvent parse_events[PARSE_LIMIT];
+static int parse_count, parse_dropped;
+static ParseEvent *new_parse_event(int kind) {
+    if (!_FactoryParserEnabled) return NULL;
+    if (parse_count == PARSE_LIMIT) { parse_dropped++; return NULL; }
+    ParseEvent *e = &parse_events[parse_count++];
+    memset(e, 0, sizeof(*e)); e->kind = kind; return e;
+}
+void _FactoryParserLog(int depth, int cursor, int fill, const char *format, ...) {
+    ParseEvent *e = new_parse_event(0); if (!e) return;
+    e->depth=depth; e->cursor=cursor; e->end=fill;
+    va_list args; va_start(args, format); vsnprintf(e->text, sizeof(e->text), format, args); va_end(args);
+}
+void _FactoryParserRewind(int depth, int from, int to) {
+    if (from == to) return;
+    ParseEvent *e = new_parse_event(1); if (!e) return;
+    e->depth=depth; e->cursor=from; e->end=to;
+}
+void _FactoryParserToken(int index, int type, int line, int column, const char *text, int length) {
+    ParseEvent *e = new_parse_event(2); if (!e) return;
+    e->cursor=index; e->end=type; e->line=line; e->column=column;
+    snprintf(e->text,sizeof(e->text),"%.*s",length,text);
+}
+void _FactoryAstCreated(void *address, const char *kind, int line, int column, int end_line, int end_column) {
+    ParseEvent *e = new_parse_event(3); if (!e) return;
+    e->ast_address=address; e->line=line; e->column=column;
+    e->end_line=end_line; e->end_column=end_column;
+    snprintf(e->text,sizeof(e->text),"%s",kind);
+}
+void _FactoryAstBind(void *address, PyObject *object) {
+    if (!_FactoryParserEnabled) return;
+    for (int i=parse_count-1;i>=0;i--) if(parse_events[i].kind==3 && parse_events[i].ast_address==address) {
+        parse_events[i].ast_object=object; return;
+    }
+}
+static PyObject *ast_id(PyObject *self, PyObject *object) {
+    for (int i=parse_count-1;i>=0;i--) if(parse_events[i].kind==3 && parse_events[i].ast_object==object) return PyLong_FromLong(i);
+    Py_RETURN_NONE;
+}
+static PyObject *parse_begin(PyObject *self, PyObject *unused) {
+    parse_count=0; parse_dropped=0; _FactoryParserEnabled=1; Py_RETURN_NONE;
+}
+static PyObject *parse_end(PyObject *self, PyObject *unused) {
+    _FactoryParserEnabled=0;
+    PyObject *events=PyList_New(parse_count); if (!events) return NULL;
+    for (int i=0;i<parse_count;i++) {
+        ParseEvent *e=&parse_events[i];
+        PyObject *text=PyUnicode_DecodeUTF8(e->text,strlen(e->text),"replace");
+        if (!text) { Py_DECREF(events); return NULL; }
+        PyObject *item=Py_BuildValue("{s:i,s:i,s:i,s:i,s:i,s:i,s:i,s:i,s:O}",
+            "kind",e->kind,"depth",e->depth,"cursor",e->cursor,"end",e->end,
+            "line",e->line,"column",e->column,"end_line",e->end_line,"end_column",e->end_column,"text",text);
+        Py_DECREF(text);
+        if (!item) { Py_DECREF(events); return NULL; } PyList_SET_ITEM(events,i,item);
+    }
+    return Py_BuildValue("{s:N,s:i}","events",events,"dropped",parse_dropped);
+}
+
 static PyMethodDef methods[] = {
+    {"ast_id", ast_id, METH_O, "Match a converted AST object to its captured C construction event."},
+    {"parse_begin", parse_begin, METH_NOARGS, "Start bounded parser observation."},
+    {"parse_end", parse_end, METH_NOARGS, "Stop parser observation and return records."},
     {"snapshot", snapshot, METH_O, "Read a synchronized frame's operand stack, bottom first."},
     {NULL, NULL, 0, NULL}
 };

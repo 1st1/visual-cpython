@@ -30,6 +30,8 @@ The diagnostic UI exposes editing, capture, source/instruction selection, locals
 
 [web/worker.mjs](../../web/worker.mjs) loads the generated Emscripten runtime, standard-library archive, and capture driver. Each run gets a new worker and interpreter. The worker writes source into its virtual filesystem, executes capture, and sends a serializable recording to the UI. The hosting server serves static files only.
 
+[[tools/package_web.py#package]] publishes a content-hashed runtime manifest after staging the runtime, WASM binary, standard library, and capture driver. The worker fetches this manifest without caching and uses its build identifier on all four asset URLs, including Emscripten’s WASM lookup. Rebuilt parser probes therefore cannot silently reuse the previous build’s cached binary.
+
 With browser WebAssembly JSPI support, CPython completes asynchronously: the worker waits for the runtime exit callback before parsing captured output. Synchronous runtimes use the immediate exit code. The pinned build enables dynamic linking because CPython's JSPI initialization requires Emscripten's symbol resolver.
 
 [web/app.mjs](../../web/app.mjs) applies separate runtime-loading and execution deadlines and terminates discarded workers. Play, step, rewind, and seek select recorded snapshots rather than re-executing Python. Output at each event reflects captured output at that time; the terminal position shows final output/status. A wall-clock timeout discards the unfinished capture.
