@@ -3,6 +3,7 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "test:memory": "node tools/test_memory.mjs",
     "test:factory": "node tools/test_factory.mjs",
     "test:graph": "node tools/test_graph.mjs",
     "test:browser": "node tools/test_browser.mjs",

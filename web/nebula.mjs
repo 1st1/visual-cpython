@@ -23,10 +23,12 @@ export function nebulaTexture() {
     const dust=Math.pow(noise(nx*2.3+warp,ny*2.3),3);
     const glow=(filament*band*.85+core*.38)*(1-dust*.85);
     const blue=cloud(nx+41,ny+23)*band;
+    const warm=Math.max(0,Math.min(1,(noise(nx*.55+73,ny*.55+9)-.35)*2.3));
+    const rose=core*.12*(1-dust);
     const i=(y*canvas.width+x)*4;
-    pixels.data[i]=8+glow*160;
-    pixels.data[i+1]=10+glow*34+blue*9;
-    pixels.data[i+2]=22+glow*115+blue*27;
+    pixels.data[i]=8+glow*(65+warm*90)+rose*80;
+    pixels.data[i+1]=10+glow*(91+warm*19)+blue*8;
+    pixels.data[i+2]=20+glow*(128-warm*60)+blue*18+rose*35;
     pixels.data[i+3]=255;
   }
   ctx.putImageData(pixels,0,0);return canvas;

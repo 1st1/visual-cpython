@@ -12,9 +12,10 @@ export class Starfield {
     this.stars=Array.from({length:3600},()=>({x:(random()-.5)*4,y:(random()-.5)*4,z:.3+random()*3.7,r:.45+random()*.75,c:random()}));
   }
   draw(now,width,height,reduced) {
-    const dpr=Math.min(devicePixelRatio,2);
+    const dpr=Math.min(devicePixelRatio,1,Math.sqrt(2000000/(width*height)));
     const changed=this.width!==width||this.height!==height||this.dpr!==dpr;
     if(changed){this.width=width;this.height=height;this.dpr=dpr;this.canvas.width=Math.round(width*dpr);this.canvas.height=Math.round(height*dpr);
+      if(this.distantCanvas){this.distantCanvas.width=1;this.distantCanvas.height=1;}
       this.distantCanvas=document.createElement('canvas');this.distantCanvas.width=Math.round(width*dpr);this.distantCanvas.height=Math.round(height*dpr);
       const far=this.distantCanvas.getContext('2d');far.scale(dpr,dpr);far.fillStyle='#d7ddff';
       for(const star of this.distant){far.globalAlpha=star.a;far.fillRect(star.x*width,star.y*height,star.r,star.r);}
@@ -76,5 +77,5 @@ export class Starfield {
     this.capturing=active;
   }
   pause(){this.last=null;}
-  dispose(){this.layer.remove();}
+  dispose(){for(const canvas of [this.canvas,this.distantCanvas,this.nebula])if(canvas){canvas.width=1;canvas.height=1;}this.layer.remove();}
 }

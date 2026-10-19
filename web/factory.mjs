@@ -14,7 +14,10 @@ function release(group) {
   group.traverse(o => {
     o.geometry?.dispose();
     const materials = Array.isArray(o.material) ? o.material : o.material ? [o.material] : [];
-    for (const m of materials) { m.map?.dispose(); m.dispose(); }
+    for (const m of materials) {
+      if(m.map){const canvas=m.map.image;m.map.dispose();if(canvas instanceof HTMLCanvasElement){canvas.width=1;canvas.height=1;}}
+      m.dispose();
+    }
   });
   group.clear();
 }
@@ -33,15 +36,15 @@ function box(parent, x, y, z, w, h, d, color = colors.block) {
   return mesh;
 }
 function label(parent, x, y, z, width, depth, lines, accent = '#c8d9d0', front = false) {
-  const canvas = document.createElement('canvas'); canvas.width=768; canvas.height=192;
-  const texture = new THREE.CanvasTexture(canvas); texture.colorSpace=THREE.SRGBColorSpace;
+  const canvas = document.createElement('canvas'); canvas.width=384; canvas.height=96;
+  const texture = new THREE.CanvasTexture(canvas); texture.colorSpace=THREE.SRGBColorSpace; texture.anisotropy=8;
   const material = new THREE.MeshBasicMaterial({ map: texture, transparent: true, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -1 });
   const plane = new THREE.Mesh(new THREE.PlaneGeometry(width,depth),material);
   plane.rotation.x=front?0:-Math.PI/2; plane.position.set(x,y,z); parent.add(plane);
   let previous;
   const paint = values => {
     const signature=JSON.stringify(values); if(signature===previous) return; previous=signature;
-    const ctx=canvas.getContext('2d'); ctx.clearRect(0,0,768,192); ctx.textAlign='center'; ctx.textBaseline='middle';
+    const ctx=canvas.getContext('2d'); ctx.setTransform(.5,0,0,.5,0,0);ctx.clearRect(0,0,768,192); ctx.textAlign='center'; ctx.textBaseline='middle';
     values.slice(0,3).forEach((line,i) => { ctx.fillStyle=i===0?accent:'#a2b9ad'; ctx.font=`${i===0?'600':'400'} ${values.length===1?80:64}px monospace`; ctx.fillText(String(line),384,(i+.5)*192/values.length,730); });
     texture.needsUpdate=true;
   };
@@ -49,9 +52,9 @@ function label(parent, x, y, z, width, depth, lines, accent = '#c8d9d0', front =
   return paint;
 }
 
-function opcodeTile(parent, width, depth, y, instruction, anisotropy) {
-  const canvas=document.createElement('canvas'); canvas.width=1024; canvas.height=Math.round(1024*depth/width);
-  const texture=new THREE.CanvasTexture(canvas); texture.colorSpace=THREE.SRGBColorSpace; texture.anisotropy=anisotropy;
+function opcodeTile(parent, width, depth, y, instruction, anisotropy, resolution=512) {
+  const canvas=document.createElement('canvas'); canvas.width=resolution; canvas.height=Math.round(resolution*depth/width);
+  const texture=new THREE.CanvasTexture(canvas); texture.colorSpace=THREE.SRGBColorSpace; texture.anisotropy=Math.min(anisotropy,8);
   const mesh=new THREE.Mesh(new THREE.PlaneGeometry(width,depth),new THREE.MeshBasicMaterial({map:texture,polygonOffset:true,polygonOffsetFactor:-1}));
   mesh.rotation.x=-Math.PI/2; mesh.position.y=y; parent.add(mesh);
   let last;
@@ -76,7 +79,7 @@ function opcodeTile(parent, width, depth, y, instruction, anisotropy) {
 
 function sourceTile(parent,width,depth,line,text,anisotropy,tokens) {
   const canvas=document.createElement('canvas'); canvas.width=1024; canvas.height=128;
-  const texture=new THREE.CanvasTexture(canvas); texture.colorSpace=THREE.SRGBColorSpace; texture.anisotropy=anisotropy;
+  const texture=new THREE.CanvasTexture(canvas); texture.colorSpace=THREE.SRGBColorSpace; texture.anisotropy=Math.min(anisotropy,8);
   const mesh=new THREE.Mesh(new THREE.PlaneGeometry(width,depth),new THREE.MeshBasicMaterial({map:texture}));
   mesh.rotation.x=-Math.PI/2; mesh.position.y=.32; parent.add(mesh);
   let previous;
@@ -102,7 +105,7 @@ export class Factory {
     this.reduced=matchMedia('(prefers-reduced-motion: reduce)');
     this.scene=new THREE.Scene(); this.scene.background=null;
     this.renderer=new THREE.WebGLRenderer({ antialias:true, alpha:true });
-    this.renderer.setPixelRatio(Math.min(devicePixelRatio,2));
+    this.renderer.setPixelRatio(1);
     this.renderer.outputColorSpace=THREE.SRGBColorSpace;
     this.renderer.shadowMap.enabled=true;this.renderer.shadowMap.type=THREE.PCFShadowMap;
     this.renderer.domElement.setAttribute('aria-label','Interactive CPython factory. Drag to orbit, right-drag or scroll to pan, pinch to zoom. Select blocks with the block menu.');
@@ -148,7 +151,7 @@ export class Factory {
     this.controls.maxPolarAngle=Math.PI*.48; this.controls.minZoom=.3; this.controls.maxZoom=12;
     this.scene.add(new THREE.HemisphereLight(0xcbd9ff,0x283044,1.25));
     const sun=this.sun=new THREE.DirectionalLight(0xe7edff,2.5);sun.castShadow=true;
-    sun.shadow.mapSize.set(4096,4096);sun.shadow.radius=2.5;sun.shadow.intensity=.5;sun.shadow.bias=-.00015;sun.shadow.normalBias=.035;
+    sun.shadow.mapSize.set(2048,2048);sun.shadow.radius=1.5;sun.shadow.intensity=.45;sun.shadow.bias=-.00015;sun.shadow.normalBias=.035;
     this.scene.add(sun,sun.target);
     this.world=new THREE.Group(); this.scene.add(this.world);
     this.raycaster=new THREE.Raycaster(); this.pointer=new THREE.Vector2();
@@ -211,6 +214,8 @@ export class Factory {
       if(this.ghosts)this.host.dataset.ghostCount=String(this.ghosts.children.length);
       this.renderer.render(this.scene,this.camera);
       this.placeLabels();this.minimap?.draw();
+      host.dataset.gpuTextures=String(this.renderer.info.memory.textures);
+      host.dataset.gpuGeometries=String(this.renderer.info.memory.geometries);
       host.dataset.rendered='true';host.dataset.zoom=String(this.camera.zoom);
       const fit=this.projectedSize(),pan=this.controls.target.clone().sub(this.mapCenter()).divideScalar(fit);
       host.dataset.framing=JSON.stringify([...this.camera.quaternion.toArray(),...pan.toArray(),this.camera.zoom,this.viewSize/fit]);
@@ -346,6 +351,9 @@ export class Factory {
     this.host.dataset.phase=this.revealStart?'compilation reveal':layout?'replay':'source';
     this.link=new THREE.Group();this.world.add(this.link);
     this.buildFrontEnd(tokens,ast);
+    let labelBytes=0;
+    this.world.traverse(o=>{const canvas=o.material?.map?.image;if(canvas instanceof HTMLCanvasElement)labelBytes+=canvas.width*canvas.height*4;});
+    this.host.dataset.labelCanvasBytes=String(labelBytes);
     if(!preserveCamera) this.view('iso');
     else if(previous){
       const ratio=this.projectedSize()/previous.size;
@@ -475,7 +483,7 @@ export class Factory {
     tokens.forEach((event,i)=>{
       const group=new THREE.Group();group.position.set(e.tokenX+(i%4-1.5)*3.4,0,-e.tokenDepth/2+1+Math.floor(i/4)*1.2);this.world.add(group);
       const body=box(group,0,.3,0,3.15,.45,1,0x31404b);
-      const paint=opcodeTile(group,3.05,.9,.54,{offset:event.cursor,opname:event.token,argrepr:event.text,arg:null},this.renderer.capabilities.getMaxAnisotropy());paint(false);
+      const paint=opcodeTile(group,3.05,.9,.54,{offset:event.cursor,opname:event.token,argrepr:event.text,arg:null},this.renderer.capabilities.getMaxAnisotropy(),384);paint(false);
       this.parseTokens.push({group,body,paint,event});
     });
     const positions=new Map();this.astEdges=[];
@@ -485,7 +493,7 @@ export class Factory {
       const pos=new THREE.Vector3(e.astX+tree.x,.4,tree.z);positions.set(node.id,pos);
       const group=new THREE.Group();group.position.copy(pos);this.astGroup.add(group);
       const body=box(group,0,0,0,2.5,.4,1.2,0x3e354e);
-      const paint=opcodeTile(group,2.4,1.1,.22,{offset:node.id,opname:node.kind,argrepr:[node.label,node.operator].filter(Boolean).join(' · '),arg:null},this.renderer.capabilities.getMaxAnisotropy());paint(false);
+      const paint=opcodeTile(group,2.4,1.1,.22,{offset:node.id,opname:node.kind,argrepr:[node.label,node.operator].filter(Boolean).join(' · '),arg:null},this.renderer.capabilities.getMaxAnisotropy(),384);paint(false);
       this.astTiles.push({node,group,body,paint});
       if(node.parent!==null) {
         const parent=positions.get(node.parent).clone();parent.z+=.6;parent.y=.22;
@@ -517,7 +525,7 @@ export class Factory {
     else group.position.set(this.extent.astX-this.extent.astWidth/2+1.6+(seq%2)*3,.7,-this.extent.astDepth/2+1+(seq%3)*1.6);
     this.ghosts.add(group);
     box(group,0,0,0,2.5,.4,1.2,0x3e354e);
-    opcodeTile(group,2.4,1.1,.22,{offset:seq,opname:event.text,argrepr:'temporary',arg:null},this.renderer.capabilities.getMaxAnisotropy())(false);
+    opcodeTile(group,2.4,1.1,.22,{offset:seq,opname:event.text,argrepr:'temporary',arg:null},this.renderer.capabilities.getMaxAnisotropy(),384)(false);
     group.traverse(o=>{if(o.material){o.material.transparent=true;o.material.depthWrite=false;o.userData.ghostOpacity=o.isLineSegments ? .55 : o.material.map ? .6 : .25;o.material.opacity=o.userData.ghostOpacity;}});
     group.userData.born=performance.now();group.userData.event=seq;
     this.host.dataset.ghostCount=String(this.ghosts.children.length);this.host.dataset.ghostEvent=String(seq);
@@ -656,6 +664,7 @@ export class Factory {
   resize() {
     const width=this.host.clientWidth,height=this.host.clientHeight;
     if(!width||!height) return;
+    this.renderer.setPixelRatio(Math.min(devicePixelRatio,1.5,Math.sqrt(3000000/(width*height))));
     this.renderer.setSize(width,height,false); this.updateProjection();
   }
   updateProjection() {
@@ -716,5 +725,5 @@ export class Factory {
     const span=Math.max(size.depth+1.2,(size.width+1.4)/aspect);
     this.viewSize=span;this.camera.zoom=1;this.updateProjection(); this.controls.update();
   }
-  dispose() { this.starfield?.dispose(); for(const [name,handler] of [['gesturestart',this.gestureStart],['gesturechange',this.gestureChange],['gestureend',this.gestureEnd]]) this.renderer.domElement.removeEventListener(name,handler,true); this.renderer.domElement.removeEventListener('wheel',this.wheelPan,true); this.minimap?.dispose(); this.resizeObserver.disconnect(); this.renderer.setAnimationLoop(null); this.controls.dispose(); release(this.world); this.renderer.dispose(); this.renderer.domElement.remove(); this.labels.remove(); this.opcodePanel.remove(); }
+  dispose() { this.starfield?.dispose(); for(const [name,handler] of [['gesturestart',this.gestureStart],['gesturechange',this.gestureChange],['gestureend',this.gestureEnd]]) this.renderer.domElement.removeEventListener(name,handler,true); this.renderer.domElement.removeEventListener('wheel',this.wheelPan,true); this.minimap?.dispose(); this.resizeObserver.disconnect(); this.renderer.setAnimationLoop(null); this.controls.dispose(); release(this.world); this.sun.shadow.dispose();this.renderer.dispose(); this.renderer.domElement.remove(); this.labels.remove(); this.opcodePanel.remove(); }
 }

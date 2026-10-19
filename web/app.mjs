@@ -35,7 +35,9 @@ function stopWorker(endFlight=true) { if(endFlight) factory?.starfield?.setCaptu
 function fail(message) { stopWorker(); $('state').textContent = 'Stopped'; $('message').textContent = message; }
 $('cancel').onclick = () => fail('Capture cancelled. Run again to start a fresh interpreter.');
 $('run').onclick = () => {
-  parsingReplay?.stop();parsingMode=false;setParsingUI(false);$('view-parsing').disabled=true;lastLayout=null;
+  parsingReplay?.stop();
+  if(parsingReplay){parsingReplay.recording=null;parsingReplay.frames=[];parsingReplay.tokens=[];}
+  parsingMode=false;setParsingUI(false);$('view-parsing').disabled=true;lastLayout=null;
   layoutWorker?.terminate(); clearTimeout(layoutTimer); graph = null; mapStates = []; selectedBlock = null;
   $('block-select').replaceChildren(new Option('Select a building or block…',''));
   $('map').replaceChildren(); $('map-status').textContent = 'Waiting for capture'; $('block-detail').textContent = '';
