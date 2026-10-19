@@ -10,7 +10,9 @@ Layout schema 1 carries centered ground-plane coordinates for blocks, code-objec
 
 [web/layout.mjs](../../web/layout.mjs) converts Graphviz points and inch-sized nodes into a common unit, reverses the vertical axis, samples cubic path segments, removes redundant collinear points, and includes arrow endpoints. [web/layout-worker.mjs](../../web/layout-worker.mjs) returns this artifact alongside the SVG and engine version.
 
-The scene maps layout x/y to Three.js x/z, with Three.js y representing height. Code objects become low platforms, basic blocks become grouping trays, and every decoded instruction gets its own outlined tile. Solid control routes have narrow raised lines and arrowheads; observed Python calls remain dashed violet lines. Heights are visual categories, not execution cost or memory size.
+The scene maps layout x/y to Three.js x/z, with Three.js y representing height. Code objects become low platforms, basic blocks become grouping trays, and every decoded instruction gets its own outlined tile. Solid control routes use flat ribbons with bevel joins that preserve every routed bend. Shafts stop at a separate triangular arrowhead base; short final segments scale the head to fit. Routes sit above tray roofs; observed Python calls remain dashed violet lines. Heights are visual categories, not execution cost or memory size.
+
+[web/connector.mjs](../../web/connector.mjs) builds the shared route geometry. [tools/test_connector.mjs](../../tools/test_connector.mjs) checks terminal placement, short segments, duplicate points, and tray clearance.
 
 Graphviz's baseline routes still lack semantic ports, verified obstacle clearance, and bridges. Projection can occlude connectors, and crossings are not junctions. The scene does not certify these routes as valid factory belts. The routing experiments in [[layout]] remain outstanding.
 

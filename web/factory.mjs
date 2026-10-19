@@ -1,3 +1,4 @@
+import {connector} from './connector.mjs';
 import {surfaceText,textAtlasStats,disposeTextAtlas} from './text-atlas.mjs';
 import {Starfield} from './starfield.mjs';
 import {syntaxLines,syntaxColors} from './python-syntax.mjs';
@@ -263,20 +264,10 @@ export class Factory {
       this.annotate(`${enclosure.name} / ${enclosure.id}`,new THREE.Vector3(enclosure.x,.5,enclosure.y-enclosure.height/2),'enclosure');
     }
     for(const route of layout?.edges || []) {
-      const vectors=route.points.map(([x,z])=>new THREE.Vector3(x,.24,z));
-      const geometry=new THREE.BufferGeometry().setFromPoints(vectors);
       const color=route.kind==='call'?0xa895cf:route.kind==='taken'?0xc4a068:0x658775;
-      const material=route.kind==='call'?new THREE.LineDashedMaterial({color,dashSize:.15,gapSize:.12}):new THREE.LineBasicMaterial({color});
-      const line=new THREE.Line(geometry,material); line.computeLineDistances(); this.world.add(line);
-      const path=new THREE.CurvePath();
-      for(let i=1;i<vectors.length;i++) path.add(new THREE.LineCurve3(vectors[i-1],vectors[i]));
-      if(route.kind!=='call') {
-        const belt=new THREE.Mesh(new THREE.TubeGeometry(path,Math.max(4,vectors.length*3),.035,4,false),new THREE.MeshBasicMaterial({color}));
-        line.add(belt);
-      }
-      const end=vectors.at(-1), prev=vectors.at(-2), direction=end.clone().sub(prev).normalize();
-      const arrow=new THREE.ArrowHelper(direction,end.clone().addScaledVector(direction,-.18),.18,color,.16,.13); this.world.add(arrow);
-      this.edges.set(route.id,{line,arrow,path,color});
+      const edge=connector(route.points,color,{dashed:route.kind==='call'});
+      this.world.add(edge.line,edge.arrow);
+      this.edges.set(route.id,edge);
     }
     this.instructionTiles=new Map();
     for(const placed of layout?.nodes || []) {
@@ -353,7 +344,7 @@ export class Factory {
     }
     for(const [id,edge] of this.edges) {
       const color=id===state?.edge?colors.active:edge.color;
-      edge.line.material.color.setHex(color); edge.arrow.setColor(color);
+      edge.line.material.color.setHex(color); edge.arrow.material.color.setHex(color);
       for(const child of edge.line.children) child.material.color.setHex(color);
     }
     this.host.dataset.activeBlock=state?.block || ''; this.host.dataset.selectedBlock=selected || '';
