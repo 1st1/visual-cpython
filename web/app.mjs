@@ -30,18 +30,19 @@ $('example').onchange = async () => {
   finally { if(request===exampleRequest) $('run').disabled=Boolean(worker); }
 };
 
-function stopPlayback() { clearInterval(playback); playback = null; $('play').textContent = 'Play'; }
-function stopWorker() { generation++; clearTimeout(timer); worker?.terminate(); worker = null; $('run').disabled = false; $('cancel').disabled = true; }
+function stopPlayback() { factory?.starfield?.setPlaying(false); clearInterval(playback); playback = null; $('play').textContent = 'Play'; }
+function stopWorker(endFlight=true) { if(endFlight) factory?.starfield?.setCapturing(false); generation++; clearTimeout(timer); worker?.terminate(); worker = null; $('run').disabled = false; $('cancel').disabled = true; }
 function fail(message) { stopWorker(); $('state').textContent = 'Stopped'; $('message').textContent = message; }
 $('cancel').onclick = () => fail('Capture cancelled. Run again to start a fresh interpreter.');
 $('run').onclick = () => {
   parsingReplay?.stop();parsingMode=false;setParsingUI(false);$('view-parsing').disabled=true;lastLayout=null;
   layoutWorker?.terminate(); clearTimeout(layoutTimer); graph = null; mapStates = []; selectedBlock = null;
-  factory?.load(null,null,[],$('source').value,null,true); $('block-select').replaceChildren(new Option('Select a building or block…',''));
+  $('block-select').replaceChildren(new Option('Select a building or block…',''));
   $('map').replaceChildren(); $('map-status').textContent = 'Waiting for capture'; $('block-detail').textContent = '';
   stopPlayback(); stopWorker(); recording = null; render();
   $('message').textContent = '';
   $('run').disabled = true; $('cancel').disabled = false; $('state').textContent = 'Loading WASM';
+  factory?.starfield?.setCapturing(true);
   worker = new Worker('./worker.mjs?loader=2', { type: 'module' });
   const runGeneration = generation;
   timer = setTimeout(() => fail('Runtime loading exceeded 60 seconds.'), 60000);
@@ -52,11 +53,11 @@ $('run').onclick = () => {
       clearTimeout(timer); $('state').textContent = 'Capturing';
       timer = setTimeout(() => fail('Execution stopped after 5 seconds. The worker has been discarded.'), 5000);
     } else if (data.type === 'result') {
-      stopWorker(); recording = data.trace; index = 0;
+      stopWorker(false); recording = data.trace; index = 0;
       $('state').textContent = recording.status;
       $('message').textContent = recording.error || '';
       $('provenance').textContent = `CPython ${recording.provenance.python.split(' ')[0]} · ${recording.provenance.revision.slice(0, 8)}`;
-      factory?.load(null,null,[],recording.source,recording.parsing,true);
+      if(!recording.codes.length) factory?.load(null,null,[],recording.source,recording.parsing,true);
       $('view-parsing').disabled=!factory||!recording.parsing;
       render();
       buildMap();
@@ -73,6 +74,7 @@ $('play').onclick = () => {
   if (playback) return stopPlayback();
   if (index === recording.events.length) move(0);
   $('play').textContent = 'Pause';
+  factory?.starfield?.setPlaying(true);
   playback = setInterval(() => { move(index + 1); if (index === recording.events.length) stopPlayback(); }, 250);
 };
 function describe(value) {
@@ -123,12 +125,12 @@ function buildMap(relayout=false) {
   try {
     graph = extractGraph(recording);
     mapStates = projectReplay(recording, graph);
-    if (!graph.blocks.length) { $('map-status').textContent = 'No compiled program'; return; }
+    if (!graph.blocks.length) { factory?.starfield?.setCapturing(false); $('map-status').textContent = 'No compiled program'; return; }
     $('map-status').textContent = 'Laying out program…';
     const current = graph;
     layoutWorker = new Worker('./layout-worker.mjs', { type: 'module' });
     const stop = () => { clearTimeout(layoutTimer); layoutWorker?.terminate(); layoutWorker = null; };
-    const error = message => { stop(); $('map-status').textContent = `Layout failed: ${message}`; };
+    const error = message => { stop(); factory?.starfield?.setCapturing(false); $('map-status').textContent = `Layout failed: ${message}`; $('message').textContent=$('map-status').textContent; };
     layoutTimer = setTimeout(() => error('exceeded 15 seconds'), 15000);
     layoutWorker.onerror = e => error(e.message);
     layoutWorker.onmessage = ({ data }) => {
@@ -158,9 +160,10 @@ function buildMap(relayout=false) {
       $('map-status').textContent = `Graphviz ${data.version} · ${graph.blocks.reduce((n,b)=>n+b.instructions.length,0)} opcodes · ${graph.blocks.length} blocks · ${graph.edges.length} connections`;
       if (graph.diagnostics.length) $('map-status').textContent += ` · ${graph.diagnostics.length} mapping warnings`;
       renderMapState();
+      factory?.starfield?.setCapturing(false);
     };
     layoutWorker.postMessage({ graph, targetAspect });
-  } catch (error) { $('map-status').textContent = `Map unavailable: ${error.message}`; }
+  } catch (error) { factory?.starfield?.setCapturing(false); $('map-status').textContent = `Map unavailable: ${error.message}`; $('message').textContent=$('map-status').textContent; }
 }
 function setZoom() {
   const svg = $('map').querySelector('svg');

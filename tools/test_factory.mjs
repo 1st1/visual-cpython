@@ -19,13 +19,19 @@ async function capture(source) {
     }
     requestAnimationFrame(settled);
   }));
-  const camera=JSON.parse(await page.locator('#factory').getAttribute('data-camera'));
+  const camera=JSON.parse(await page.locator('#factory').getAttribute('data-framing'));
   await page.locator('#run').click();
+  if(await page.evaluate(()=>matchMedia('(prefers-reduced-motion: reduce)').matches)){
+    await page.evaluate(()=>new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r))));
+    assert.equal(Number(await page.locator('.starfield').getAttribute('data-warp')),0);
+  }else{
+    await page.waitForFunction(()=>Number(document.querySelector('.starfield').dataset.warp)>.03);
+  }
   await page.waitForFunction(()=>!document.querySelector('#run').disabled,null,{timeout:60000});
   await page.waitForFunction(()=>/Graphviz|No compiled/.test(document.querySelector('#map-status').textContent),null,{timeout:20000});
   await page.evaluate(()=>new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r))));
-  const after=JSON.parse(await page.locator('#factory').getAttribute('data-camera'));
-  assert.ok(camera.every((value,i)=>Math.abs(value-after[i])<.01),'Capture preserves orientation, pan, and effective zoom, including failure results '+JSON.stringify({camera,after}));
+  const after=JSON.parse(await page.locator('#factory').getAttribute('data-framing'));
+  assert.ok(camera.every((value,i)=>Math.abs(value-after[i])<.01),'Capture preserves orientation, relative pan, and map framing, including failure results '+JSON.stringify({camera,after}));
 }
 try {
   await page.goto(process.env.FACTORY_URL || 'http://127.0.0.1:8000');
@@ -39,6 +45,7 @@ try {
   assert.ok(await page.locator('#source-highlight .syntax-keyword').count()>0);
   assert.ok(await page.locator('#source-highlight .syntax-number').count()>0);
   assert.equal(await page.locator('.starfield canvas').count(),1);
+  assert.equal(await page.locator('.starfield').getAttribute('data-star-count'),'36000');
   const starTime=Number(await page.locator('.starfield').getAttribute('data-time'));
   await page.waitForFunction(t=>Number(document.querySelector('.starfield').dataset.time)>t,starTime);
   await page.emulateMedia({reducedMotion:'reduce'});
@@ -86,6 +93,23 @@ try {
   await page.locator('#camera-iso').click();
   await page.screenshot({path:'artifacts/factory-empty.png',fullPage:true});
   await capture('a=2\nb=3\nc=a+b\nprint(c)');
+  assert.equal(await page.locator('#map-status').isVisible(),false);
+  await page.screenshot({path:'artifacts/factory-hyperspace.png'});
+  await page.waitForTimeout(1800);
+  assert.equal(await page.locator('#factory').getAttribute('data-phase'),'compilation reveal');
+  const captureCruise=Number(await page.locator('.starfield').getAttribute('data-warp'));
+  assert.ok(captureCruise>.21&&captureCruise<.23,'Cruise continues after worker completion throughout construction');
+  await page.locator('#finish-build').click();
+  await page.waitForFunction(()=>Number(document.querySelector('.starfield').dataset.warp)<.01);
+  await page.locator('#play').click();
+  await page.waitForFunction(()=>{
+    const warp=Number(document.querySelector('.starfield').dataset.warp);
+    return warp>.18&&warp<.23;
+  });
+  await page.locator('#play').click();
+  await page.waitForFunction(()=>Number(document.querySelector('.starfield').dataset.warp)<.01);
+  await page.locator('#first').click();
+
   for(let i=0;i<30;i++) {
     if((await page.locator('#instructions .active').textContent()).includes('BINARY_OP')) break;
     await page.locator('#next').click();

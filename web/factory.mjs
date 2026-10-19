@@ -19,10 +19,16 @@ function release(group) {
   group.clear();
 }
 function box(parent, x, y, z, w, h, d, color = colors.block) {
-  const geometry = new THREE.BoxGeometry(w,h,d);
+  let geometry;
+  if(w>1&&d>.7&&h>.2){
+    const r=Math.min(.055,h*.15),shape=new THREE.Shape();
+    shape.moveTo(r,r);shape.lineTo(w-r,r);shape.lineTo(w-r,d-r);shape.lineTo(r,d-r);shape.closePath();
+    geometry=new THREE.ExtrudeGeometry(shape,{depth:h-2*r,bevelEnabled:true,bevelThickness:r,bevelSize:r,bevelSegments:1,steps:1,curveSegments:1});
+    geometry.rotateX(-Math.PI/2);geometry.translate(-w/2,-h/2+r,d/2);
+  }else geometry=new THREE.BoxGeometry(w,h,d);
   const material = new THREE.MeshStandardMaterial({ color, roughness: .82, metalness: .12 });
-  const mesh = new THREE.Mesh(geometry,material); mesh.position.set(x,y,z); parent.add(mesh);
-  const outline = new THREE.LineSegments(new THREE.EdgesGeometry(geometry), new THREE.LineBasicMaterial({ color: colors.rim, transparent: true, opacity: .7 }));
+  const mesh = new THREE.Mesh(geometry,material); mesh.position.set(x,y,z); mesh.castShadow=true;mesh.receiveShadow=true;parent.add(mesh);
+  const outline = new THREE.LineSegments(new THREE.EdgesGeometry(geometry), new THREE.LineBasicMaterial({ color: colors.rim, transparent: true, opacity: .18 }));
   mesh.add(outline);
   return mesh;
 }
@@ -98,6 +104,7 @@ export class Factory {
     this.renderer=new THREE.WebGLRenderer({ antialias:true, alpha:true });
     this.renderer.setPixelRatio(Math.min(devicePixelRatio,2));
     this.renderer.outputColorSpace=THREE.SRGBColorSpace;
+    this.renderer.shadowMap.enabled=true;this.renderer.shadowMap.type=THREE.PCFShadowMap;
     this.renderer.domElement.setAttribute('aria-label','Interactive CPython factory. Drag to orbit, right-drag or scroll to pan, pinch to zoom. Select blocks with the block menu.');
     this.renderer.domElement.setAttribute('role','img');
     this.renderer.domElement.addEventListener('webglcontextlost', e => { e.preventDefault(); host.dataset.error='Graphics context lost; use Schematic or reload.'; });
@@ -109,7 +116,7 @@ export class Factory {
     this.opcodePanel.innerHTML='<div class="opcode-heading"><strong>Opcodes</strong><button type="button">Follow execution</button></div><div class="opcode-caption"></div><div class="opcode-list"></div>';
     host.append(this.opcodePanel);
     this.opcodePanel.querySelector('button').onclick=()=>this.onSelect('');
-    this.camera=new THREE.OrthographicCamera(-15,15,12,-12,.1,500);
+    this.camera=new THREE.PerspectiveCamera(38,1,.1,2000);
     this.controls=new OrbitControls(this.camera,this.renderer.domElement);
     this.controls.mouseButtons.MIDDLE=THREE.MOUSE.PAN;
     this.wheelPan=event=>{
@@ -139,8 +146,10 @@ export class Factory {
       this.renderer.domElement.addEventListener(name,handler,{capture:true,passive:false});
     this.controls.enableDamping=true; this.controls.dampingFactor=.12;
     this.controls.maxPolarAngle=Math.PI*.48; this.controls.minZoom=.3; this.controls.maxZoom=12;
-    this.scene.add(new THREE.HemisphereLight(0xc9e2d7,0x19201d,2.2));
-    const sun=new THREE.DirectionalLight(0xe4efdf,3); sun.position.set(-12,25,15); this.scene.add(sun);
+    this.scene.add(new THREE.HemisphereLight(0xcbd9ff,0x283044,1.25));
+    const sun=this.sun=new THREE.DirectionalLight(0xe7edff,2.5);sun.castShadow=true;
+    sun.shadow.mapSize.set(4096,4096);sun.shadow.radius=2.5;sun.shadow.intensity=.5;sun.shadow.bias=-.00015;sun.shadow.normalBias=.035;
+    this.scene.add(sun,sun.target);
     this.world=new THREE.Group(); this.scene.add(this.world);
     this.raycaster=new THREE.Raycaster(); this.pointer=new THREE.Vector2();
     let down;
@@ -158,8 +167,11 @@ export class Factory {
     this.starfield=new Starfield(host);
     this.renderer.setAnimationLoop(now=>{
       if (document.hidden || !host.clientWidth || host.hidden) {this.starfield.pause();return;}
+      this.starfield.setConstructing(Boolean(this.revealStart));
       this.starfield.draw(now,host.clientWidth,host.clientHeight,this.reduced.matches);
       this.controls.update();
+      this.updateLighting();
+      this.viewSize=this.camera.position.distanceTo(this.controls.target)*2*Math.tan(THREE.MathUtils.degToRad(this.camera.fov/2));
       if (this.revealStart) {
         let complete=true, latest=null;
         const elapsed=now-this.revealStart;
@@ -200,10 +212,13 @@ export class Factory {
       this.renderer.render(this.scene,this.camera);
       this.placeLabels();this.minimap?.draw();
       host.dataset.rendered='true';host.dataset.zoom=String(this.camera.zoom);
+      const fit=this.projectedSize(),pan=this.controls.target.clone().sub(this.mapCenter()).divideScalar(fit);
+      host.dataset.framing=JSON.stringify([...this.camera.quaternion.toArray(),...pan.toArray(),this.camera.zoom,this.viewSize/fit]);
       host.dataset.camera=JSON.stringify([...this.camera.position.toArray(),...this.camera.quaternion.toArray(),...this.controls.target.toArray(),this.camera.zoom,this.viewSize]);
     });
   }
   load(layout, graph, events = [], source = '', parsing = null, preserveCamera = false) {
+    const previous=preserveCamera&&this.extent&&(layout||parsing)?{center:this.mapCenter(),size:this.projectedSize()}:null;
     release(this.world); this.nodes.clear(); this.edges.clear(); this.pickables=[]; this.lastSeq=null; this.pulsePath=null;
     this.labels.replaceChildren(); this.annotations=[];
     this.graph=graph; this.panelBlock=null; this.replaySource=null;this.replayTile=null;
@@ -225,7 +240,11 @@ export class Factory {
     this.extent=sourceBounds;
     const e=this.extent, width=e.maxX-e.minX, depth=e.maxZ-e.minZ;
     const deck=box(this.world,(e.minX+e.maxX)/2,-.22,(e.minZ+e.maxZ)/2,width,.42,depth,0x11182d);
-    deck.material.transparent=true;deck.material.opacity=.35;deck.material.depthWrite=false;
+    deck.castShadow=false;deck.material.transparent=true;deck.material.opacity=.7;
+    const span=Math.max(width,depth),center=new THREE.Vector3((e.minX+e.maxX)/2,0,(e.minZ+e.maxZ)/2);
+    this.lightSpan=span;this.sun.target.position.copy(center);
+    Object.assign(this.sun.shadow.camera,{left:-span*.8,right:span*.8,top:span*.8,bottom:-span*.8,near:.1,far:span*3});
+    this.sun.shadow.camera.updateProjectionMatrix();
     const gridPoints=[];
     for(let x=Math.ceil(e.minX);x<=e.maxX;x++) gridPoints.push(x,.005,e.minZ,x,.005,e.maxZ);
     for(let z=Math.ceil(e.minZ);z<=e.maxZ;z++) gridPoints.push(e.minX,.005,z,e.maxX,.005,z);
@@ -237,7 +256,6 @@ export class Factory {
       box(group,x,.12,z,3.8,.22,1.95,0x1b2521);
       for(let i=0;i<7;i++) box(group,x-1.35+i*.21,.4,z+.84,.06,.45,.025,0x3d5247);
       const paint=label(group,x,1.095,z,3.15,1.15,[name,sub]);
-      this.annotate(name,new THREE.Vector3(x,1.2,z),'machine');
       return {body,paint};
     };
     this.tokenizerDisplay=machine('TOKENIZER','source → tokens',-sourceBounds.tokenDepth/2-1.75,sourceBounds.tokenX);
@@ -274,7 +292,6 @@ export class Factory {
     if(!layout) label(this.world,0,.03,0,9,2,['PROGRAM PLOT','Run a program to construct its blocks']);
     for(const enclosure of layout?.enclosures || []) {
       box(this.world,enclosure.x,.085,enclosure.y,enclosure.width,.15,enclosure.height,0x18233b);
-      label(this.world,enclosure.x,.17,enclosure.y-enclosure.height/2+.25,Math.min(enclosure.width-.3,4),.42,[`${enclosure.name} / ${enclosure.id}`],'#acbeac');
       this.annotate(`${enclosure.name} / ${enclosure.id}`,new THREE.Vector3(enclosure.x,.5,enclosure.y-enclosure.height/2),'enclosure');
     }
     for(const route of layout?.edges || []) {
@@ -330,6 +347,14 @@ export class Factory {
     this.link=new THREE.Group();this.world.add(this.link);
     this.buildFrontEnd(tokens,ast);
     if(!preserveCamera) this.view('iso');
+    else if(previous){
+      const ratio=this.projectedSize()/previous.size;
+      const center=this.mapCenter();
+      const target=center.add(this.controls.target.clone().sub(previous.center).multiplyScalar(ratio));
+      const delta=target.clone().sub(this.controls.target);
+      this.camera.position.add(delta);this.controls.target.copy(target);
+      this.viewSize*=ratio;this.updateProjection();this.controls.update();
+    }
   }
   setState(state,event,selected,terminal=false) {
     for(const node of this.nodes.values()) node.group.visible=true;
@@ -624,7 +649,8 @@ export class Factory {
     this.camera.position.copy(target).add(new THREE.Vector3(0,30,.001));this.controls.target.copy(target);
     const aspect=this.host.clientWidth/Math.max(1,this.host.clientHeight);
     const rows=Math.min(24,this.sourceLines.length),columns=Math.ceil(this.sourceLines.length/rows);
-    this.camera.zoom=THREE.MathUtils.clamp(this.viewSize/Math.max(rows*1.15+3,(columns*8.7+3)/aspect),.3,12);
+    this.viewSize=Math.max(rows*1.15+3,(columns*8.7+3)/aspect);this.camera.zoom=1;
+    this.updateProjection();
     this.camera.updateProjectionMatrix();this.controls.update();
   }
   resize() {
@@ -635,7 +661,10 @@ export class Factory {
   updateProjection() {
     const aspect=this.host.clientWidth/Math.max(1,this.host.clientHeight);
     const size=this.viewSize || 24;
-    this.camera.left=-size*aspect/2; this.camera.right=size*aspect/2; this.camera.top=size/2; this.camera.bottom=-size/2;
+    this.camera.aspect=aspect;
+    const direction=this.camera.position.clone().sub(this.controls.target).normalize();
+    this.camera.position.copy(this.controls.target).addScaledVector(direction,size/(2*Math.tan(THREE.MathUtils.degToRad(this.camera.fov/2))));
+    this.camera.far=Math.max(2000,size*12);
     this.camera.updateProjectionMatrix();
   }
   view(mode) {
@@ -644,22 +673,38 @@ export class Factory {
     this.camera.position.copy(center).add(mode==='top'?new THREE.Vector3(0,span*2,.001):new THREE.Vector3(span*.35,span*1.1,span));
     this.controls.target.copy(center); this.camera.zoom=1;
     this.camera.lookAt(center); this.controls.update();
-    // Fit projected world corners, including building height, with margin.
-    this.camera.updateMatrixWorld();
-    const points=[];
-    for(const x of [e.minX,e.maxX]) for(const z of [e.minZ,e.maxZ]) for(const y of [0,1.6]) points.push(new THREE.Vector3(x,y,z).applyMatrix4(this.camera.matrixWorldInverse));
-    points.push(this.stackOrigin.clone().add(new THREE.Vector3(0,4.6,0)).applyMatrix4(this.camera.matrixWorldInverse));
-    const width=Math.max(...points.map(p=>p.x))-Math.min(...points.map(p=>p.x));
-    const height=Math.max(...points.map(p=>p.y))-Math.min(...points.map(p=>p.y));
-    const aspect=(this.host.clientWidth||900)/(this.host.clientHeight||600);
-    this.viewSize=Math.max(height,width/aspect)*1.12;
+    this.viewSize=this.projectedSize();
     this.resize();
+  }
+  updateLighting() {
+    // Broad softbox impression: a blurred key above the viewer plus sky fill.
+    const direction=this.camera.position.clone().sub(this.controls.target).normalize();
+    direction.y+=.55;direction.normalize();
+    this.sun.position.copy(this.sun.target.position).addScaledVector(direction,this.lightSpan*1.2);
+  }
+  mapCenter() {
+    const e=this.extent;
+    return new THREE.Vector3((e.minX+e.maxX)/2,0,(e.minZ+e.maxZ)/2);
+  }
+  projectedSize() {
+    const e=this.extent,center=this.mapCenter(),rotation=this.camera.quaternion.clone().invert();
+    const points=[];
+    for(const x of [e.minX,e.maxX]) for(const z of [e.minZ,e.maxZ]) for(const y of [0,1.6]) points.push(new THREE.Vector3(x,y,z));
+    points.push(this.stackOrigin.clone().add(new THREE.Vector3(0,4.6,0)));
+    const tan=Math.tan(THREE.MathUtils.degToRad(this.camera.fov/2));
+    const aspect=(this.host.clientWidth||900)/(this.host.clientHeight||600);
+    let distance=1;
+    for(const point of points){
+      point.sub(center).applyQuaternion(rotation);
+      distance=Math.max(distance,Math.abs(point.x)/(tan*aspect)+point.z,Math.abs(point.y)/tan+point.z);
+    }
+    return distance*2*tan*1.12;
   }
   zoom(factor) { this.camera.zoom=THREE.MathUtils.clamp(this.camera.zoom*factor,.3,12); this.camera.updateProjectionMatrix(); }
   focusStack() {
     const target=this.stackOrigin.clone().add(new THREE.Vector3(0,1.8,0));
     this.camera.position.copy(target).add(new THREE.Vector3(4,4.8,8)); this.controls.target.copy(target);
-    this.camera.zoom=THREE.MathUtils.clamp(this.viewSize/7,.3,6); this.camera.updateProjectionMatrix(); this.controls.update();
+    this.viewSize=8;this.camera.zoom=1;this.updateProjection(); this.controls.update();
   }
   focus(id) {
     const node=this.nodes.get(id); if(!node) return;
@@ -669,7 +714,7 @@ export class Factory {
     const aspect=this.host.clientWidth/Math.max(1,this.host.clientHeight);
     const size={width:tile.width,depth:tile.height};
     const span=Math.max(size.depth+1.2,(size.width+1.4)/aspect);
-    this.camera.zoom=THREE.MathUtils.clamp(this.viewSize/span,1,12); this.camera.updateProjectionMatrix(); this.controls.update();
+    this.viewSize=span;this.camera.zoom=1;this.updateProjection(); this.controls.update();
   }
   dispose() { this.starfield?.dispose(); for(const [name,handler] of [['gesturestart',this.gestureStart],['gesturechange',this.gestureChange],['gestureend',this.gestureEnd]]) this.renderer.domElement.removeEventListener(name,handler,true); this.renderer.domElement.removeEventListener('wheel',this.wheelPan,true); this.minimap?.dispose(); this.resizeObserver.disconnect(); this.renderer.setAnimationLoop(null); this.controls.dispose(); release(this.world); this.renderer.dispose(); this.renderer.domElement.remove(); this.labels.remove(); this.opcodePanel.remove(); }
 }

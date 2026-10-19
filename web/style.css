@@ -33,7 +33,7 @@ button[aria-pressed=true]{background:#8ebeff20;color:#d0eaff;border-color:#b0dff
 .scene-label{background:#101a30a6;border-color:#9cb9ed40;color:#c2d1eb;backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px)}
 .scene-label.active{background:#40638c70;color:#d9f2ff;border-color:#a4dfff88}.scene-label.enclosure,.scene-label.machine{color:#c7d5ec;border-color:#9cb9ed40}
 .opcode-heading,#parse-status,.value span{color:#c4e5ff}.opcode-list button,.opcode-list button:nth-child(even){background:#19294150}.opcode-list button.current{background:#719fc033;border-color:#a4dfff;color:#e2f3ff}
-#map-status{background:#0c152b66;color:#b8c7df}.map{background-color:#080e1a;background-image:radial-gradient(#667da738 1px,transparent 1px)}
+#map-status{display:none}.map{background-color:#080e1a;background-image:radial-gradient(#667da738 1px,transparent 1px)}
 #parse-seek{accent-color:var(--accent)}.minimap-heading{color:#b9c9e2}
 
 .source-editor{position:relative;height:230px;overflow:hidden;border:1px solid #b4c9fa30;border-radius:5px;background:#090f234f}
@@ -42,4 +42,4 @@ button[aria-pressed=true]{background:#8ebeff20;color:#d0eaff;border-color:#b0dff
 .source-editor #source-highlight{pointer-events:none;overflow:hidden;background:transparent}
 .syntax-keyword{color:#cfacff}.syntax-string{color:#f1ca9d}.syntax-number{color:#8bded2}.syntax-comment{color:#8394ae}.syntax-builtin{color:#8ecfff}.syntax-operator{color:#b4c2de}.syntax-plain{color:#e2eaff}
 
-.starfield{position:absolute;inset:0;pointer-events:none;overflow:hidden;background:radial-gradient(ellipse at 24% 38%,#75509017,transparent 48%),radial-gradient(ellipse at 47% 48%,#456ca516,transparent 42%),radial-gradient(ellipse at 72% 66%,#724e8512,transparent 44%)}.starfield canvas{width:100%;height:100%}.factory>canvas{position:relative}.factory:has(.starfield){background-image:none}
+.starfield{position:absolute;inset:0;pointer-events:none;overflow:hidden;background:radial-gradient(ellipse at 47% 43%,#bc358c38,transparent 43%),radial-gradient(ellipse at 24% 38%,#75509038,transparent 48%),radial-gradient(ellipse at 57% 52%,#456ca536,transparent 48%),radial-gradient(ellipse at 72% 66%,#724e8530,transparent 44%)}.starfield canvas{width:100%;height:100%}.factory>canvas{position:relative}.factory:has(.starfield){background-image:none}
