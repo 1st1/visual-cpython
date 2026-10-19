@@ -2,6 +2,7 @@
 import { readFile } from 'node:fs/promises';
 import assert from 'node:assert/strict';
 import createModule from '../web/vendor/python.mjs';
+import { extractGraph, projectReplay } from '../web/graph.mjs';
 
 const base = new URL('../', import.meta.url);
 const stdlib = new Uint8Array(await readFile(new URL('web/vendor/python3.16.zip', base)));
@@ -10,6 +11,7 @@ const cases = [
   ['addition', 'a=2\nb=3\nc=a+b\nprint(c)', 'completed', '5\n'],
   ['calls', 'def f(x):\n    return x+1\nprint(f(1), f(2))', 'completed', '2 3\n'],
   ['error', 'x=1/0', 'error', ''],
+  ['nested loops', 's=0\nfor i in range(3):\n for j in range(2):\n  s=s+i+j\nprint(s)', 'completed', '9\n'],
   ['loop limit', 'while True:\n    pass', 'limited', ''],
 ];
 for (const [name, source, status, output] of cases) {
@@ -32,6 +34,9 @@ for (const [name, source, status, output] of cases) {
   const trace = JSON.parse(lines.join('\n'));
   assert.equal(trace.status, status, trace.error);
   assert.equal(trace.stdout, output);
+  const graph = extractGraph(trace);
+  projectReplay(trace, graph);
+  assert.deepEqual(graph.diagnostics, [], name);
   if (name === 'addition') {
     const operation = trace.codes[0].instructions.find(i => i.opname === 'BINARY_OP');
     const event = trace.events.find(e => e.kind === 'opcode' && e.offset === operation.offset);

@@ -11,6 +11,7 @@ def package():
     for name in ("python.mjs", "python.wasm", "python3.16.zip"):
         shutil.copy2(ROOT / ".build/wasm" / name, output / name)
     shutil.copy2(ROOT / "runtime/capture.py", output / "capture.py")
+    shutil.copy2(ROOT / "node_modules/@viz-js/viz/dist/viz.js", output / "viz.js")
     print("Staged runtime in web/vendor")
 
 

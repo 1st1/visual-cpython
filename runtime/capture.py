@@ -86,9 +86,23 @@ class Observer:
         identity = f"c{len(self.codes)}"
         self.codes[code] = identity
         instructions = []
-        for ins in dis.get_instructions(code, adaptive=False):
+        decoded = list(dis.get_instructions(code, adaptive=False))
+        for ins in decoded:
+            target = ins.argval if ins.opcode in dis.hasjump else None
+            # This revision's evaluator skips END_FOR on iterator exhaustion.
+            # Retain dis's encoded target separately for inspection.
+            if ins.opname == "FOR_ITER":
+                target += 2
+            flow = "next"
+            if target is not None:
+                flow = "jump" if ins.opname in {"JUMP_FORWARD", "JUMP_BACKWARD", "JUMP_BACKWARD_NO_INTERRUPT"} else "branch"
+            elif ins.opname in {"RETURN_VALUE", "RETURN_CONST", "RAISE_VARARGS", "RERAISE"}:
+                flow = "exit"
+            elif ins.opname.startswith("CALL"):
+                flow = "call"
             instructions.append({"offset": ins.offset, "opname": ins.opname, "arg": ins.arg,
-                                 "target": ins.argval if ins.opcode in dis.hasjump else None,
+                                 "target": target, "encoded_target": ins.argval if ins.opcode in dis.hasjump else None,
+                                 "flow": flow,
                                  "line": ins.positions.lineno, "column": ins.positions.col_offset})
         self.artifacts.append({"id": identity, "name": code.co_name, "first_line": code.co_firstlineno,
                                "locals": list(code.co_varnames), "instructions": instructions})
@@ -140,7 +154,7 @@ def capture(source, max_events=2000):
     if not 1 <= max_events <= 10000:
         raise ValueError("max_events must be between 1 and 10000")
     observer = Observer(max_events)
-    result = {"schema": 1, "source": source, "events": observer.events, "codes": observer.artifacts,
+    result = {"schema": 2, "source": source, "events": observer.events, "codes": observer.artifacts,
               "provenance": {"python": sys.version, "revision": "036d309cf542986a39eeba5ca805b2ec7619731d",
                              "mode": "opcode-tracing", "specialization": "perturbed", "stack": "observed-pre-instruction"}}
     try:

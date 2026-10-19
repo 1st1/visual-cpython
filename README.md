@@ -3,7 +3,9 @@
 An interactive explanation of CPython being built from real execution data.
 The first implemented slice is a capture workbench: edit a small Python program,
 record actual instruction-boundary stacks, and inspect the recording forward or
-backward. Graph layout and the 3D factory are still planned in [Lat](lat.md/cpython/v1-plan.md).
+backward. A Graphviz map groups bytecode into blocks and code-object enclosures,
+with execution highlights and observed call connections. The 3D factory remains
+planned in [Lat](lat.md/cpython/v1-plan.md).
 
 ## Build the observation runtime
 
@@ -26,6 +28,7 @@ build the same static probe into WASM:
 ```sh
 python3 cpython/Platforms/emscripten install-emscripten --emsdk-cache .build/emsdk
 python3 tools/build_wasm.py
+npm ci
 python3 tools/package_web.py
 node tools/test_wasm.mjs
 python3 -m http.server 8000 --bind 127.0.0.1 --directory web
@@ -40,7 +43,7 @@ With the static server running and Google Chrome installed, run browser checks
 in headless Chrome:
 
 ```sh
-npm ci
+npm run test:graph
 npm run test:browser
 ```
 
@@ -64,3 +67,8 @@ written to `artifacts/`. Set `FACTORY_URL` to test a different server address.
 The accepted syntax is deliberately limited; imports, attribute access,
 generators, classes, and dynamic code are rejected. Capture limits and the
 current implementation are described in [the runtime notes](lat.md/cpython/runtime.md).
+
+Select a map block to inspect its instructions, then use **Next recorded visit**
+to seek execution there. Zoom and scroll to inspect larger graphs. Layout stays
+fixed during replay. This is the Graphviz routing baseline: connection crossings
+are not junctions, and wire clearance/bridge routing is not implemented yet.

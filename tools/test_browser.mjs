@@ -14,6 +14,10 @@ async function capture(source, status = 'completed') {
   await page.locator('#run').click();
   await page.waitForFunction(() => !document.querySelector('#run').disabled, null, { timeout: 60000 });
   assert.equal(await page.locator('#state').textContent(), status, await page.locator('#message').textContent());
+  if (status !== 'Stopped') {
+    await page.waitForFunction(() => /Graphviz|No compiled program|failed|unavailable/.test(document.querySelector('#map-status').textContent), null, { timeout: 20000 });
+    assert.doesNotMatch(await page.locator('#map-status').textContent(), /failed|unavailable|warnings/);
+  }
 }
 async function end() {
   await page.locator('#seek').focus();
@@ -32,6 +36,9 @@ try {
     await page.locator('#next').click();
   }
   assert.ok(foundAddition, 'Observed addition instruction not found');
+  assert.equal(await page.locator('#map .executing').count(), 1);
+  const geometry = await page.locator('#map svg').getAttribute('viewBox');
+  const activeBlock = await page.locator('#map .executing').getAttribute('id');
   assert.match(await page.locator('#stack').textContent(), /int: "2"/);
   assert.match(await page.locator('#stack').textContent(), /int: "3"/);
   const before = await page.locator('#event').textContent();
@@ -39,12 +46,21 @@ try {
   assert.match(await page.locator('#stack').textContent(), /int: "5"/);
   await page.locator('#back').click();
   assert.equal(await page.locator('#event').textContent(), before);
+  assert.equal(await page.locator('#map .executing').getAttribute('id'), activeBlock);
+  assert.equal(await page.locator('#map svg').getAttribute('viewBox'), geometry);
+  await page.locator('#map .node').first().click();
+  assert.match(await page.locator('#block-detail').textContent(), /RESUME/);
+  await page.locator('#visit-block').click();
+  assert.equal(await page.locator('#map .selected').getAttribute('id'), await page.locator('#map .executing').getAttribute('id'));
   await page.screenshot({ path: 'artifacts/workbench-desktop.png', fullPage: true });
   await end();
   assert.equal(await page.locator('#stdout').textContent(), '5\n');
   console.log('PASS actual WASM operand stacks, forward/back, output');
 
   await capture('def f(x):\n    if x > 3:\n        return x * 2\n    return x + 1\nprint(f(2), f(7))');
+  assert.equal(await page.locator('#map .cluster').count(), 2);
+  assert.ok(await page.locator('#map .edge').count() > 2);
+  await page.screenshot({ path: 'artifacts/program-map.png', fullPage: true });
   await end();
   assert.equal(await page.locator('#stdout').textContent(), '3 14\n');
   await capture('a=[1,2]\nb=a\na[0]=9\nprint(b[0])');

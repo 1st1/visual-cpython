@@ -1,6 +1,6 @@
 # Capture runtime
 
-The first implementation is a revision-pinned CPython observation module, bounded Python capture driver, and browser diagnostic workbench. The factory layout and 3D scene remain unimplemented.
+The implementation combines a revision-pinned CPython observation module, bounded Python capture driver, and browser workbench with a generated program map. The 3D scene remains unimplemented.
 
 Build recipes and commands are in [README.md](../../README.md). [[tools/build_native.py#build]] exports the pinned revision from the ignored reference checkout and adds [[runtime/probe.c]] as a static module in a disposable build. [[tools/build_wasm.py#build]] prepares a separate Emscripten build; [[tools/package_web.py#package]] stages generated browser assets.
 
@@ -26,7 +26,7 @@ Recordings distinguish completed, error, and limited outcomes. Exceptions follow
 
 ## Browser workbench
 
-The diagnostic UI exposes editing, capture, source/instruction selection, locals, stack, output, and forward/backward playback. It consumes complete recordings and does not yet create or route a program graph.
+The diagnostic UI exposes editing, capture, source/instruction selection, locals, stack, output, and forward/backward playback. It consumes complete recordings and drives the generated map described in [[graph]].
 
 [web/worker.mjs](../../web/worker.mjs) loads the generated Emscripten runtime, standard-library archive, and capture driver. Each run gets a new worker and interpreter. The worker writes source into its virtual filesystem, executes capture, and sends a serializable recording to the UI. The hosting server serves static files only.
 

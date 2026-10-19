@@ -1,0 +1,88 @@
+// Runtime CFG derived from assembled bytecode, not the compiler's internal CFG.
+export function extractGraph(recording) {
+  if (recording.schema !== 2) throw new Error('Unsupported capture schema; run a fresh capture.');
+  const graph = { schema: 1, codes: [], blocks: [], edges: [], locations: {}, diagnostics: [] };
+  for (const code of recording.codes) {
+    const instructions = code.instructions;
+    if (!instructions.length) continue;
+    const leaders = new Set([instructions[0].offset]);
+    for (let i = 0; i < instructions.length; i++) {
+      const ins = instructions[i];
+      if (ins.target !== null) leaders.add(ins.target);
+      if (ins.flow !== 'next' && instructions[i + 1]) leaders.add(instructions[i + 1].offset);
+    }
+    const blocks = [];
+    for (const ins of instructions) {
+      if (leaders.has(ins.offset)) blocks.push({ id: `${code.id}_b${ins.offset}`, code: code.id, instructions: [] });
+      const block = blocks.at(-1);
+      block.instructions.push(ins);
+      graph.locations[`${code.id}:${ins.offset}`] = block.id;
+    }
+    graph.codes.push({ id: code.id, name: code.name, blocks: blocks.map(b => b.id) });
+    graph.blocks.push(...blocks);
+    for (let i = 0; i < blocks.length; i++) {
+      const block = blocks[i], last = block.instructions.at(-1);
+      const add = (offset, kind) => {
+        const target = graph.locations[`${code.id}:${offset}`];
+        if (!target) throw new Error(`Unknown target ${code.id}:${offset}`);
+        graph.edges.push({ id: `${block.id}_${kind}`, source: block.id, target, kind });
+      };
+      if (last.target !== null) add(last.target, last.flow === 'branch' ? 'taken' : 'jump');
+      if (['next', 'branch', 'call'].includes(last.flow) && blocks[i + 1]) add(blocks[i + 1].instructions[0].offset, 'next');
+    }
+  }
+  return graph;
+}
+
+// Each entry is an immutable selection state; seeking never runs user code.
+export function projectReplay(recording, graph) {
+  const frames = new Map(), previous = new Map(), states = [];
+  for (const event of recording.events) {
+    const block = graph.locations[`${event.code}:${event.offset}`] || graph.codes.find(c => c.id === event.code)?.blocks[0];
+    let edge = null;
+    if (event.kind === 'call') {
+      frames.set(event.frame, { id: event.frame, parent: event.parent, code: event.code });
+      const caller = previous.get(event.parent);
+      if (caller && block) {
+        const id = `${caller.block}_call_${event.code}`;
+        if (!graph.edges.some(e => e.id === id)) graph.edges.push({ id, source: caller.block, target: block, kind: 'call' });
+        edge = id;
+      }
+    }
+    if (event.kind === 'opcode') {
+      const prior = previous.get(event.frame);
+      if (prior && (prior.block !== block || prior.flow === 'jump' || prior.flow === 'branch')) {
+        const matches = graph.edges.filter(e => e.kind !== 'call' && e.source === prior.block && e.target === block);
+        edge = matches[0]?.id || null;
+        if (!edge) graph.diagnostics.push(`Unmapped transition at event ${event.seq}: ${prior.block} → ${block}`);
+      }
+      const ins = recording.codes.find(c => c.id === event.code).instructions.find(i => i.offset === event.offset);
+      if (!ins) graph.diagnostics.push(`Unmapped opcode at event ${event.seq}: ${event.offset}`);
+      previous.set(event.frame, { block, flow: ins?.flow });
+    }
+    const chain = [];
+    for (let frame = frames.get(event.frame); frame; frame = frames.get(frame.parent)) chain.unshift({ ...frame });
+    states.push({ block, edge, frames: chain, kind: event.kind });
+    if (event.kind === 'return' || event.kind === 'unwind') previous.delete(event.frame);
+  }
+  return states;
+}
+
+export function toDot(graph) {
+  const q = JSON.stringify;
+  const lines = ['digraph program {', 'graph [bgcolor="transparent", rankdir=TB, splines=ortho, nodesep=0.55, ranksep=0.7, pad=0.25];',
+    'node [shape=box, fixedsize=true, width=3.5, height=0.9, style="rounded,filled", fillcolor="#192522", color="#526c61", fontcolor="#dce5e5", fontname="monospace", fontsize=11, margin="0.18,0.13"];',
+    'edge [color="#617f70", arrowsize=0.7];'];
+  for (const code of graph.codes) {
+    lines.push(`subgraph cluster_${code.id} { label=${q(`${code.name} · ${code.id}`)}; fontname="monospace"; fontcolor="#8d9f9a"; color="#35473e"; margin=22;`);
+    for (const block of graph.blocks.filter(b => b.code === code.id)) {
+      const first = block.instructions[0], last = block.instructions.at(-1);
+      const label = `${block.id} · L${first.line ?? '?'}\n${first.offset}–${last.offset} · ${block.instructions.length} instructions\n${last.opname}`;
+      lines.push(`${q(block.id)} [id=${q(block.id)}, label=${q(label)}];`);
+    }
+    lines.push('}');
+  }
+  for (const edge of graph.edges) lines.push(`${q(edge.source)} -> ${q(edge.target)} [id=${q(edge.id)}, tooltip=${q(edge.kind)}, color=${q(edge.kind === 'call' ? '#b39be4' : edge.kind === 'taken' ? '#d1ab66' : '#617f70')}, style=${q(edge.kind === 'call' ? 'dashed' : 'solid')}, constraint=${edge.kind === 'call' || edge.kind === 'jump' ? 'false' : 'true'}];`);
+  lines.push('}');
+  return lines.join('\n');
+}
