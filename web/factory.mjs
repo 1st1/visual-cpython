@@ -126,7 +126,10 @@ export class Factory {
       if (!down || Math.hypot(e.clientX-down[0],e.clientY-down[1])>5 || e.button!==0) return;
       const r=host.getBoundingClientRect(); this.pointer.set((e.clientX-r.left)/r.width*2-1,1-(e.clientY-r.top)/r.height*2);
       this.raycaster.setFromCamera(this.pointer,this.camera);
-      const hit=this.raycaster.intersectObjects(this.pickables,false)[0];
+      const hit=this.raycaster.intersectObjects(this.pickables.filter(object=>{
+        for(let parent=object;parent;parent=parent.parent)if(!parent.visible)return false;
+        return true;
+      }),false)[0];
       if(hit) { this.onSelect(hit.object.userData.block); if(hit.object.userData.offset!==undefined) this.onInstruction(hit.object.userData.block,hit.object.userData.offset); }
     });
     this.resizeObserver=new ResizeObserver(()=>this.resize()); this.resizeObserver.observe(host);
@@ -154,6 +157,7 @@ export class Factory {
           tile.group.visible=t>0; tile.group.scale.y=Math.max(.001,t);
           if(t>0) latest=tile; if(t<1) complete=false;
         });
+        this.updateOpcodeVisibility();
         this.host.dataset.revealedOpcodes=String(this.revealTiles.filter(t=>t.group.visible).length);
         if(latest) this.highlightSource(latest.instruction.line,latest.position,'opcodes');
         if(complete) this.finishConstruction();
@@ -272,7 +276,7 @@ export class Factory {
       const color=route.kind==='call'?0xa895cf:route.kind==='taken'?0xc4a068:0x658775;
       const edge=connector(route.points,color,{dashed:route.kind==='call'});
       this.world.add(edge.line,edge.arrow);
-      this.edges.set(route.id,edge);
+      this.edges.set(route.id,{...edge,source:route.source,target:route.target});
     }
     this.instructionTiles=new Map();
     for(const placed of layout?.nodes || []) {
@@ -282,7 +286,7 @@ export class Factory {
       tray.userData.block=block.id; this.pickables.push(tray);
       label(group,0,.3,-placed.height/2+.24,Math.min(placed.width-.2,4),.35,[block.id]);
       const grid=instructionGrid(block.instructions,layout.placement?.selected.compact ?? true);
-      const tiles=[];
+      const tiles=[],arrows=[];
       for(const entry of grid.tiles) {
         const tileGroup=new THREE.Group(); tileGroup.position.set(entry.x,0,entry.y);group.add(tileGroup);
         const body=box(tileGroup,0,.49,0,entry.width,.38,entry.height);
@@ -295,9 +299,9 @@ export class Factory {
         const a=tiles[i-1],b=tiles[i],direction=new THREE.Vector3(b.x-a.x,0,b.y-a.y).normalize();
         const length=Math.hypot(b.x-a.x,b.y-a.y),edge=Math.abs(direction.x)>.5?a.width/2:a.height/2;
         const start=new THREE.Vector3(a.x,.32,a.y).addScaledVector(direction,edge);
-        const arrow=new THREE.ArrowHelper(direction,start,Math.max(.01,length-2*edge),0x88a895,.12,.1);group.add(arrow);
+        const arrow=new THREE.ArrowHelper(direction,start,Math.max(.01,length-2*edge),0x88a895,.12,.1);group.add(arrow);arrows.push({arrow,from:a,to:b});
       }
-      this.nodes.set(block.id,{group,body:tray,roof:tray,height:.3,tiles});
+      this.nodes.set(block.id,{group,body:tray,roof:tray,height:.3,tiles,arrows});
     }
     this.pulse=new THREE.Mesh(new THREE.SphereGeometry(.085,8,6),new THREE.MeshBasicMaterial({color:colors.active})); this.world.add(this.pulse); this.pulse.visible=false;
     this.activeLabel=this.annotate('',new THREE.Vector3(),'active');
@@ -306,6 +310,7 @@ export class Factory {
     this.revealTiles=[...this.instructionTiles.values()].sort((a,b)=>(a.instruction.line??0)-(b.instruction.line??0)||a.instruction.offset-b.instruction.offset);
     this.revealStart=layout&&!this.reduced.matches?performance.now():0;
     if(this.revealStart) for(const tile of this.revealTiles) tile.group.visible=false;
+    this.updateOpcodeVisibility();
     this.host.dataset.revealedOpcodes=String(this.revealStart?0:this.revealTiles.length);
     this.host.dataset.phase=this.revealStart?'compilation reveal':layout?'replay':'source';
     this.link=new THREE.Group();this.world.add(this.link);
@@ -324,8 +329,7 @@ export class Factory {
     }
   }
   setState(state,event,selected,terminal=false) {
-    for(const node of this.nodes.values()) node.group.visible=true;
-    for(const edge of this.edges.values()) {edge.line.visible=true;edge.arrow.visible=true;}
+    this.updateOpcodeVisibility();
     this.astGroup.visible=Boolean(this.astTiles.length);
     for(const tile of this.astTiles) tile.group.visible=true;
     for(const {edge} of this.astEdges) edge.visible=true;
@@ -590,7 +594,7 @@ export class Factory {
     if(linkPhase==='parsing'&&source&&target) for(const token of tokens) connect(source.group.position.clone().add(new THREE.Vector3(4.1,.5,0)),token.group.position.clone().add(new THREE.Vector3(0,.7,0)),0x91c8dd,'sourceToken');
     if(linkPhase==='opcodes'&&selected) {
       const assignments=[];
-      for(const tile of this.instructionTiles.values()) if(tile.code===selected.code&&tile.instruction.line===line) {
+      for(const tile of this.instructionTiles.values()) if(tile.group.visible&&tile.code===selected.code&&tile.instruction.line===line) {
         const node=instructionAst(tile.instruction,this.parsing?.ast || [],this.parsing?.events || []);
         if(node) assignments.push({tile,node});
       }
@@ -602,9 +606,30 @@ export class Factory {
     this.host.dataset.pipelineLinks=JSON.stringify(counts);
   }
 
+  updateOpcodeVisibility() {
+    let blocks=0,connections=0,internal=0;
+    for(const node of this.nodes.values()) {
+      node.group.visible=node.tiles.some(tile=>tile.group.visible);
+      if(node.group.visible)blocks++;
+      for(const {arrow,from,to} of node.arrows){
+        arrow.visible=from.group.visible&&to.group.visible;
+        if(arrow.visible)internal++;
+      }
+    }
+    for(const edge of this.edges.values()) {
+      const source=this.nodes.get(edge.source),target=this.nodes.get(edge.target);
+      const visible=Boolean(source?.tiles.at(-1)?.group.visible&&target?.tiles[0]?.group.visible);
+      edge.line.visible=edge.arrow.visible=visible;
+      if(visible)connections++;
+    }
+    this.host.dataset.revealedBlocks=String(blocks);
+    this.host.dataset.revealedEdges=String(connections);
+    this.host.dataset.revealedInternalArrows=String(internal);
+  }
   finishConstruction() {
     this.revealStart=0;
     for(const tile of this.revealTiles || []) { tile.group.visible=true;tile.group.scale.y=1; }
+    this.updateOpcodeVisibility();
     this.host.dataset.revealedOpcodes=String(this.revealTiles?.length || 0);
     this.host.dataset.phase=this.graph?'replay':'source';
     for(const tile of this.parseTokens || []) tile.group.visible=true;
