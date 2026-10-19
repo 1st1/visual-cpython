@@ -18,13 +18,17 @@ try {
     await page.evaluate(()=>new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r))));
     samples.push(await page.evaluate(()=>{
       const f=document.querySelector('#factory'),canvas=f.querySelector(':scope > canvas'),stars=f.querySelector('.starfield canvas');
-      return {labels:Number(f.dataset.labelCanvasBytes),textures:Number(f.dataset.gpuTextures),geometries:Number(f.dataset.gpuGeometries),pixels:canvas.width*canvas.height,starPixels:stars.width*stars.height};
+      return {atlas:JSON.parse(f.dataset.textAtlas),labels:Number(f.dataset.labelCanvasBytes),textures:Number(f.dataset.gpuTextures),geometries:Number(f.dataset.gpuGeometries),pixels:canvas.width*canvas.height,starPixels:stars.width*stars.height};
     }));
   }
   for(const sample of samples){
-    assert.ok(sample.pixels<=3010000);
+    assert.ok(sample.pixels<=8010000);
     assert.ok(sample.starPixels<=2010000);
-    assert.ok(sample.labels<100*1024*1024,'BFS canvas labels stay below 100 MiB');
+    assert.ok(sample.pixels>3000000,'Retina scene gets more pixels than the old blurry cap');
+    assert.equal(sample.labels,0,'No per-label bitmap backing stores');
+    assert.ok(sample.atlas.bytes<=4*1024*1024,'Shared glyph pages remain bounded');
+    assert.equal(sample.atlas.bytes,samples[0].atlas.bytes);
+    assert.ok(sample.textures<10,'Labels share atlas textures instead of one texture per block');
     assert.equal(sample.labels,samples[0].labels);
     assert.ok(sample.textures<=samples[0].textures+2,'Repeated captures release old GPU textures');
     assert.ok(sample.geometries<=samples[0].geometries+2,'Repeated captures release old geometry');

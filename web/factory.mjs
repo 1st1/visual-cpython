@@ -1,3 +1,4 @@
+import {surfaceText,textAtlasStats,disposeTextAtlas} from './text-atlas.mjs';
 import {Starfield} from './starfield.mjs';
 import {syntaxLines,syntaxColors} from './python-syntax.mjs';
 import {Minimap} from './minimap.mjs';
@@ -35,67 +36,28 @@ function box(parent, x, y, z, w, h, d, color = colors.block) {
   mesh.add(outline);
   return mesh;
 }
-function label(parent, x, y, z, width, depth, lines, accent = '#c8d9d0', front = false) {
-  const canvas = document.createElement('canvas'); canvas.width=384; canvas.height=96;
-  const texture = new THREE.CanvasTexture(canvas); texture.colorSpace=THREE.SRGBColorSpace; texture.anisotropy=8;
-  const material = new THREE.MeshBasicMaterial({ map: texture, transparent: true, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -1 });
-  const plane = new THREE.Mesh(new THREE.PlaneGeometry(width,depth),material);
-  plane.rotation.x=front?0:-Math.PI/2; plane.position.set(x,y,z); parent.add(plane);
-  let previous;
-  const paint = values => {
-    const signature=JSON.stringify(values); if(signature===previous) return; previous=signature;
-    const ctx=canvas.getContext('2d'); ctx.setTransform(.5,0,0,.5,0,0);ctx.clearRect(0,0,768,192); ctx.textAlign='center'; ctx.textBaseline='middle';
-    values.slice(0,3).forEach((line,i) => { ctx.fillStyle=i===0?accent:'#a2b9ad'; ctx.font=`${i===0?'600':'400'} ${values.length===1?80:64}px monospace`; ctx.fillText(String(line),384,(i+.5)*192/values.length,730); });
-    texture.needsUpdate=true;
+function label(parent,x,y,z,width,depth,lines,accent='#c8d9d0',front=false) {
+  const update=surfaceText(parent,x,y,z,width,depth,{front});let previous;
+  const paint=values=>{
+    const signature=JSON.stringify(values);if(signature===previous)return;previous=signature;
+    update(values.slice(0,3).map((text,i)=>({text:String(text),color:i===0?accent:'#a2b9ad',align:'center'})));
   };
-  paint(lines);
-  return paint;
+  paint(lines);return paint;
 }
-
-function opcodeTile(parent, width, depth, y, instruction, anisotropy, resolution=512) {
-  const canvas=document.createElement('canvas'); canvas.width=resolution; canvas.height=Math.round(resolution*depth/width);
-  const texture=new THREE.CanvasTexture(canvas); texture.colorSpace=THREE.SRGBColorSpace; texture.anisotropy=Math.min(anisotropy,8);
-  const mesh=new THREE.Mesh(new THREE.PlaneGeometry(width,depth),new THREE.MeshBasicMaterial({map:texture,polygonOffset:true,polygonOffsetFactor:-1}));
-  mesh.rotation.x=-Math.PI/2; mesh.position.y=y; parent.add(mesh);
-  let last;
+function opcodeTile(parent,width,depth,y,instruction) {
+  const update=surfaceText(parent,0,y,0,width,depth,{background:'#11192c'});let previous;
   return active=>{
-    if(last===active) return; last=active;
-    const ctx=canvas.getContext('2d'),w=canvas.width,h=canvas.height;
+    if(previous===active)return;previous=active;
     const argument=instruction.argrepr || (instruction.arg===null?'':String(instruction.arg));
-    const lines=[`@${instruction.offset}`, ...instruction.opname.match(/.{1,22}/g), ...(argument?[argument]:[])];
-    const row=h/lines.length,font=Math.floor(row*.69);
-    ctx.fillStyle=active?'#a4dfff':'#11192c';ctx.fillRect(0,0,w,h);ctx.textBaseline='middle';
-    lines.forEach((line,i)=>{
-      ctx.fillStyle=active?'#0c1730':i===0?'#a2b8db':'#f0f7f1';
-      ctx.font=`500 ${i===0?Math.floor(font*.8):font}px monospace`;
-      let text=line;
-      while(ctx.measureText(text).width>w-40&&text.length) text=text.slice(0,-1);
-      if(text!==line) text=text.slice(0,-1)+'…';
-      ctx.fillText(text,20,row*(i+.5));
-    });
-    texture.needsUpdate=true;
+    const lines=[`@${instruction.offset}`,...instruction.opname.match(/.{1,22}/g),...(argument?[argument]:[])];
+    update(lines.map((text,i)=>({text,color:active?'#0c1730':i===0?'#a2b8db':'#f0f7f1'})),active?'#a4dfff':'#11192c');
   };
 }
-
-function sourceTile(parent,width,depth,line,text,anisotropy,tokens) {
-  const canvas=document.createElement('canvas'); canvas.width=1024; canvas.height=128;
-  const texture=new THREE.CanvasTexture(canvas); texture.colorSpace=THREE.SRGBColorSpace; texture.anisotropy=Math.min(anisotropy,8);
-  const mesh=new THREE.Mesh(new THREE.PlaneGeometry(width,depth),new THREE.MeshBasicMaterial({map:texture}));
-  mesh.rotation.x=-Math.PI/2; mesh.position.y=.32; parent.add(mesh);
-  let previous;
+function sourceTile(parent,width,depth,line,tokens) {
+  const update=surfaceText(parent,0,.32,0,width,depth,{background:'#10182b'});let previous;
   return active=>{
-    if(previous===active) return; previous=active;
-    const ctx=canvas.getContext('2d'); ctx.fillStyle=active?'#293d60':'#10182b';ctx.fillRect(0,0,1024,128);
-    ctx.fillStyle=active?'#11192c':'#dae9f4';ctx.font='28px monospace';ctx.textBaseline='middle';
-    ctx.fillStyle='#8296b9';const prefix=`${String(line).padStart(3)}  `;ctx.fillText(prefix,20,64);
-    let x=20+ctx.measureText(prefix).width;
-    for(const token of tokens || []) {
-      ctx.fillStyle=syntaxColors[token.kind];let value=token.text;
-      while(value.length&&x+ctx.measureText(value).width>984)value=value.slice(0,-1);
-      ctx.fillText(value,x,64);x+=ctx.measureText(value).width;
-      if(value!==token.text){ctx.fillText('…',x,64);break;}
-    }
-    texture.needsUpdate=true;
+    if(previous===active)return;previous=active;
+    update([{size:depth*.22,runs:[{text:String(line).padStart(3)+'  ',color:'#8296b9'},...(tokens || []).map(t=>({text:t.text,color:syntaxColors[t.kind]}))]}],active?'#293d60':'#10182b');
   };
 }
 
@@ -214,6 +176,7 @@ export class Factory {
       if(this.ghosts)this.host.dataset.ghostCount=String(this.ghosts.children.length);
       this.renderer.render(this.scene,this.camera);
       this.placeLabels();this.minimap?.draw();
+      host.dataset.textAtlas=JSON.stringify(textAtlasStats());
       host.dataset.gpuTextures=String(this.renderer.info.memory.textures);
       host.dataset.gpuGeometries=String(this.renderer.info.memory.geometries);
       host.dataset.rendered='true';host.dataset.zoom=String(this.camera.zoom);
@@ -289,7 +252,7 @@ export class Factory {
     this.sourceLines.forEach((text,i)=>{
       const group=new THREE.Group(); group.position.set(this.sourceOrigin.x-sourceWidth/2+.6+4.1+Math.floor(i/rows)*8.7,0,-sourceDepth/2+1.2+(i%rows)*1.15);this.world.add(group);
       const body=box(group,0,.18,0,8.2,.26,1.025,0x293947);
-      const paint=sourceTile(group,8.1,1.0125,i+1,text,this.renderer.capabilities.getMaxAnisotropy(),this.sourceSyntax[i]);paint(false);
+      const paint=sourceTile(group,8.1,1.0125,i+1,this.sourceSyntax[i]);paint(false);
       this.sourceTiles.push({group,body,paint,line:i+1});
     });
     this.host.dataset.sourceTiles=String(this.sourceTiles.length);
@@ -328,7 +291,7 @@ export class Factory {
         const tileGroup=new THREE.Group(); tileGroup.position.set(entry.x,0,entry.y);group.add(tileGroup);
         const body=box(tileGroup,0,.49,0,entry.width,.38,entry.height);
         body.userData={block:block.id,offset:entry.instruction.offset};this.pickables.push(body);
-        const paint=opcodeTile(tileGroup,entry.width-.08,entry.height-.08,.69,entry.instruction,this.renderer.capabilities.getMaxAnisotropy());paint(false);
+        const paint=opcodeTile(tileGroup,entry.width-.08,entry.height-.08,.69,entry.instruction);paint(false);
         const tile={...entry,code:block.code,group:tileGroup,body,paint,position:new THREE.Vector3(placed.x+entry.x,.8,placed.y+entry.y)};tiles.push(tile);
         this.instructionTiles.set(`${block.code}:${entry.instruction.offset}`,tile);
       }
@@ -483,7 +446,7 @@ export class Factory {
     tokens.forEach((event,i)=>{
       const group=new THREE.Group();group.position.set(e.tokenX+(i%4-1.5)*3.4,0,-e.tokenDepth/2+1+Math.floor(i/4)*1.2);this.world.add(group);
       const body=box(group,0,.3,0,3.15,.45,1,0x31404b);
-      const paint=opcodeTile(group,3.05,.9,.54,{offset:event.cursor,opname:event.token,argrepr:event.text,arg:null},this.renderer.capabilities.getMaxAnisotropy(),384);paint(false);
+      const paint=opcodeTile(group,3.05,.9,.54,{offset:event.cursor,opname:event.token,argrepr:event.text,arg:null});paint(false);
       this.parseTokens.push({group,body,paint,event});
     });
     const positions=new Map();this.astEdges=[];
@@ -493,7 +456,7 @@ export class Factory {
       const pos=new THREE.Vector3(e.astX+tree.x,.4,tree.z);positions.set(node.id,pos);
       const group=new THREE.Group();group.position.copy(pos);this.astGroup.add(group);
       const body=box(group,0,0,0,2.5,.4,1.2,0x3e354e);
-      const paint=opcodeTile(group,2.4,1.1,.22,{offset:node.id,opname:node.kind,argrepr:[node.label,node.operator].filter(Boolean).join(' · '),arg:null},this.renderer.capabilities.getMaxAnisotropy(),384);paint(false);
+      const paint=opcodeTile(group,2.4,1.1,.22,{offset:node.id,opname:node.kind,argrepr:[node.label,node.operator].filter(Boolean).join(' · '),arg:null});paint(false);
       this.astTiles.push({node,group,body,paint});
       if(node.parent!==null) {
         const parent=positions.get(node.parent).clone();parent.z+=.6;parent.y=.22;
@@ -525,8 +488,8 @@ export class Factory {
     else group.position.set(this.extent.astX-this.extent.astWidth/2+1.6+(seq%2)*3,.7,-this.extent.astDepth/2+1+(seq%3)*1.6);
     this.ghosts.add(group);
     box(group,0,0,0,2.5,.4,1.2,0x3e354e);
-    opcodeTile(group,2.4,1.1,.22,{offset:seq,opname:event.text,argrepr:'temporary',arg:null},this.renderer.capabilities.getMaxAnisotropy(),384)(false);
-    group.traverse(o=>{if(o.material){o.material.transparent=true;o.material.depthWrite=false;o.userData.ghostOpacity=o.isLineSegments ? .55 : o.material.map ? .6 : .25;o.material.opacity=o.userData.ghostOpacity;}});
+    opcodeTile(group,2.4,1.1,.22,{offset:seq,opname:event.text,argrepr:'temporary',arg:null})(false);
+    group.traverse(o=>{if(o.material){o.material.transparent=true;o.material.depthWrite=false;o.userData.ghostOpacity=o.isLineSegments ? .55 : o.material.isShaderMaterial ? .6 : .25;o.material.opacity=o.userData.ghostOpacity;}});
     group.userData.born=performance.now();group.userData.event=seq;
     this.host.dataset.ghostCount=String(this.ghosts.children.length);this.host.dataset.ghostEvent=String(seq);
     return group.position.clone();
@@ -664,7 +627,7 @@ export class Factory {
   resize() {
     const width=this.host.clientWidth,height=this.host.clientHeight;
     if(!width||!height) return;
-    this.renderer.setPixelRatio(Math.min(devicePixelRatio,1.5,Math.sqrt(3000000/(width*height))));
+    this.renderer.setPixelRatio(Math.min(devicePixelRatio,2,Math.sqrt(8000000/(width*height))));
     this.renderer.setSize(width,height,false); this.updateProjection();
   }
   updateProjection() {
@@ -725,5 +688,5 @@ export class Factory {
     const span=Math.max(size.depth+1.2,(size.width+1.4)/aspect);
     this.viewSize=span;this.camera.zoom=1;this.updateProjection(); this.controls.update();
   }
-  dispose() { this.starfield?.dispose(); for(const [name,handler] of [['gesturestart',this.gestureStart],['gesturechange',this.gestureChange],['gestureend',this.gestureEnd]]) this.renderer.domElement.removeEventListener(name,handler,true); this.renderer.domElement.removeEventListener('wheel',this.wheelPan,true); this.minimap?.dispose(); this.resizeObserver.disconnect(); this.renderer.setAnimationLoop(null); this.controls.dispose(); release(this.world); this.sun.shadow.dispose();this.renderer.dispose(); this.renderer.domElement.remove(); this.labels.remove(); this.opcodePanel.remove(); }
+  dispose() { this.starfield?.dispose(); for(const [name,handler] of [['gesturestart',this.gestureStart],['gesturechange',this.gestureChange],['gestureend',this.gestureEnd]]) this.renderer.domElement.removeEventListener(name,handler,true); this.renderer.domElement.removeEventListener('wheel',this.wheelPan,true); this.minimap?.dispose(); this.resizeObserver.disconnect(); this.renderer.setAnimationLoop(null); this.controls.dispose(); release(this.world); disposeTextAtlas();this.sun.shadow.dispose();this.renderer.dispose(); this.renderer.domElement.remove(); this.labels.remove(); this.opcodePanel.remove(); }
 }

@@ -1,7 +1,7 @@
 import {paintPython} from './python-syntax.mjs';
 import { extractGraph, projectReplay } from './graph.mjs';
 import { ParsingReplay } from './parsing.mjs';
-import { Factory } from './factory.mjs';
+import { Factory } from './factory.mjs?v=4';
 import { instructionText } from './opcodes.mjs';
 const $ = id => document.getElementById(id);
 const examples = {
