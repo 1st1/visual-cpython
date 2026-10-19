@@ -4,6 +4,38 @@ The implementation combines a revision-pinned CPython observation module, bounde
 
 Build recipes and commands are in [README.md](../../README.md). [[tools/build_native.py#build]] exports the pinned revision from the ignored reference checkout and adds [[runtime/probe.c]] as a static module in a disposable build. [[tools/build_wasm.py#build]] prepares a separate Emscripten build; [[tools/package_web.py#package]] stages generated browser assets.
 
+## Build pipeline
+
+The build exports pinned CPython sources into disposable native and WASM trees, adds instrumentation, and stages a static browser application. The reference checkout and generated artifacts remain outside Git.
+
+Prerequisites are a local `cpython/` Git checkout containing [runtime/revision.txt](../../runtime/revision.txt), Git, a C compiler, make, host Python 3.14+, and Node 24. Headless browser checks use installed Google Chrome through Playwright. Run commands from the repository root.
+
+1. [[tools/build_native.py#build]] exports the revision into `.build/native`, runs [[tools/instrument_parser.py#instrument]], and installs [[runtime/probe.c]] as the static `_factory_probe` module. It configures a debug interpreter with JIT and ensurepip disabled, then runs make. This native interpreter also supplies the build-time Python required for cross-compilation.
+2. Install the CPython Emscripten SDK into `.build/emsdk`. [[tools/build_wasm.py#build]] currently expects SDK 6.0.10. It exports and instruments `.build/wasm-source`, then cross-compiles into `.build/wasm` using the native interpreter. The browser build disables JIT, pymalloc, and test modules; enables WASM dynamic linking; and caps linear memory at 256 MiB.
+3. Install locked JavaScript dependencies with npm ci. [[tools/package_web.py#package]] stages the Python loader, WASM, stdlib ZIP, capture driver, Graphviz, Three.js, and OrbitControls into `web/vendor/`. It publishes a hash-based runtime manifest after copying runtime assets.
+4. Serve `web/` with a static HTTP server. Handwritten browser modules and styles are served directly; there is no frontend bundler or npm build command. Python programs execute in browser workers, not on the static server.
+
+```sh
+python3 tools/build_native.py
+python3 cpython/Platforms/emscripten install-emscripten --emsdk-cache .build/emsdk
+python3 tools/build_wasm.py
+npm ci
+python3 tools/package_web.py
+python3 -m http.server 8000 --bind 127.0.0.1 --directory web
+```
+
+### Rebuild boundaries
+
+Rerun only the stages affected by a change; incremental make preserves existing build work, while revision stamps prevent mixing different CPython source baselines.
+
+Changes to [[runtime/probe.c]] or [[tools/instrument_parser.py#instrument]] require native and WASM rebuilds followed by packaging. Changes to [[runtime/capture.py]] require repackaging for the browser, but no C rebuild. Frontend modules, HTML, CSS, and example programs need only a browser reload. Dependency changes require npm ci and repackaging. Configure options are applied only when a Makefile is absent; changing them requires fresh affected build directories. A revision mismatch requires moving the old build directories aside before rebuilding.
+
+### Build validation
+
+Compilation, capture correctness, and browser behavior are separate checks. Generated binaries, vendor assets, and test screenshots are ignored and must be rebuilt after a fresh checkout.
+
+Run the native interpreter with `-m unittest discover -s tests -v` (`.build/native/python.exe` on this macOS build, or `.build/native/python` where applicable), then npm run test:wasm and npm run test:graph. With the HTTP server running, npm run test:browser, npm run test:factory, npm run test:parsing, and npm run test:memory exercise browser capture, rendering, parser replay, and resource bounds. Run lat check for documentation validation. These are explicit local commands, not an automated CI or deployment pipeline.
+
 ## Observed instruction stacks
 
 The native probe reads synchronized operand-stack entries during opcode tracing. It distinguishes ordinary object references, null call sentinels, and tagged integers without reconstructing values from bytecode effects.
