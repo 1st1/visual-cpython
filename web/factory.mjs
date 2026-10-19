@@ -260,7 +260,6 @@ export class Factory {
     });
     this.host.dataset.sourceTiles=String(this.sourceTiles.length);
     this.host.dataset.activeSource='';
-    if(!layout) label(this.world,0,.03,0,9,2,['PROGRAM PLOT','Run a program to construct its blocks']);
     this.codeEnclosures=[];
     for(const enclosure of layout?.enclosures || []) {
       const body=box(this.world,enclosure.x,.085,enclosure.y,enclosure.width,.15,enclosure.height,0x18233b);
