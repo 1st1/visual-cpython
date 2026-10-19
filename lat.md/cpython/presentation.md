@@ -1,10 +1,10 @@
 # Presentation approach
 
-The proposed presentation follows one program through a shared compiler and two execution modes. This is a narrative and data-model plan; no renderer, simulator, or measured trace is implemented yet.
+The proposed presentation follows one program through a shared compiler and two execution modes. This remains the narrative plan; [[runtime#Capture runtime]] describes the initial observation implementation, before factory rendering.
 
 Build only the adaptive-interpreter mode initially. JIT examples and controls in this longer-term plan are deferred. The immediate spatial-design work is [[layout#Block placement and connection routing]].
 
-The implementation sequence and release boundary are specified in [[v1-plan#First-version implementation plan]]. V1 targets bounded editable programs with real browser-side capture, subject to an early instrumentation and WASM feasibility gate.
+The implementation sequence and release boundary are specified in [[v1-plan#First-version implementation plan]]. V1 targets bounded editable programs with real browser-side capture, with instrumentation fidelity evaluated explicitly before visualization claims.
 
 The chosen spatial direction is [[factory-world#Program-built factory world]]: persistent CPython infrastructure surrounds an initially empty program plot, compilation reveals connected program structures, and execution activates those structures and the machinery around them.
 

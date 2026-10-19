@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>CPython Factory · Capture workbench</title>
+<link rel="stylesheet" href="style.css">
+<body>
+<header><span class="dot"></span><strong>CPYTHON FACTORY</strong><span class="muted">CAPTURE WORKBENCH / 01</span><span id="state" role="status">Ready</span></header>
+<main>
+  <section class="editor panel">
+    <div class="title"><h1>Start with a program.</h1><span class="badge">3.16 · WASM</span></div>
+    <p class="muted">Real CPython, observable execution. The first building block for the factory.</p>
+    <label for="example">Example</label><select id="example"><option value="accumulate">Accumulator</option><option value="branch">Branches and calls</option><option value="alias">Shared objects</option><option value="error">Runtime error</option><option value="loop">Execution limit</option></select>
+    <label for="source">Python source · up to 200 Python tokens</label>
+    <textarea id="source" spellcheck="false" aria-label="Python source" maxlength="16384"></textarea>
+    <div class="buttons"><button id="run" class="primary">Run &amp; capture</button><button id="cancel" disabled>Stop capture</button></div>
+    <p class="note">Instrumented opcode tracing. Stack values are observed before each instruction. Specialization is affected; this is not a performance trace.</p>
+    <div id="message" role="alert"></div>
+    <details><summary>Scope and limits</summary><p>Functions, loops, branches, basic lists/dictionaries, arithmetic, and selected builtins. No imports or attributes. Capture: 2,000 events, 4 KiB output, 4,096 retained object identities, 256 activations, 5 seconds of execution, and 256 MiB maximum WASM memory. Host/browser overhead is additional.</p></details>
+  </section>
+  <section class="replay panel">
+    <div class="title"><h2>Execution</h2><span id="counter" class="badge">No recording</span></div>
+    <div class="buttons"><button id="first" disabled>Reset</button><button id="back" disabled>← Back</button><button id="play" disabled>Play</button><button id="next" disabled>Step →</button></div>
+    <input id="seek" type="range" min="0" max="0" value="0" disabled aria-label="Execution event">
+    <div id="event" class="event">Run a program to inspect its execution.</div>
+    <div class="inspect"><div><h3>Source position</h3><pre id="source-view"></pre></div><div><h3>Instructions</h3><div id="instructions" class="instructions"></div></div></div>
+    <div class="inspect"><div><h3>Locals</h3><div id="locals" class="values"></div></div><div><h3>Operand stack <small>top first</small></h3><div id="stack" class="values"></div></div></div>
+    <h3>Program output</h3><pre id="stdout" class="output"></pre>
+  </section>
+</main>
+<footer>Capture first. Layout and the 3D factory follow. <span id="provenance"></span></footer>
+<script type="module" src="app.mjs"></script>
+</body></html>

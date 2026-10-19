@@ -1,6 +1,6 @@
 # CPython visualization plan
 
-This directory contains source-grounded research and proposed presentation flows for regular CPython and its experimental JIT. The user explicitly requested planning in Lat; the presentation and data capture are not implemented.
+This directory contains CPython research, the factory presentation plan, and the first capture implementation. The full factory presentation remains planned; current code provides an instrumented observation workbench.
 
 Current implementation scope is the adaptive interpreter only. JIT research is retained for a later phase; it must not block the first program layout, execution capture, or visualization.
 
@@ -11,6 +11,7 @@ Current implementation scope is the adaptive interpreter only. JIT research is r
 - [[factory-world]] defines the program-built factory map, construction sequence, execution activity, and stable spatial layout.
 - [[layout]] evaluates Graphviz placement and diagram/circuit routing for the interpreter-only map.
 - [[v1-plan]] defines the interpreter-only first release, implementation milestones, feasibility gates, and acceptance criteria.
+- [[runtime]] describes the implemented capture probe, build recipes, bounded recording, and diagnostic workbench.
 
 ## Source baseline
 
@@ -18,7 +19,7 @@ Research uses the clean local CPython checkout at commit `036d309cf542986a39eeba
 
 The version comes from [patchlevel.h](https://github.com/python/cpython/blob/036d309cf542986a39eeba5ca805b2ec7619731d/Include/patchlevel.h#L23). Source citations are pinned to that commit so this graph remains useful without the ignored local checkout. The installed Lat CLI does not expose the external-source registration command described in the project instructions, so citations use ordinary pinned source links.
 
-The root [.gitignore](../../.gitignore) excludes the local `/cpython/` checkout and macOS metadata. The checkout is research input, not vendored presentation code. No CPython source was changed or built during this research; exact bytecode listings, traces, thresholds, and performance remain to be captured.
+The root [.gitignore](../../.gitignore) excludes the local `/cpython/` checkout, generated builds/assets, and macOS metadata. The reference checkout remains unchanged. Disposable builds add the observation module described in [[runtime#Capture runtime]]; performance and undisturbed specialization remain unmeasured.
 
 ## Comparison boundary
 

@@ -1,5 +1,11 @@
 # Local CPython reference checkout
 /cpython/
+/.build/
+/artifacts/
+__pycache__/
+*.pyc
+/web/vendor/
+/node_modules/
 
 # macOS filesystem metadata
 .DS_Store

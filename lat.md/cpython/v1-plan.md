@@ -1,6 +1,6 @@
 # First-version implementation plan
 
-V1 is an interpreter-only browser application where a small editable Python program constructs a factory map and its real execution activates that map. This is an implementation plan; none of the application or capture pipeline exists yet.
+V1 is an interpreter-only browser application where a small editable Python program constructs a factory map and its real execution activates that map. This page is the release plan; [[runtime#Capture runtime]] records the implemented capture slice.
 
 The visual contract comes from [[factory-world#Program-built factory world]], the layout candidates from [[layout#Block placement and connection routing]], and the semantic model from [[compilation#Shared compilation flow]] and [[execution#Interpreter and JIT execution#Adaptive execution]].
 
