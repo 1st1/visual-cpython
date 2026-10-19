@@ -7,7 +7,7 @@ import {Minimap} from './minimap.mjs';
 import {parsingFrames} from './parsing.mjs';
 import {astTreeLayout,tokensForConstruction,instructionAst} from './ast-tree.mjs';
 import * as THREE from 'three';
-import { OrbitControls } from './vendor/OrbitControls.js';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { factoryFootprint, sourceFootprint } from './placement.mjs';
 import { stackView } from './stack.mjs';
 import { instructionText, instructionGrid } from './opcodes.mjs';

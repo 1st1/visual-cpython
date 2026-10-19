@@ -1,11 +1,11 @@
 // Run the same interpreter artifact used by the browser, without browser APIs.
 import { readFile } from 'node:fs/promises';
 import assert from 'node:assert/strict';
-import createModule from '../web/vendor/python.mjs';
+import createModule from '../web/public/runtime/python.mjs';
 import { extractGraph, projectReplay } from '../web/graph.mjs';
 
 const base = new URL('../', import.meta.url);
-const stdlib = new Uint8Array(await readFile(new URL('web/vendor/python3.16.zip', base)));
+const stdlib = new Uint8Array(await readFile(new URL('web/public/runtime/python3.16.zip', base)));
 const script = await readFile(new URL('runtime/capture.py', base), 'utf8');
 const cases = [
   ['asyncio', 'import asyncio\nasync def foo():\n await asyncio.sleep(1)\n print(1)\nasyncio.run(foo())', 'completed', '1\n'],

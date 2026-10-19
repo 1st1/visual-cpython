@@ -1,13 +1,14 @@
 import {chromium} from 'playwright';
 import assert from 'node:assert/strict';
 import {readFile} from 'node:fs/promises';
-const manifest=JSON.parse(await readFile('web/vendor/runtime.json','utf8'));
+const manifest=JSON.parse(await readFile('web/public/runtime/runtime.json','utf8'));
 const browser=await chromium.launch({channel:'chrome',headless:true,chromiumSandbox:true});
 try {
   const page=await browser.newPage({viewport:{width:1500,height:1000}}),errors=[];
-  const assets=[];page.on('request',r=>{const url=new URL(r.url());if(/\/vendor\/(python\.mjs|python\.wasm|python3\.16\.zip|capture\.py)$/.test(url.pathname))assets.push(url);});
+  let captureWorker;page.on('worker',worker=>{if(!worker.url().includes('layout-worker'))captureWorker=worker.url();});
+  const assets=[];page.on('request',r=>{const url=new URL(r.url());if(/\/runtime\/(python\.mjs|python\.wasm|python3\.16\.zip|capture\.py)$/.test(url.pathname))assets.push(url);});
   page.on('pageerror',e=>errors.push(e.message));
-  await page.goto('http://127.0.0.1:8000');
+  await page.goto(process.env.FACTORY_URL || 'http://127.0.0.1:8000');
   async function capture(source) {
     await page.locator('#source').fill(source);await page.locator('#run').click();
     await page.waitForFunction(()=>!document.querySelector('#run').disabled,null,{timeout:60000});
@@ -31,11 +32,11 @@ try {
   let found=false;
   const max=Number(await page.locator('#parse-seek').getAttribute('max'));
   // Find a retained construction with a token span through the same capture served to Chrome.
-  const trace=await page.evaluate(async()=>await new Promise((resolve,reject)=>{
-    const worker=new Worker('./worker.mjs?loader=2',{type:'module'});
+  const trace=await page.evaluate(async(workerUrl)=>await new Promise((resolve,reject)=>{
+    const worker=new Worker(workerUrl,{type:'module'});
     worker.onmessage=({data})=>{if(data.type==='result'){worker.terminate();resolve(data.trace);}if(data.type==='error'){worker.terminate();reject(data.message);}};
     worker.postMessage({source:document.querySelector('#source').value});
-  }));
+  }),captureWorker);
   const construction=trace.parsing.events.findIndex(e=>e.kind===3&&e.retained&&e.text==='BinOp');
   assert.ok(construction>0&&construction<max);
   await page.locator('#parse-seek').evaluate((e,value)=>e.value=value,construction);

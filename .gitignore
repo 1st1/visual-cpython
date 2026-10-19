@@ -21,3 +21,7 @@ __pycache__/
 
 # Local Codex configuration
 /.codex/
+
+# Frontend build output
+/dist/
+/.vercel/

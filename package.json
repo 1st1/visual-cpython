@@ -3,6 +3,10 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "dev": "node tools/check_runtime.mjs && vite",
+    "build": "node tools/check_runtime.mjs && vite build",
+    "preview": "vite preview",
+    "check:runtime": "node tools/check_runtime.mjs",
     "test:memory": "node tools/test_memory.mjs",
     "test:factory": "node tools/test_factory.mjs",
     "test:graph": "node tools/test_graph.mjs",
@@ -11,10 +15,14 @@
     "test:parsing": "node tools/test_parsing.mjs"
   },
   "devDependencies": {
-    "playwright": "1.64.1"
+    "playwright": "1.64.1",
+    "vite": "8.3.4"
   },
   "dependencies": {
     "@viz-js/viz": "3.31.0",
     "three": "0.186.1"
+  },
+  "engines": {
+    "node": ">=24"
   }
 }

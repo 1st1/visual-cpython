@@ -22,7 +22,7 @@ Research uses the clean local CPython checkout at commit `036d309cf542986a39eeba
 
 The version comes from [patchlevel.h](https://github.com/python/cpython/blob/036d309cf542986a39eeba5ca805b2ec7619731d/Include/patchlevel.h#L23). Source citations are pinned to that commit so this graph remains useful without the ignored local checkout. The installed Lat CLI does not expose the external-source registration command described in the project instructions, so citations use ordinary pinned source links.
 
-The root [.gitignore](../../.gitignore) excludes the local `/cpython/` checkout, generated builds/assets, and macOS metadata. The reference checkout remains unchanged. Disposable builds add the observation module described in [[runtime#Capture runtime]]; performance and undisturbed specialization remain unmeasured.
+The root [.gitignore](../../.gitignore) excludes the local `/cpython/` checkout, local build directories, frontend output, and macOS metadata. The packaged browser runtime under [web/public/runtime](../../web/public/runtime) is committed. The reference checkout remains unchanged. Disposable builds add the observation module described in [[runtime#Capture runtime]]; performance and undisturbed specialization remain unmeasured.
 
 ## Comparison boundary
 

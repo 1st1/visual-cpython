@@ -6,35 +6,46 @@ Build recipes and commands are in [README.md](../../README.md). [[tools/build_na
 
 ## Build pipeline
 
-The build exports pinned CPython sources into disposable native and WASM trees, adds instrumentation, and stages a static browser application. The reference checkout and generated artifacts remain outside Git.
+Vite bundles the browser application around a checked-in CPython WASM runtime. Frontend development and Vercel builds need Node and npm only; CPython compilation is an explicit local maintenance step.
 
-Prerequisites are a local `cpython/` Git checkout containing [runtime/revision.txt](../../runtime/revision.txt), Git, a C compiler, make, host Python 3.14+, and Node 24. Headless browser checks use installed Google Chrome through Playwright. Run commands from the repository root.
+The browser artifacts live in [web/public/runtime](../../web/public/runtime): the generated loader, WASM binary, standard-library ZIP, capture driver, CPython license, and revision/hash manifest. [[tools/package_web.py#package]] refreshes this directory from local build outputs. These artifacts are committed alongside their build recipes; `.build/`, the reference checkout, dependencies, and `dist/` remain ignored.
 
-1. [[tools/build_native.py#build]] exports the revision into `.build/native`, runs [[tools/instrument_parser.py#instrument]], and installs [[runtime/probe.c]] as the static `_factory_probe` module. It configures a debug interpreter with JIT and ensurepip disabled, then runs make. This native interpreter also supplies the build-time Python required for cross-compilation.
-2. Install the CPython Emscripten SDK into `.build/emsdk`. [[tools/build_wasm.py#build]] currently expects SDK 6.0.10. It exports and instruments `.build/wasm-source`, then cross-compiles into `.build/wasm` using the native interpreter. The browser build disables JIT, pymalloc, and test modules; enables WASM dynamic linking; and caps linear memory at 256 MiB.
-3. Install locked JavaScript dependencies with npm ci. [[tools/package_web.py#package]] stages the Python loader, WASM, stdlib ZIP, capture driver, Graphviz, Three.js, and OrbitControls into `web/vendor/`. It publishes a hash-based runtime manifest after copying runtime assets.
-4. Serve `web/` with a static HTTP server. Handwritten browser modules and styles are served directly; there is no frontend bundler or npm build command. Python programs execute in browser workers, not on the static server.
+[vite.config.mjs](../../vite.config.mjs) uses `web/` as its root and emits `dist/`. Vite bundles npm imports for Three.js, OrbitControls, and Graphviz, emits separate module workers, fingerprints frontend assets and example programs, and copies public runtime files unchanged. [tools/check_runtime.mjs](../../tools/check_runtime.mjs) verifies the runtime hash, pinned revision, and capture-driver freshness before development or production builds.
+
+```sh
+npm ci
+npm run dev
+# Production build and local preview:
+npm run build
+npm run preview
+```
+
+Both servers default to 127.0.0.1:8000 with a strict port; run only one there, or pass -- --port 8001. [vercel.json](../../vercel.json) selects Vite, npm run build, and dist. Runtime URLs revalidate rather than retaining stale files; hashed frontend assets use Vercel's normal asset caching. Deployment serves static files and needs no Python compiler, Emscripten SDK, CPython checkout, or server-side Python execution.
+
+### Local runtime rebuild
+
+Rebuild CPython only when its pinned revision, C observation module, parser instrumentation, or compiler configuration changes. The local reference checkout remains unchanged.
+
+Prerequisites are Git, a C compiler, make, host Python 3.14+, Node 24, and a local `cpython/` Git checkout containing [runtime/revision.txt](../../runtime/revision.txt). [[tools/build_native.py#build]] exports the revision into `.build/native`, applies [[tools/instrument_parser.py#instrument]], and installs [[runtime/probe.c]] as a static module. It builds a debug interpreter with JIT and ensurepip disabled.
+
+[[tools/build_wasm.py#build]] currently expects Emscripten SDK 6.0.10. It exports and instruments `.build/wasm-source`, then cross-compiles into `.build/wasm` using the native interpreter. The browser build disables JIT, pymalloc, and test modules, enables WASM dynamic linking, and caps linear memory at 256 MiB.
 
 ```sh
 python3 tools/build_native.py
 python3 cpython/Platforms/emscripten install-emscripten --emsdk-cache .build/emsdk
 python3 tools/build_wasm.py
-npm ci
 python3 tools/package_web.py
-python3 -m http.server 8000 --bind 127.0.0.1 --directory web
+npm run check:runtime
+npm run test:wasm
 ```
 
-### Rebuild boundaries
-
-Rerun only the stages affected by a change; incremental make preserves existing build work, while revision stamps prevent mixing different CPython source baselines.
-
-Changes to [[runtime/probe.c]] or [[tools/instrument_parser.py#instrument]] require native and WASM rebuilds followed by packaging. Changes to [[runtime/capture.py]] require repackaging for the browser, but no C rebuild. Frontend modules, HTML, CSS, and example programs need only a browser reload. Dependency changes require npm ci and repackaging. Configure options are applied only when a Makefile is absent; changing them requires fresh affected build directories. A revision mismatch requires moving the old build directories aside before rebuilding.
+Commit the refreshed [web/public/runtime](../../web/public/runtime) files after validation. Changes only to [[runtime/capture.py]] need repackaging, not a C rebuild. Frontend edits use Vite development reloads and a production rebuild for deployment; npm dependency changes need npm ci and a frontend rebuild. Configure options apply only when a Makefile is absent; changing them requires fresh affected build directories. Revision mismatches require moving old build directories aside before rebuilding.
 
 ### Build validation
 
-Compilation, capture correctness, and browser behavior are separate checks. Generated binaries, vendor assets, and test screenshots are ignored and must be rebuilt after a fresh checkout.
+Runtime integrity, compilation, capture correctness, and production-browser behavior are separate checks. Browser tests accept FACTORY_URL so the same suites can target Vite development or the built preview.
 
-Run the native interpreter with `-m unittest discover -s tests -v` (`.build/native/python.exe` on this macOS build, or `.build/native/python` where applicable), then npm run test:wasm and npm run test:graph. With the HTTP server running, npm run test:browser, npm run test:factory, npm run test:parsing, and npm run test:memory exercise browser capture, rendering, parser replay, and resource bounds. Run lat check for documentation validation. These are explicit local commands, not an automated CI or deployment pipeline.
+Run the native interpreter with `-m unittest discover -s tests -v` (`.build/native/python.exe` on this macOS build, or `.build/native/python` where applicable). npm run test:wasm checks the committed runtime; npm run test:graph additionally requires the local native interpreter. With Vite development or preview running, npm run test:browser, npm run test:factory, npm run test:parsing, and npm run test:memory exercise capture, rendering, parser replay, and resource bounds. Run lat check for documentation validation. Screenshots remain ignored under artifacts/.
 
 ## Observed instruction stacks
 
@@ -66,7 +77,7 @@ The diagnostic UI exposes editing, capture, source/instruction selection, locals
 
 [web/worker.mjs](../../web/worker.mjs) loads the generated Emscripten runtime, standard-library archive, and capture driver. Each run gets a new worker and interpreter. The worker writes source into its virtual filesystem, executes capture, and sends a serializable recording to the UI. The hosting server serves static files only.
 
-[[tools/package_web.py#package]] publishes a content-hashed runtime manifest after staging the runtime, WASM binary, standard library, and capture driver. The worker fetches this manifest without caching and uses its build identifier on all four asset URLs, including Emscripten’s WASM lookup. Rebuilt parser probes therefore cannot silently reuse the previous build’s cached binary.
+[[tools/package_web.py#package]] publishes a content-hashed runtime manifest after staging the committed runtime, WASM binary, standard library, and capture driver. The worker fetches this manifest without caching and uses its build identifier on all four asset URLs, including Emscripten’s WASM lookup. Rebuilt parser probes therefore cannot silently reuse the previous build’s cached binary.
 
 With browser WebAssembly JSPI support, CPython completes asynchronously: the worker waits for the runtime exit callback before parsing captured output. Synchronous runtimes use the immediate exit code. The pinned build enables dynamic linking because CPython's JSPI initialization requires Emscripten's symbol resolver.
 

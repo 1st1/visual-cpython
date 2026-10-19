@@ -1,97 +1,96 @@
 # CPython Factory
 
-An interactive explanation of CPython being built from real execution data.
-The first implemented slice is a capture workbench: edit a small Python program,
-record actual instruction-boundary stacks, and inspect the recording forward or
-backward. A Graphviz map groups bytecode into blocks and code-object enclosures,
-with execution highlights and observed call connections. The first Three.js
-factory renders that same map as an interactive isometric world.
+An interactive 3D visualization of real CPython tokenization, PEG/AST construction,
+bytecode, and execution. Programs run in a disposable browser worker using an
+instrumented CPython WASM build. No backend executes submitted Python.
 
-## Build the observation runtime
+## Develop
 
-Prerequisites: the local CPython reference checkout at `./cpython`, Git, a C
-compiler and make, host Python 3.14+, and Node 24. Builds and SDK downloads stay
-in ignored `.build/`; the reference checkout is not modified.
+Install Node 24 and npm. The built CPython runtime is checked in under
+`web/public/runtime/`; no Python compiler or Emscripten installation is needed
+for frontend work.
+
+```sh
+npm ci
+npm run dev
+```
+
+Open http://127.0.0.1:8000. Vite handles modules, workers, and frontend reloads.
+
+## Build and deploy
+
+```sh
+npm run build
+npm run preview
+```
+
+The build verifies the committed runtime and emits `dist/`. Development and
+preview default to the same strict port; stop one before starting the other,
+or use `npm run preview -- --port 8001`.
+
+Import this repository into Vercel. `vercel.json` selects Vite, `npm run build`,
+and `dist` as the output directory. No local CPython checkout or build outputs
+are needed for deployment. Python loads only when a capture starts; Graphviz
+loads in a separate worker when the recording is ready for layout.
+
+## Rebuild the observation runtime locally
+
+Only needed after changing CPython, `runtime/probe.c`, or parser instrumentation.
+Prerequisites: Git, a C compiler, make, host Python 3.14+, Node 24, and a CPython
+checkout at `./cpython` containing the revision in `runtime/revision.txt`.
+The scripts leave that checkout unchanged and build under ignored `.build/`.
 
 ```sh
 python3 tools/build_native.py
-.build/native/python.exe -m unittest discover -s tests -v
-python3 tools/capture.py examples/accumulate.py --output artifacts/accumulate.json
-```
-
-On platforms where the native executable is named `python`, use that name for
-the test command. The build scripts and native launcher handle either name.
-
-For the browser, install the SDK version specified by the pinned CPython and
-build the same static probe into WASM:
-
-```sh
 python3 cpython/Platforms/emscripten install-emscripten --emsdk-cache .build/emsdk
 python3 tools/build_wasm.py
-npm ci
 python3 tools/package_web.py
-node tools/test_wasm.mjs
-python3 -m http.server 8000 --bind 127.0.0.1 --directory web
+npm run check:runtime
+npm run test:wasm
 ```
 
-Open http://localhost:8000. Choose an example, run it, then step through the
-recording. This harness runs CPython in a disposable browser worker. Its server
-only serves static files; it does not execute submitted Python on the host.
-The native CLI is a local development tool, not an untrusted-code sandbox.
+Commit the refreshed `web/public/runtime/` artifacts after validation. Changes
+to `runtime/capture.py` alone require repackaging, not recompiling C. The manifest
+records the CPython revision and content hash; frontend builds reject stale
+capture scripts or mismatched artifacts.
 
-With the static server running and Google Chrome installed, run browser checks
-in headless Chrome:
+Full build details and rebuild boundaries are in
+[Lat's runtime documentation](lat.md/cpython/runtime.md#build-pipeline).
+
+## Validate
 
 ```sh
-npm run test:graph
+npm run test:wasm
+# With Vite dev or preview running and Google Chrome installed:
 npm run test:browser
 npm run test:factory
+npm run test:parsing
+npm run test:memory
+lat check
 ```
 
-The checks exercise real WASM execution, replay, errors, limits, cancellation,
-and recovery after terminating a worker. Desktop and mobile screenshots are
-written to `artifacts/`. Set `FACTORY_URL` to test a different server address.
+Set `FACTORY_URL=http://127.0.0.1:8001` to target a preview on another port.
+Screenshots are written to ignored `artifacts/`. Native tests use
+`.build/native/python.exe -m unittest discover -s tests -v` (or `python` where
+that is the executable name); `npm run test:graph` also uses the native build.
 
 ## What the trace means
 
-- Operand stacks are observed **before** the named instruction executes.
-- Calls have distinct frame IDs; repeated calls share their code object's ID.
-- Internal null stack slots are distinguished from the Python object `None`.
-- Opcode tracing perturbs specialization. This is not an uninstrumented
-  adaptive-interpreter or performance trace.
-- Object identities are kept stable with bounded strong references, which
-  changes object lifetimes. Snapshots use bounded previews and do not call
-  arbitrary user `repr` methods.
-- Syntax failures, runtime exceptions, limit termination, and worker timeouts
-  are distinct outcomes. A timeout discards the in-progress recording.
+Operand stacks are observed **before** each opcode. The parser replay records
+real token requests, PEG checkpoints, and AST constructors. Opcode tracing
+perturbs specialization, so this is not an uninstrumented performance trace.
+Coroutine suspensions and resumptions retain activation identity. The selected
+asyncio API supports cooperative tasks and timers, without socket or thread I/O.
+Other imports, private attributes, classes, generators, and dynamic code are
+restricted. The UI lists current capture limits.
 
-The accepted syntax is deliberately limited; imports, attribute access,
-generators, classes, and dynamic code are rejected. Capture limits and the
-current implementation are described in [the runtime notes](lat.md/cpython/runtime.md).
+Use **Run & capture**, then play, step, rewind, or seek the recording. Source,
+tokens, AST nodes, and opcode tiles share one map. Compilation correspondence
+links appear only in their relevant construction stage. Execution uses
+synchronized highlights and an opcode transition trail. **Skip reveal** shows
+the completed map; reduced motion suppresses construction and signal animation.
 
-Select a map block to inspect its instructions, then use **Next recorded visit**
-to seek execution there. Zoom and scroll to inspect larger graphs. Layout stays
-fixed during replay. This is the Graphviz routing baseline: connection crossings
-are not junctions, and wire clearance/bridge routing is not implemented yet.
-
-The default **3D factory** view supports drag to orbit, right-drag to pan, wheel
-zoom, Iso/Top presets, and block focus. Use **Schematic** to compare views.
-Select buildings or use the block menu, then seek their recorded visits.
-**Skip reveal** finishes the staged construction immediately; reduced-motion
-settings disable construction and signal movement. Parser/compiler buildings
-are explanatory landmarks, not captured intermediate compilation steps.
-
-The map compares compact Graphviz arrangements before choosing a layout. The
-3D operand stack shows up to eight topmost slots, their values and object IDs,
-and an overflow count. Click **Stack** for a close view. Missing opcode samples
-are shown as **not sampled**, separately from an observed empty stack.
-
-Each small 3D box now represents one decoded opcode. Basic blocks are trays,
-and code objects are larger enclosures. Use **Focus opcode** for an overhead
-reading view, or the **Opcodes** panel for full instruction text. Clicking a
-visited opcode seeks its next recorded occurrence. Select **Shortest path ·
-breadth-first search** for a complete queue-and-dictionary graph-search example.
-
-The **Parsing** view replays real C tokenizer and PEG checkpoints from the instrumented runtime, including token acquisition, cursor rewinds, indentation nesting, and the resulting AST. Run `npm run test:parsing` for its headless Chrome checks. Rebuild both native and WASM runtimes and run `python3 tools/package_web.py` after changing the parser hooks.
-
-AST trees grow at captured C constructor checkpoints. Token-span flights distinguish retained nodes from constructions absent in the final tree. The bottom minimap supports click/drag navigation and left/right panning.
+Drag to orbit, scroll or right-drag to pan, and pinch to zoom. **Focus opcode**,
+**Stack**, and the minimap navigate larger programs. The inspector provides
+locals, the full sampled stack, and output. Graphviz routing remains a baseline:
+crossings are not junctions, and obstacle clearance is not certified.

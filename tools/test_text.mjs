@@ -1,9 +1,18 @@
 import {chromium} from 'playwright';
 import assert from 'node:assert/strict';
+import {readFile} from 'node:fs/promises';
 const browser=await chromium.launch({channel:'chrome',headless:true,chromiumSandbox:true});
 try {
   const page=await browser.newPage();
-  await page.goto(process.env.FACTORY_URL || 'http://127.0.0.1:8000');
+  // Isolated renderer fixture, independent of Vite's production chunk names.
+  await page.route('http://text.test/**',async route=>{
+    const path=new URL(route.request().url()).pathname;
+    if(path==='/')return route.fulfill({contentType:'text/html',body:'<script type="importmap">{"imports":{"three":"/three.module.js"}}</script>'});
+    const files={'/three.module.js':'node_modules/three/build/three.module.js','/three.core.js':'node_modules/three/build/three.core.js','/text-atlas.mjs':'web/text-atlas.mjs'};
+    if(!files[path])return route.abort();
+    await route.fulfill({contentType:'text/javascript',body:await readFile(files[path])});
+  });
+  await page.goto('http://text.test/');
   // @lat: [[scene#Isometric factory scene#Shared distance-field text]]
   const results=await page.evaluate(async()=>{
     const THREE=await import('three'),{surfaceText}=await import('./text-atlas.mjs');

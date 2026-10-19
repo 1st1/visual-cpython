@@ -1,4 +1,4 @@
-import { instance } from './vendor/viz.js';
+import { instance } from '@viz-js/viz';
 import { chooseLayout } from './placement.mjs';
 const engine = instance();
 self.onmessage = async ({ data }) => {

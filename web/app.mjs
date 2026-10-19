@@ -1,7 +1,7 @@
 import {paintPython} from './python-syntax.mjs';
 import { extractGraph, projectReplay } from './graph.mjs';
 import { ParsingReplay } from './parsing.mjs';
-import { Factory } from './factory.mjs?v=4';
+import { Factory } from './factory.mjs';
 import { instructionText } from './opcodes.mjs';
 const $ = id => document.getElementById(id);
 const examples = {
@@ -20,11 +20,11 @@ $('source').value = examples.accumulate;
 let exampleRequest=0;
 $('example').onchange = async () => {
   const request=++exampleRequest, name=$('example').value;
-  const file={shortest:'shortest_path.py',asyncio:'asyncio_numbers.py'}[name];
+  const file={shortest:new URL('./programs/shortest_path.py',import.meta.url),asyncio:new URL('./programs/asyncio_numbers.py',import.meta.url)}[name];
   if(!file) { $('source').value=examples[name]; $('run').disabled=Boolean(worker); previewSource(); return; }
   $('run').disabled=true;
   try {
-    const response=await fetch('./programs/'+file);
+    const response=await fetch(file);
     if(!response.ok) throw new Error('Could not load program example.');
     const source=await response.text(); if(request===exampleRequest) { $('source').value=source; previewSource(); }
   } catch(error) { if(request===exampleRequest) $('message').textContent=error.message; }
@@ -46,7 +46,7 @@ $('run').onclick = () => {
   $('message').textContent = '';
   $('run').disabled = true; $('cancel').disabled = false; $('state').textContent = 'Loading WASM';
   factory?.starfield?.setCapturing(true);
-  worker = new Worker('./worker.mjs?loader=2', { type: 'module' });
+  worker = new Worker(new URL('./worker.mjs', import.meta.url), { type: 'module' });
   const runGeneration = generation;
   timer = setTimeout(() => fail('Runtime loading exceeded 60 seconds.'), 60000);
   worker.onerror = e => { if (generation === runGeneration) fail(e.message); };
@@ -131,7 +131,7 @@ function buildMap(relayout=false) {
     if (!graph.blocks.length) { factory?.starfield?.setCapturing(false); $('map-status').textContent = 'No compiled program'; return; }
     $('map-status').textContent = 'Laying out program…';
     const current = graph;
-    layoutWorker = new Worker('./layout-worker.mjs', { type: 'module' });
+    layoutWorker = new Worker(new URL('./layout-worker.mjs', import.meta.url), { type: 'module' });
     const stop = () => { clearTimeout(layoutTimer); layoutWorker?.terminate(); layoutWorker = null; };
     const error = message => { stop(); factory?.starfield?.setCapturing(false); $('map-status').textContent = `Layout failed: ${message}`; $('message').textContent=$('map-status').textContent; };
     layoutTimer = setTimeout(() => error('exceeded 15 seconds'), 15000);
