@@ -43,7 +43,7 @@ export function projectReplay(recording, graph) {
   for (const event of recording.events) {
     const block = graph.locations[`${event.code}:${event.offset}`] || graph.codes.find(c => c.id === event.code)?.blocks[0];
     let edge = null;
-    if (event.kind === 'call') {
+    if (event.kind === 'call' || event.kind === 'resume') {
       frames.set(event.frame, { id: event.frame, parent: event.parent, code: event.code });
       const caller = previous.get(event.parent);
       if (caller && block) {

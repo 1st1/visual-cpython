@@ -1,3 +1,4 @@
+import {paintPython} from './python-syntax.mjs';
 import { extractGraph, projectReplay } from './graph.mjs';
 import { ParsingReplay } from './parsing.mjs';
 import { Factory } from './factory.mjs';
@@ -36,7 +37,7 @@ $('cancel').onclick = () => fail('Capture cancelled. Run again to start a fresh 
 $('run').onclick = () => {
   parsingReplay?.stop();parsingMode=false;setParsingUI(false);$('view-parsing').disabled=true;lastLayout=null;
   layoutWorker?.terminate(); clearTimeout(layoutTimer); graph = null; mapStates = []; selectedBlock = null;
-  factory?.load(null,null,[],$('source').value); $('block-select').replaceChildren(new Option('Select a building or block…',''));
+  factory?.load(null,null,[],$('source').value,null,true); $('block-select').replaceChildren(new Option('Select a building or block…',''));
   $('map').replaceChildren(); $('map-status').textContent = 'Waiting for capture'; $('block-detail').textContent = '';
   stopPlayback(); stopWorker(); recording = null; render();
   $('message').textContent = '';
@@ -55,7 +56,7 @@ $('run').onclick = () => {
       $('state').textContent = recording.status;
       $('message').textContent = recording.error || '';
       $('provenance').textContent = `CPython ${recording.provenance.python.split(' ')[0]} · ${recording.provenance.revision.slice(0, 8)}`;
-      factory?.load(null,null,[],recording.source,recording.parsing);
+      factory?.load(null,null,[],recording.source,recording.parsing,true);
       $('view-parsing').disabled=!factory||!recording.parsing;
       render();
       buildMap();
@@ -103,7 +104,7 @@ function render() {
   const code = recording.codes.find(c => c.id === event.code);
   $('event').textContent = index === count ? `Capture ${recording.status}` : `${event.kind} · ${code.name} · ${event.frame} · line ${event.line} · offset ${event.offset}`;
   $('source-view').replaceChildren(...recording.source.split('\n').map((line, i) => {
-    const span = document.createElement('span'); span.className = 'source-line' + (i + 1 === event.line ? ' active' : ''); span.textContent = `${String(i + 1).padStart(2)}  ${line}`; return span;
+    const span = document.createElement('span'); span.className = 'source-line' + (i + 1 === event.line ? ' active' : ''); paintPython(span,`${String(i + 1).padStart(2)}  ${line}`); return span;
   }));
   $('instructions').replaceChildren(...code.instructions.map(ins => {
     const div = document.createElement('div'); div.className = 'instruction' + (ins.offset === event.offset ? ' active' : '');
@@ -139,7 +140,7 @@ function buildMap(relayout=false) {
       svg.removeAttribute('width'); svg.removeAttribute('height');
       $('map').replaceChildren(document.importNode(svg, true)); zoom = 1; setZoom();
       lastLayout=data.layout;
-      factory?.load(data.layout,graph,recording.events,recording.source,recording.parsing);
+      factory?.load(data.layout,graph,recording.events,recording.source,recording.parsing,!relayout);
       if(parsingMode) {factory?.loadParsing();parsingReplay.render();}
       if(relayout&&!parsingMode) factory?.finishConstruction();
       if(relayout&&parsingMode) factory?.view('iso');
@@ -216,14 +217,14 @@ function seekInstruction(blockId,offset) {
   const visit=visits.find(e=>e.seq>index)??visits[0];
   if(visit) { stopPlayback(); move(visit.seq); }
 }
-function previewSource() { if(!recording&&!worker) factory?.load(null,null,[],$('source').value); }
+function previewSource() { paintPython($('source-highlight'),$('source').value+'\n'); if(!recording&&!worker) factory?.load(null,null,[],$('source').value,null,true); }
 let previewTimer;
-$('source').addEventListener('input',()=>{ clearTimeout(previewTimer); previewTimer=setTimeout(previewSource,180); });
+$('source').addEventListener('input',()=>{ paintPython($('source-highlight'),$('source').value+'\n'); clearTimeout(previewTimer); previewTimer=setTimeout(previewSource,180); });
 for(const name of ['editor','inspector']) $('toggle-'+name).onclick=()=>{
   const panel=$(name+'-panel'); panel.hidden=!panel.hidden;
   $('toggle-'+name).setAttribute('aria-expanded',String(!panel.hidden));
 };
-try { factory=new Factory($('factory'),selectBlock,seekInstruction); parsingReplay=new ParsingReplay(factory); previewSource(); }
+try { factory=new Factory($('factory'),selectBlock,seekInstruction); parsingReplay=new ParsingReplay(factory); previewSource(); factory.view('iso'); }
 catch(error) { $('scene-hint').textContent=`3D unavailable: ${error.message}. The schematic is available.`; changeView('map'); $('view-3d').disabled=true; $('message').textContent='3D graphics unavailable; using the schematic.'; }
 window.addEventListener('pagehide',event=>{ if(!event.persisted) factory?.dispose(); });
 
@@ -246,10 +247,13 @@ function setParsingUI(active) {
 }
 function showExecution() {
   parsingReplay?.stop();parsingMode=false;setParsingUI(false);
-  if(!recording) factory?.load(null,null,[],$('source').value);
+  if(!recording) factory?.load(null,null,[],$('source').value,null,true);
   factory?.finishConstruction();renderMapState();
 }
 $('view-execution').onclick=showExecution;
 $('view-parsing').onclick=()=>{
   stopPlayback();changeView('3d');parsingMode=true;setParsingUI(true);parsingReplay.load(recording);
 };
+
+$('source').addEventListener('scroll',()=>{ $('source-highlight').scrollTop=$('source').scrollTop; $('source-highlight').scrollLeft=$('source').scrollLeft; });
+paintPython($('source-highlight'),$('source').value+'\n');

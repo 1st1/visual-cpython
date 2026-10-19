@@ -1,3 +1,5 @@
+import {Starfield} from './starfield.mjs';
+import {syntaxLines,syntaxColors} from './python-syntax.mjs';
 import {Minimap} from './minimap.mjs';
 import {parsingFrames} from './parsing.mjs';
 import {astTreeLayout,tokensForConstruction,instructionAst} from './ast-tree.mjs';
@@ -7,7 +9,7 @@ import { factoryFootprint, sourceFootprint } from './placement.mjs';
 import { stackView } from './stack.mjs';
 import { instructionText, instructionGrid } from './opcodes.mjs';
 
-const colors = { base: 0x151e1d, block: 0x263633, rim: 0x546c63, active: 0xb9e878, selected: 0xe7cf89, error: 0xff926b };
+const colors = { base: 0x151a30, block: 0x25304a, rim: 0x687fa8, active: 0xa4dfff, selected: 0xe7cf89, error: 0xff926b };
 function release(group) {
   group.traverse(o => {
     o.geometry?.dispose();
@@ -53,9 +55,9 @@ function opcodeTile(parent, width, depth, y, instruction, anisotropy) {
     const argument=instruction.argrepr || (instruction.arg===null?'':String(instruction.arg));
     const lines=[`@${instruction.offset}`, ...instruction.opname.match(/.{1,22}/g), ...(argument?[argument]:[])];
     const row=h/lines.length,font=Math.floor(row*.69);
-    ctx.fillStyle=active?'#b7e77f':'#102018';ctx.fillRect(0,0,w,h);ctx.textBaseline='middle';
+    ctx.fillStyle=active?'#a4dfff':'#11192c';ctx.fillRect(0,0,w,h);ctx.textBaseline='middle';
     lines.forEach((line,i)=>{
-      ctx.fillStyle=active?'#0a160c':i===0?'#9bb6a6':'#f0f7f1';
+      ctx.fillStyle=active?'#0c1730':i===0?'#a2b8db':'#f0f7f1';
       ctx.font=`500 ${i===0?Math.floor(font*.8):font}px monospace`;
       let text=line;
       while(ctx.measureText(text).width>w-40&&text.length) text=text.slice(0,-1);
@@ -66,7 +68,7 @@ function opcodeTile(parent, width, depth, y, instruction, anisotropy) {
   };
 }
 
-function sourceTile(parent,width,depth,line,text,anisotropy) {
+function sourceTile(parent,width,depth,line,text,anisotropy,tokens) {
   const canvas=document.createElement('canvas'); canvas.width=1024; canvas.height=128;
   const texture=new THREE.CanvasTexture(canvas); texture.colorSpace=THREE.SRGBColorSpace; texture.anisotropy=anisotropy;
   const mesh=new THREE.Mesh(new THREE.PlaneGeometry(width,depth),new THREE.MeshBasicMaterial({map:texture}));
@@ -74,11 +76,17 @@ function sourceTile(parent,width,depth,line,text,anisotropy) {
   let previous;
   return active=>{
     if(previous===active) return; previous=active;
-    const ctx=canvas.getContext('2d'); ctx.fillStyle=active?'#b7e77f':'#16232c';ctx.fillRect(0,0,1024,128);
-    ctx.fillStyle=active?'#102018':'#dae9f4';ctx.font='28px monospace';ctx.textBaseline='middle';
-    let value=`${String(line).padStart(3)}  ${text || '·'}`;
-    while(ctx.measureText(value).width>984) value=value.slice(0,-2)+'…';
-    ctx.fillText(value,20,64);texture.needsUpdate=true;
+    const ctx=canvas.getContext('2d'); ctx.fillStyle=active?'#293d60':'#10182b';ctx.fillRect(0,0,1024,128);
+    ctx.fillStyle=active?'#11192c':'#dae9f4';ctx.font='28px monospace';ctx.textBaseline='middle';
+    ctx.fillStyle='#8296b9';const prefix=`${String(line).padStart(3)}  `;ctx.fillText(prefix,20,64);
+    let x=20+ctx.measureText(prefix).width;
+    for(const token of tokens || []) {
+      ctx.fillStyle=syntaxColors[token.kind];let value=token.text;
+      while(value.length&&x+ctx.measureText(value).width>984)value=value.slice(0,-1);
+      ctx.fillText(value,x,64);x+=ctx.measureText(value).width;
+      if(value!==token.text){ctx.fillText('…',x,64);break;}
+    }
+    texture.needsUpdate=true;
   };
 }
 
@@ -86,8 +94,8 @@ export class Factory {
   constructor(host, onSelect, onInstruction) {
     this.host=host; this.onSelect=onSelect; this.nodes=new Map(); this.edges=new Map(); this.pickables=[];
     this.reduced=matchMedia('(prefers-reduced-motion: reduce)');
-    this.scene=new THREE.Scene(); this.scene.background=new THREE.Color(0x0d1413);
-    this.renderer=new THREE.WebGLRenderer({ antialias:true, alpha:false });
+    this.scene=new THREE.Scene(); this.scene.background=null;
+    this.renderer=new THREE.WebGLRenderer({ antialias:true, alpha:true });
     this.renderer.setPixelRatio(Math.min(devicePixelRatio,2));
     this.renderer.outputColorSpace=THREE.SRGBColorSpace;
     this.renderer.domElement.setAttribute('aria-label','Interactive CPython factory. Drag to orbit, right-drag or scroll to pan, pinch to zoom. Select blocks with the block menu.');
@@ -147,8 +155,10 @@ export class Factory {
     this.resizeObserver=new ResizeObserver(()=>this.resize()); this.resizeObserver.observe(host);
     this.load(null,null);
     this.minimap=new Minimap(host,this);
+    this.starfield=new Starfield(host);
     this.renderer.setAnimationLoop(now=>{
-      if (document.hidden || !host.clientWidth || host.hidden) return;
+      if (document.hidden || !host.clientWidth || host.hidden) {this.starfield.pause();return;}
+      this.starfield.draw(now,host.clientWidth,host.clientHeight,this.reduced.matches);
       this.controls.update();
       if (this.revealStart) {
         let complete=true, latest=null;
@@ -190,9 +200,10 @@ export class Factory {
       this.renderer.render(this.scene,this.camera);
       this.placeLabels();this.minimap?.draw();
       host.dataset.rendered='true';host.dataset.zoom=String(this.camera.zoom);
+      host.dataset.camera=JSON.stringify([...this.camera.position.toArray(),...this.camera.quaternion.toArray(),...this.controls.target.toArray(),this.camera.zoom,this.viewSize]);
     });
   }
-  load(layout, graph, events = [], source = '', parsing = null) {
+  load(layout, graph, events = [], source = '', parsing = null, preserveCamera = false) {
     release(this.world); this.nodes.clear(); this.edges.clear(); this.pickables=[]; this.lastSeq=null; this.pulsePath=null;
     this.labels.replaceChildren(); this.annotations=[];
     this.graph=graph; this.panelBlock=null; this.replaySource=null;this.replayTile=null;
@@ -203,7 +214,7 @@ export class Factory {
     this.opcodePanel.querySelector('.opcode-list').replaceChildren();
     this.opcodePanel.querySelector('.opcode-caption').textContent='Run a program to inspect its bytecode.';
     const footprint=factoryFootprint(layout), w=footprint.width, d=footprint.depth;
-    this.sourceLines=source.split('\n');
+    this.sourceLines=source.split('\n');this.sourceSyntax=syntaxLines(source);
     this.parsing=parsing;this.autoFrame=null;
     this.artifactFrames=parsing?parsingFrames(parsing).frames.filter(f=>f.event.kind===2||f.event.kind===3):[];
     const tokens=parsing?.events.filter(e=>e.kind===2) || [],ast=parsing?.ast || [];
@@ -213,15 +224,16 @@ export class Factory {
     this.sourceOrigin=new THREE.Vector3(sourceBounds.sourceX,0,0);
     this.extent=sourceBounds;
     const e=this.extent, width=e.maxX-e.minX, depth=e.maxZ-e.minZ;
-    box(this.world,(e.minX+e.maxX)/2,-.22,(e.minZ+e.maxZ)/2,width,.42,depth,0x131d1a);
+    const deck=box(this.world,(e.minX+e.maxX)/2,-.22,(e.minZ+e.maxZ)/2,width,.42,depth,0x11182d);
+    deck.material.transparent=true;deck.material.opacity=.35;deck.material.depthWrite=false;
     const gridPoints=[];
     for(let x=Math.ceil(e.minX);x<=e.maxX;x++) gridPoints.push(x,.005,e.minZ,x,.005,e.maxZ);
     for(let z=Math.ceil(e.minZ);z<=e.maxZ;z++) gridPoints.push(e.minX,.005,z,e.maxX,.005,z);
-    this.world.add(new THREE.LineSegments(new THREE.BufferGeometry().setAttribute('position',new THREE.Float32BufferAttribute(gridPoints,3)),new THREE.LineBasicMaterial({color:0x25372f})));
+    this.world.add(new THREE.LineSegments(new THREE.BufferGeometry().setAttribute('position',new THREE.Float32BufferAttribute(gridPoints,3)),new THREE.LineBasicMaterial({color:0x293d60})));
     this.serviceX=footprint.serviceX;
     const machine=(name,sub,z,x=this.serviceX) => {
       const group=new THREE.Group(); this.world.add(group);
-      const body=box(group,x,.56,z,3.5,1.05,1.65,0x26312e);
+      const body=box(group,x,.56,z,3.5,1.05,1.65,0x242c45);
       box(group,x,.12,z,3.8,.22,1.95,0x1b2521);
       for(let i=0;i<7;i++) box(group,x-1.35+i*.21,.4,z+.84,.06,.45,.025,0x3d5247);
       const paint=label(group,x,1.095,z,3.15,1.15,[name,sub]);
@@ -254,14 +266,14 @@ export class Factory {
     this.sourceLines.forEach((text,i)=>{
       const group=new THREE.Group(); group.position.set(this.sourceOrigin.x-sourceWidth/2+.6+4.1+Math.floor(i/rows)*8.7,0,-sourceDepth/2+1.2+(i%rows)*1.15);this.world.add(group);
       const body=box(group,0,.18,0,8.2,.26,1.025,0x293947);
-      const paint=sourceTile(group,8.1,1.0125,i+1,text,this.renderer.capabilities.getMaxAnisotropy());paint(false);
+      const paint=sourceTile(group,8.1,1.0125,i+1,text,this.renderer.capabilities.getMaxAnisotropy(),this.sourceSyntax[i]);paint(false);
       this.sourceTiles.push({group,body,paint,line:i+1});
     });
     this.host.dataset.sourceTiles=String(this.sourceTiles.length);
     this.host.dataset.activeSource='';
     if(!layout) label(this.world,0,.03,0,9,2,['PROGRAM PLOT','Run a program to construct its blocks']);
     for(const enclosure of layout?.enclosures || []) {
-      box(this.world,enclosure.x,.085,enclosure.y,enclosure.width,.15,enclosure.height,0x1b2922);
+      box(this.world,enclosure.x,.085,enclosure.y,enclosure.width,.15,enclosure.height,0x18233b);
       label(this.world,enclosure.x,.17,enclosure.y-enclosure.height/2+.25,Math.min(enclosure.width-.3,4),.42,[`${enclosure.name} / ${enclosure.id}`],'#acbeac');
       this.annotate(`${enclosure.name} / ${enclosure.id}`,new THREE.Vector3(enclosure.x,.5,enclosure.y-enclosure.height/2),'enclosure');
     }
@@ -285,7 +297,7 @@ export class Factory {
     for(const placed of layout?.nodes || []) {
       const block=graph.blocks.find(b=>b.id===placed.id);
       const group=new THREE.Group(); group.position.set(placed.x,0,placed.y); this.world.add(group);
-      const tray=box(group,0,.19,0,placed.width,.20,placed.height,0x1b2b22);
+      const tray=box(group,0,.19,0,placed.width,.20,placed.height,0x18233d);
       tray.userData.block=block.id; this.pickables.push(tray);
       label(group,0,.3,-placed.height/2+.24,Math.min(placed.width-.2,4),.35,[block.id]);
       const grid=instructionGrid(block.instructions,layout.placement?.selected.compact ?? true);
@@ -317,7 +329,7 @@ export class Factory {
     this.host.dataset.phase=this.revealStart?'compilation reveal':layout?'replay':'source';
     this.link=new THREE.Group();this.world.add(this.link);
     this.buildFrontEnd(tokens,ast);
-    this.view('iso');
+    if(!preserveCamera) this.view('iso');
   }
   setState(state,event,selected,terminal=false) {
     for(const node of this.nodes.values()) node.group.visible=true;
@@ -335,11 +347,11 @@ export class Factory {
     for(const [id,node] of this.nodes) {
       const active=id===state?.block, chosen=id===selected;
       const color=active?(state.kind==='exception'||state.kind==='unwind'?colors.error:colors.active):chosen?colors.selected:colors.rim;
-      node.body.material.color.setHex(chosen?0x3c3825:active?0x2c402b:0x1b2b22);
+      node.body.material.color.setHex(chosen?0x3c3825:active?0x2c402b:0x18233d);
       node.body.children[0].material.color.setHex(color);
       for(const tile of node.tiles) {
         const executing=active&&event?.kind==='opcode'&&!terminal&&tile.instruction.offset===event.offset;
-        tile.paint(executing); tile.body.material.color.setHex(executing?0x58743b:colors.block);
+        tile.paint(executing); tile.body.material.color.setHex(executing?0x466d94:colors.block);
         tile.body.children[0].material.color.setHex(executing?colors.active:colors.rim);
       }
     }
@@ -349,7 +361,7 @@ export class Factory {
       for(const child of edge.line.children) child.material.color.setHex(color);
     }
     this.host.dataset.activeBlock=state?.block || ''; this.host.dataset.selectedBlock=selected || '';
-    this.evaluator.body.material.color.setHex(event?.kind==='opcode'&&!terminal?0x3c5030:0x26312e);
+    this.evaluator.body.material.color.setHex(event?.kind==='opcode'&&!terminal?0x3c5030:0x242c45);
     this.evaluator.paint(['EVALUATOR',terminal?'recording ended':event?`${event.kind} · @${event.offset}`:'waiting']);
     this.frameDisplay.paint(['FRAMES',state?`${state.frames.length} active · ${event.frame}`:'0 activations']);
     const stack=stackView(event);
@@ -504,7 +516,7 @@ export class Factory {
     for(const [i,tile] of this.parseTokens.entries()) {
       tile.group.visible=final||i<(frame?.tokenCount || 0);
       const active=!final&&(spanTokens.size?spanTokens.has(tile.event):tile.event.cursor===frame?.cursor)&&tile.group.visible;
-      tile.paint(active);tile.body.material.color.setHex(active?0x58743b:0x31404b);
+      tile.paint(active);tile.body.material.color.setHex(active?0x466d94:0x31404b);
     }
     const visible=new Set();
     for(const tile of this.astTiles) {
@@ -558,7 +570,7 @@ export class Factory {
     this.sourceHighlight=signature;
     for(const tile of this.sourceTiles) {
       const active=tile.line===line; tile.paint(active);
-      tile.body.material.color.setHex(active?0x58743b:0x293947);
+      tile.body.material.color.setHex(active?0x466d94:0x293947);
     }
     const source=this.sourceTiles.find(t=>t.line===line);
     this.host.dataset.activeSource=source?String(line):'';
@@ -659,5 +671,5 @@ export class Factory {
     const span=Math.max(size.depth+1.2,(size.width+1.4)/aspect);
     this.camera.zoom=THREE.MathUtils.clamp(this.viewSize/span,1,12); this.camera.updateProjectionMatrix(); this.controls.update();
   }
-  dispose() { for(const [name,handler] of [['gesturestart',this.gestureStart],['gesturechange',this.gestureChange],['gestureend',this.gestureEnd]]) this.renderer.domElement.removeEventListener(name,handler,true); this.renderer.domElement.removeEventListener('wheel',this.wheelPan,true); this.minimap?.dispose(); this.resizeObserver.disconnect(); this.renderer.setAnimationLoop(null); this.controls.dispose(); release(this.world); this.renderer.dispose(); this.renderer.domElement.remove(); this.labels.remove(); this.opcodePanel.remove(); }
+  dispose() { this.starfield?.dispose(); for(const [name,handler] of [['gesturestart',this.gestureStart],['gesturechange',this.gestureChange],['gestureend',this.gestureEnd]]) this.renderer.domElement.removeEventListener(name,handler,true); this.renderer.domElement.removeEventListener('wheel',this.wheelPan,true); this.minimap?.dispose(); this.resizeObserver.disconnect(); this.renderer.setAnimationLoop(null); this.controls.dispose(); release(this.world); this.renderer.dispose(); this.renderer.domElement.remove(); this.labels.remove(); this.opcodePanel.remove(); }
 }

@@ -58,6 +58,8 @@ The 3D world fills the viewport. Source, token, PEG/AST, and opcode lanes share 
 
 An orthographic camera supports isometric and top presets, orbit, pan, zoom, fit, and focus. Trackpad scrolling pans; pinch gestures zoom.
 
+Capture, including its intermediate source-only scene and failure results, preserves camera orientation, pan, and effective orthographic zoom. Source edits also preserve navigation after the initial fit; explicit camera presets and viewport relayout can refit the map. Chrome checks compare the camera pose across recapture.
+
 Building selection and the accessible block menu share the existing instruction inspector and recorded-visit navigation.
 
 [web/app.mjs](../../web/app.mjs) switches between 3D and schematic without recapturing Python or recomputing layout. Ordinary wheel events pan in both screen axes, with line/page delta normalization and Shift-wheel horizontal panning. Ctrl-wheel pinch events zoom the camera directly and cancel browser defaults. Safari gesturestart/change/end events use relative gesture scale, also cancelling page magnification; duplicate Ctrl-wheel input during those gestures is ignored. Middle-drag pans, and touchscreen two-finger pan/pinch remains available. Toolbar zoom buttons remain explicit controls. The root document cannot scroll, and overlay scroll containers contain overscroll to prevent gestures from moving the page frame. Browser tests exercise ordinary wheel input and synthetic Safari gesture events, checking cancellation, camera zoom, and unchanged overlay bounds.
@@ -97,3 +99,15 @@ Geometry tests verify stable IDs, finite route coordinates, matching node/enclos
 [tools/test_graph.mjs](../../tools/test_graph.mjs) validates normalized geometry across the existing semantic fixtures, deterministic candidate selection, and a score no worse than the original candidate. [tools/test_factory.mjs](../../tools/test_factory.mjs) verifies idle infrastructure, capture-driven buildings, rewind, block-menu selection, ray picking, camera controls, view switching, clearing after syntax errors, observed addition operands/results, stack rewind, NULL versus None, bounded stack overflow, reduced motion, mobile overflow, and capture with WebGL disabled. Opcode checks cover one tile per decoded instruction, decoded operands, exact highlights, seeking, and the shortest-path output. Fullscreen checks cover viewport coverage, editor toggling, source preview with blank/comment lines, ordered pipeline lanes, tandem source/token/AST/opcode highlights, complete reveal, and clearing highlights at the terminal position. The shortest-path layout regression checks different selections for portrait and wide windows. Browser coverage verifies resize-driven layout uses the actual window ratio while retaining replay position and output. It saves screenshots for visual review.
 
 [tools/package_web.py](../../tools/package_web.py) stages the pinned Three.js module, core, OrbitControls, and license from npm beside the other local browser assets. No CDN dependency is required. The existing schematic browser tests remain separate from the new scene checks.
+
+## Space presentation
+
+The scene uses a slow forward-flight starfield, cool blue active accents, and translucent glass overlays. Text and opcode roofs retain contrasting surfaces for readability.
+
+[web/starfield.mjs](../../web/starfield.mjs) projects 680 deterministic stars through depth, producing slow radial parallax with soft near-star halos and fade-in at depth wrap. Faint overlapping violet and blue nebula gradients add diffuse depth behind the stars without obscuring the map. Its clock is independent of playback and camera navigation; hidden scenes pause and reduced motion freezes the field. It reuses the renderer animation loop and caps pixel ratio at two. [web/stars.svg](../../web/stars.svg) remains a static fallback. [web/factory.mjs](../../web/factory.mjs) uses a transparent WebGL canvas and translucent deck so the starfield remains visible around and beneath the map. [web/style.css](../../web/style.css) gives overlays restrained borders, blur, and subtle gradients; star motion is decorative and does not imply runtime activity. Chrome checks verify motion advances normally and freezes under reduced motion.
+
+## Python syntax highlighting
+
+The editor, source inspector, and 3D source tiles share a lightweight Python presentation lexer. Keywords, builtins, strings, numbers, comments, and operators receive consistent colors distinct from execution highlighting.
+
+[web/python-syntax.mjs](../../web/python-syntax.mjs) preserves source text and handles multiline strings across source tiles. It is a display lexer rather than a Python parser; string interpolation is colored as a string. The editor uses a scroll-synchronized highlighted layer behind its native textarea, preserving ordinary editing and accessible text input. DOM highlighting uses textContent rather than HTML interpolation.

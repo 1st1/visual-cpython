@@ -18,3 +18,28 @@ body{position:fixed;inset:0;height:100dvh}
 .editor{max-width:calc(100% - 36px)}
 header{min-width:0}header strong,header .muted,#state{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}header button{flex-shrink:0}
 @media(max-width:900px){.editor{max-width:calc(100% - 16px)}}
+
+/* Orbital observatory: restrained glass surfaces over a static starfield. */
+:root{--accent:#a4dfff;--line:#a4bcf32e;--muted:#a0aec8;color:#e4eafa;background:#060914}
+body{background:radial-gradient(ellipse at 18% 35%,#42428525,transparent 55%),radial-gradient(ellipse at 80% 65%,#18527320,transparent 50%),#060914}
+.factory{background-image:url('./stars.svg');background-color:transparent;background-size:1600px 1000px}
+header{background:linear-gradient(#0a1022a8,#0a102240);border-bottom:1px solid #bed4ff12;backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px)}
+.dot{box-shadow:0 0 14px #9ad6ff9c}
+.editor,.replay,.opcode-panel,#parse-panel,.transport,.minimap{background:linear-gradient(135deg,#19233d88,#0b122b55);border:1px solid #b2c9ff30;box-shadow:0 12px 45px #0003,inset 0 1px #e6edff12;backdrop-filter:blur(18px);-webkit-backdrop-filter:blur(18px)}
+textarea,select,button,.camera-controls button{background:#111a304f;border-color:#b4c9fa30;color:#e4eafa}textarea{background:#090f234f}button:hover{background:#7899cc24;border-color:#bbdfff80}
+.primary{background:#a4dfffcc;color:#101c34;border-color:#c6e9ff99;box-shadow:0 0 20px #7ebfff18}
+button[aria-pressed=true]{background:#8ebeff20;color:#d0eaff;border-color:#b0dfff70}
+.active,.event,.value,.output{background:#7e9ccc16;border-color:#8abaff30;color:#deecff}
+.scene-label{background:#101a30a6;border-color:#9cb9ed40;color:#c2d1eb;backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px)}
+.scene-label.active{background:#40638c70;color:#d9f2ff;border-color:#a4dfff88}.scene-label.enclosure,.scene-label.machine{color:#c7d5ec;border-color:#9cb9ed40}
+.opcode-heading,#parse-status,.value span{color:#c4e5ff}.opcode-list button,.opcode-list button:nth-child(even){background:#19294150}.opcode-list button.current{background:#719fc033;border-color:#a4dfff;color:#e2f3ff}
+#map-status{background:#0c152b66;color:#b8c7df}.map{background-color:#080e1a;background-image:radial-gradient(#667da738 1px,transparent 1px)}
+#parse-seek{accent-color:var(--accent)}.minimap-heading{color:#b9c9e2}
+
+.source-editor{position:relative;height:230px;overflow:hidden;border:1px solid #b4c9fa30;border-radius:5px;background:#090f234f}
+.source-editor #source,.source-editor #source-highlight{position:absolute;inset:0;width:100%;height:100%;margin:0;border:0;padding:10px;font:14px/1.7 ui-monospace,SFMono-Regular,Consolas,monospace;letter-spacing:normal;tab-size:4;white-space:pre;overflow-wrap:normal;max-height:none;border-radius:0}
+.source-editor #source{resize:none;background:transparent;color:transparent;caret-color:#e4eafa;-webkit-text-fill-color:transparent;z-index:1}.source-editor #source::selection{background:#8fb8ff40}
+.source-editor #source-highlight{pointer-events:none;overflow:hidden;background:transparent}
+.syntax-keyword{color:#cfacff}.syntax-string{color:#f1ca9d}.syntax-number{color:#8bded2}.syntax-comment{color:#8394ae}.syntax-builtin{color:#8ecfff}.syntax-operator{color:#b4c2de}.syntax-plain{color:#e2eaff}
+
+.starfield{position:absolute;inset:0;pointer-events:none;overflow:hidden;background:radial-gradient(ellipse at 24% 38%,#75509017,transparent 48%),radial-gradient(ellipse at 47% 48%,#456ca516,transparent 42%),radial-gradient(ellipse at 72% 66%,#724e8512,transparent 44%)}.starfield canvas{width:100%;height:100%}.factory>canvas{position:relative}.factory:has(.starfield){background-image:none}

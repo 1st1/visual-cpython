@@ -8,9 +8,24 @@ await mkdir('artifacts',{recursive:true});
 async function capture(source) {
   if(await page.locator('#editor-panel').isHidden()) await page.locator('#toggle-editor').click();
   if(await page.locator('#inspector-panel').isVisible()) await page.locator('#toggle-inspector').click();
-  await page.locator('#source').fill(source); await page.locator('#run').click();
+  await page.locator('#source').fill(source);
+  await page.waitForTimeout(250);
+  await page.evaluate(()=>new Promise(resolve=>{
+    let previous=null;
+    function settled(){
+      const pose=JSON.parse(document.querySelector('#factory').dataset.camera);
+      if(previous&&pose.every((v,i)=>Math.abs(v-previous[i])<1e-7))return resolve();
+      previous=pose;requestAnimationFrame(settled);
+    }
+    requestAnimationFrame(settled);
+  }));
+  const camera=JSON.parse(await page.locator('#factory').getAttribute('data-camera'));
+  await page.locator('#run').click();
   await page.waitForFunction(()=>!document.querySelector('#run').disabled,null,{timeout:60000});
   await page.waitForFunction(()=>/Graphviz|No compiled/.test(document.querySelector('#map-status').textContent),null,{timeout:20000});
+  await page.evaluate(()=>new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r))));
+  const after=JSON.parse(await page.locator('#factory').getAttribute('data-camera'));
+  assert.ok(camera.every((value,i)=>Math.abs(value-after[i])<.01),'Capture preserves orientation, pan, and effective zoom, including failure results '+JSON.stringify({camera,after}));
 }
 try {
   await page.goto(process.env.FACTORY_URL || 'http://127.0.0.1:8000');
@@ -20,6 +35,18 @@ try {
   const viewport=await page.locator('#factory').boundingBox();
   assert.equal(viewport.width,1600);assert.equal(viewport.height,1100);
   assert.equal(await page.locator('#factory').getAttribute('data-source-tiles'),'7');
+  assert.equal(await page.locator('#source-highlight').textContent(),await page.locator('#source').inputValue()+'\n');
+  assert.ok(await page.locator('#source-highlight .syntax-keyword').count()>0);
+  assert.ok(await page.locator('#source-highlight .syntax-number').count()>0);
+  assert.equal(await page.locator('.starfield canvas').count(),1);
+  const starTime=Number(await page.locator('.starfield').getAttribute('data-time'));
+  await page.waitForFunction(t=>Number(document.querySelector('.starfield').dataset.time)>t,starTime);
+  await page.emulateMedia({reducedMotion:'reduce'});
+  await page.evaluate(()=>new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r))));
+  const still=await page.locator('.starfield').getAttribute('data-time');
+  await page.evaluate(()=>new Promise(r=>setTimeout(r,150)));
+  assert.equal(await page.locator('.starfield').getAttribute('data-time'),still);
+  await page.emulateMedia({reducedMotion:'no-preference'});
   await page.locator('#source').fill('# comment\n\nx=1');
   await page.waitForFunction(()=>document.querySelector('#factory').dataset.sourceTiles==='3');
   await page.locator('#toggle-editor').click();
@@ -86,6 +113,8 @@ try {
   assert.deepEqual(JSON.parse(await page.locator('#factory').getAttribute('data-stack')),beforeStack);
   await page.locator('#first').click();
   assert.equal(JSON.parse(await page.locator('#factory').getAttribute('data-stack')).sampled,false);
+  await capture('import asyncio\nasync def foo():\n await asyncio.sleep(1)\n print(1)\nasyncio.run(foo())');
+  assert.equal(await page.locator('#state').textContent(),'completed');
   await capture('print(None)');
   let sentinels=false;
   for(let i=0;i<15;i++) {

@@ -24,8 +24,38 @@ ALLOWED = {
     "Add", "Sub", "Mult", "Div", "FloorDiv", "Mod", "USub", "UAdd", "Not", "And",
     "Or", "Eq", "NotEq", "Lt", "LtE", "Gt", "GtE", "Is", "IsNot", "In", "NotIn",
     "List", "Tuple", "Dict", "Subscript", "Slice", "IfExp",
+    "Import", "ImportFrom", "alias", "Attribute", "AsyncFunctionDef", "Await",
 }
 BUILTINS = {name: getattr(builtins, name) for name in ("print", "range", "len", "abs", "min", "max", "int", "float", "str", "bool")}
+
+
+def import_module(name, globals=None, locals=None, fromlist=(), level=0):
+    if name != "asyncio" or level:
+        raise ImportError("Only asyncio imports are supported")
+    module = builtins.__import__(name, globals, locals, fromlist, level)
+    # The worker has no sockets/threads to wake the loop. Keep real asyncio
+    # Tasks, Futures and timer scheduling, without the socketpair self-pipe.
+    class WorkerLoop(module.SelectorEventLoop):
+        def _make_self_pipe(self):
+            pass
+
+        def _close_self_pipe(self):
+            pass
+
+        def _write_to_self(self):
+            pass
+
+    facade = types.ModuleType("asyncio")
+    for attr in ("sleep", "gather", "create_task", "wait_for", "current_task",
+                 "get_running_loop", "CancelledError", "Task", "Future"):
+        setattr(facade, attr, getattr(module, attr))
+    def run(coro, *, debug=None):
+        return module.run(coro, debug=debug, loop_factory=WorkerLoop if sys.platform == "emscripten" else None)
+    facade.run = run
+    return facade
+
+
+BUILTINS["__import__"] = import_module
 
 
 class CaptureLimit(BaseException):
@@ -124,9 +154,11 @@ class Observer:
             # This revision enables opcode instrumentation at the next legacy
             # event. Keep line events enabled, but omit them from the recording.
             frame.f_trace_lines = True
-            if len(self.frames) >= 256:
+            resumed = frame in self.frames
+            if not resumed and len(self.frames) >= 256:
                 raise CaptureLimit("activation budget exceeded")
-            self.frames[frame] = f"f{len(self.frames)}"
+            if not resumed:
+                self.frames[frame] = f"f{len(self.frames)}"
         if event not in ("call", "opcode", "return", "exception"):
             return self.trace
         if len(self.events) >= self.limit:
@@ -141,8 +173,15 @@ class Observer:
             self.pending_exceptions.discard(frame)
             record["stack"] = [{"kind": kind, "value": self.value(value) if kind == "object" else value}
                                for kind, value in snapshot(frame)]
+        if event == "call" and resumed:
+            record["kind"] = "resume"
         if event == "return":
-            if frame in self.pending_exceptions:
+            opname = next((i["opname"] for c in self.artifacts if c["id"] == record["code"]
+                           for i in c["instructions"] if i["offset"] == frame.f_lasti), "")
+            if opname == "YIELD_VALUE":
+                record["kind"] = "suspend"
+                record["result"] = self.value(arg)
+            elif frame in self.pending_exceptions:
                 record["kind"] = "unwind"
             else:
                 record["result"] = self.value(arg)
@@ -205,7 +244,13 @@ def capture(source, max_events=2000):
                 raise ValueError(f"unsupported construct: {type(node).__name__}")
             if isinstance(node, ast.Name) and node.id.startswith("__"):
                 raise ValueError("dunder names are not supported")
-            if isinstance(node, ast.FunctionDef) and (node.decorator_list or node.returns):
+            if isinstance(node, ast.Import) and any(alias.name != "asyncio" for alias in node.names):
+                raise ValueError("Only asyncio imports are supported")
+            if isinstance(node, ast.ImportFrom) and (node.module != "asyncio" or node.level or any(alias.name.startswith("_") for alias in node.names)):
+                raise ValueError("Only public asyncio imports are supported")
+            if isinstance(node, ast.Attribute) and node.attr.startswith("_"):
+                raise ValueError("private attributes are not supported")
+            if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)) and (node.decorator_list or node.returns):
                 raise ValueError("decorators and annotations are not supported")
             if isinstance(node, ast.arg) and node.annotation:
                 raise ValueError("annotations are not supported")

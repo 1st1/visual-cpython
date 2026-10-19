@@ -13,11 +13,11 @@
     <p class="muted">Real CPython, observable execution. The first building block for the factory.</p>
     <label for="example">Example</label><select id="example"><option value="accumulate">Accumulator</option><option value="shortest">Shortest path · breadth-first search</option><option value="branch">Branches and calls</option><option value="alias">Shared objects</option><option value="error">Runtime error</option><option value="loop">Execution limit</option></select>
     <label for="source">Python source · up to 200 Python tokens</label>
-    <textarea id="source" spellcheck="false" aria-label="Python source" maxlength="16384"></textarea>
+    <div class="source-editor"><pre id="source-highlight" aria-hidden="true"></pre><textarea wrap="off" id="source" spellcheck="false" aria-label="Python source" maxlength="16384"></textarea></div>
     <div class="buttons"><button id="run" class="primary">Run &amp; capture</button><button id="cancel" disabled>Stop capture</button></div>
     <p class="note">Instrumented opcode tracing. Stack values are observed before each instruction. Specialization is affected; this is not a performance trace.</p>
     <div id="message" role="alert"></div>
-    <details><summary>Scope and limits</summary><p>Functions, loops, branches, basic lists/dictionaries, arithmetic, and selected builtins. No imports or attributes. Capture: 2,000 events, 4 KiB output, 4,096 retained object identities, 256 activations, 5 seconds of execution, and 256 MiB maximum WASM memory. Host/browser overhead is additional.</p></details>
+    <details><summary>Scope and limits</summary><p>Functions, loops, branches, basic lists/dictionaries, arithmetic, and selected builtins. Async functions, await, and asyncio imports support run, sleep, gather, create_task, wait_for, current_task, get_running_loop, Task, Future, and CancelledError. Public attributes are supported; other imports and private attributes are rejected. Browser asyncio supports cooperative tasks and timers, not socket or thread I/O. Capture: 2,000 events, 4 KiB output, 4,096 retained object identities, 256 activations, 5 seconds of execution, and 256 MiB maximum WASM memory. Host/browser overhead is additional.</p></details>
   </section>
   <section class="map-panel panel">
     <div class="title map-title"><h2>The program factory</h2><span class="badge">CPYTHON · NO JIT</span></div>

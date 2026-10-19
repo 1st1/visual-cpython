@@ -8,6 +8,7 @@ const base = new URL('../', import.meta.url);
 const stdlib = new Uint8Array(await readFile(new URL('web/vendor/python3.16.zip', base)));
 const script = await readFile(new URL('runtime/capture.py', base), 'utf8');
 const cases = [
+  ['asyncio', 'import asyncio\nasync def foo():\n await asyncio.sleep(1)\n print(1)\nasyncio.run(foo())', 'completed', '1\n'],
   ['shortest path', await readFile(new URL('web/programs/shortest_path.py',base),'utf8'), 'completed', '[0, 1, 3, 5]\n'],
   ['syntax', 'x = (', 'error', ''],
   ['addition', 'a=2\nb=3\nc=a+b\nprint(c)', 'completed', '5\n'],
@@ -44,6 +45,13 @@ for (const [name, source, status, output] of cases) {
   const graph = extractGraph(trace);
   projectReplay(trace, graph);
   assert.deepEqual(graph.diagnostics, [], name);
+  if(name==='asyncio') {
+    const suspended=trace.events.find(e=>e.kind==='suspend');
+    const resumed=trace.events.find(e=>e.kind==='resume');
+    assert.ok(suspended&&resumed);
+    assert.equal(suspended.frame,resumed.frame);
+    assert.ok(trace.events.some(e=>e.kind==='opcode'&&e.frame===resumed.frame&&e.seq>resumed.seq));
+  }
   if (name === 'addition') {
     const operation = trace.codes[0].instructions.find(i => i.opname === 'BINARY_OP');
     const event = trace.events.find(e => e.kind === 'opcode' && e.offset === operation.offset);

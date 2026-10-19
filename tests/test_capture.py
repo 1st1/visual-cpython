@@ -108,6 +108,17 @@ class CaptureTests(unittest.TestCase):
         self.assertIsNone(sys.gettrace())
         self.assertEqual(capture("print('a' * 5000)")["status"], "limited")
 
+    def test_asyncio_suspend_resume(self):
+        result = capture("import asyncio\nasync def foo():\n await asyncio.sleep(0.01)\n await asyncio.sleep(0)\n print(1)\nasyncio.run(foo())")
+        self.assertEqual(result["status"], "completed", result.get("error"))
+        self.assertEqual(result["stdout"], "1\n")
+        suspended = [e for e in result["events"] if e["kind"] == "suspend"]
+        resumed = [e for e in result["events"] if e["kind"] == "resume"]
+        self.assertEqual(len(suspended), 2)
+        self.assertEqual([e["frame"] for e in suspended], [e["frame"] for e in resumed])
+        self.assertEqual(len(set(e["frame"] for e in suspended)), 1)
+        self.assertIsNone(sys.gettrace())
+
     def test_input_validation(self):
         for source in ("import os", "print.__class__", "x=0\n" * 70, "#" * 17000):
             self.assertEqual(capture(source)["status"], "error")

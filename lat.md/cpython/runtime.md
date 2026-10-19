@@ -20,7 +20,11 @@ Capture records distinct activations, reusable code identities, source positions
 
 [[runtime/capture.py#Observer#value]] preserves alias identity using a bounded strong-reference registry. Exact builtin containers receive shallow, cycle-aware previews; arbitrary repr methods are not invoked. Retention changes object lifetime and is limited to a single recording. This is not a faithful reference-count/GC trace.
 
-[[runtime/capture.py#capture]] accepts a small syntax/builtin surface and checks source bytes and Python lexical tokens before execution. It enforces event, object-identity, activation, and output limits. Imports, attributes, classes, generators, exception-handling syntax, and other unsupported constructs are rejected. The source-size cap is independent of runtime cost.
+[[runtime/capture.py#capture]] accepts a small syntax/builtin surface and checks source bytes and Python lexical tokens before execution. It enforces event, object-identity, activation, and output limits. Async functions, await, public attributes, and asyncio imports are accepted. Other imports, private attributes, classes, generators, and exception-handling syntax remain rejected. The source-size cap is independent of runtime cost.
+
+[[runtime/capture.py#import_module]] exposes selected real asyncio APIs: run, sleep, gather, create_task, wait_for, current_task, get_running_loop, Task, Future, and CancelledError. On Emscripten, run uses a selector-loop subclass without the socketpair wakeup mechanism; the single worker supports cooperative tasks and timers, not socket or thread I/O. Native runs use the standard loop. Library frames remain opaque; user coroutine opcodes are observed normally.
+
+[[runtime/capture.py#Observer#trace]] records coroutine yield and re-entry as suspend and resume, retaining the same frame identity across awaits. Replay updates the resumed frame's current caller, rather than treating suspension as completion or resumption as a new activation. Native, WASM, and Chrome tests exercise async sleep and output, with native/WASM assertions for stable suspension/resumption identity.
 
 Recordings distinguish completed, error, and limited outcomes. Exceptions followed by frame termination are labeled unwind rather than a successful return of None. Syntax errors produce no execution events. [[tools/capture.py#run]] launches a fresh native subprocess and applies a parent-enforced timeout; it is a local development tool, not an untrusted-code sandbox.
 
