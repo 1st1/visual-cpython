@@ -98,17 +98,21 @@ try {
   await page.waitForTimeout(1800);
   assert.equal(await page.locator('#factory').getAttribute('data-phase'),'compilation reveal');
   assert.equal(await page.locator('#factory').getAttribute('data-revealed-blocks'),'0');
+  assert.equal(await page.locator('#factory').getAttribute('data-revealed-enclosures'),'0');
+  assert.equal(await page.locator('.scene-label.active').isVisible(),false,'Execution label stays hidden during compilation');
   assert.equal(await page.locator('#factory').getAttribute('data-revealed-edges'),'0');
   assert.equal(await page.locator('#factory').getAttribute('data-revealed-internal-arrows'),'0');
   const captureCruise=Number(await page.locator('.starfield').getAttribute('data-warp'));
   assert.ok(captureCruise>.21&&captureCruise<.23,'Cruise continues after worker completion throughout construction');
   await page.waitForFunction(()=>JSON.parse(document.querySelector('#factory').dataset.pipelineLinks||'{}').astOpcode>0,{},{timeout:30000});
   assert.ok(Number(await page.locator('#factory').getAttribute('data-revealed-blocks'))>0);
+  assert.ok(Number(await page.locator('#factory').getAttribute('data-revealed-enclosures'))>0);
   const compilationLinks=JSON.parse(await page.locator('#factory').getAttribute('data-pipeline-links'));
   assert.equal(compilationLinks.sourceToken,0);assert.equal(compilationLinks.tokenAst,0);
   await page.locator('#finish-build').click();
   assert.equal(await page.locator('#factory').getAttribute('data-revealed-blocks'),await page.locator('#factory').getAttribute('data-blocks'));
   assert.equal(await page.locator('#factory').getAttribute('data-revealed-edges'),await page.locator('#factory').getAttribute('data-edges'));
+  assert.equal(await page.locator('#factory').getAttribute('data-revealed-enclosures'),await page.locator('#factory').getAttribute('data-enclosures'));
   await page.waitForFunction(()=>Number(document.querySelector('.starfield').dataset.warp)<.01);
   await page.locator('#play').click();
   await page.waitForFunction(()=>{

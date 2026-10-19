@@ -268,9 +268,12 @@ export class Factory {
     this.host.dataset.sourceTiles=String(this.sourceTiles.length);
     this.host.dataset.activeSource='';
     if(!layout) label(this.world,0,.03,0,9,2,['PROGRAM PLOT','Run a program to construct its blocks']);
+    this.codeEnclosures=[];
     for(const enclosure of layout?.enclosures || []) {
-      box(this.world,enclosure.x,.085,enclosure.y,enclosure.width,.15,enclosure.height,0x18233b);
-      this.annotate(`${enclosure.name} / ${enclosure.id}`,new THREE.Vector3(enclosure.x,.5,enclosure.y-enclosure.height/2),'enclosure');
+      const body=box(this.world,enclosure.x,.085,enclosure.y,enclosure.width,.15,enclosure.height,0x18233b);
+      const label=this.annotate(`${enclosure.name} / ${enclosure.id}`,new THREE.Vector3(enclosure.x,.5,enclosure.y-enclosure.height/2),'enclosure');
+      label.owner=body;
+      this.codeEnclosures.push({code:enclosure.id,body});
     }
     for(const route of layout?.edges || []) {
       const color=route.kind==='call'?0xa895cf:route.kind==='taken'?0xc4a068:0x658775;
@@ -329,6 +332,7 @@ export class Factory {
     }
   }
   setState(state,event,selected,terminal=false) {
+    if(!this.revealStart)this.host.dataset.phase=this.graph?'replay':'source';
     this.updateOpcodeVisibility();
     this.astGroup.visible=Boolean(this.astTiles.length);
     for(const tile of this.astTiles) tile.group.visible=true;
@@ -375,6 +379,7 @@ export class Factory {
     this.stackTop.element.textContent=stack.sampled?(stack.total?`TOP · ${stack.slots.at(-1).text}`:'EMPTY'):'';
     this.stackTop.position.copy(this.stackOrigin).add(new THREE.Vector3(0,stack.slots.length? .48+(stack.slots.length-1)*.43+.2:.4,.9));
     const active=this.nodes.get(state?.block);
+    this.activeLabel.owner=active?.group;
     const instruction=this.graph?.blocks.find(b=>b.id===state?.block)?.instructions.find(i=>i.offset===event?.offset);
     this.activeLabel.element.textContent=state?`${state.block} · ${event?.kind==='opcode'&&!terminal?instruction?.opname:event?.kind || ''}${terminal?' · end':''}`:'';
     this.currentOpcode=event?.kind==='opcode'?`${event.code}:${event.offset}`:null;
@@ -430,7 +435,9 @@ export class Factory {
     const width=this.host.clientWidth,height=this.host.clientHeight,placed=[];
     const priority={active:0,stack:1,enclosure:2,machine:3};
     const ordered=[...this.annotations].sort((a,b)=>priority[a.kind]-priority[b.kind]);
-    for(const {element,position} of ordered) {
+    for(const {element,position,owner,kind} of ordered) {
+      if(kind==='active'&&this.host.dataset.phase!=='replay'){element.hidden=true;continue;}
+      if(owner&&!owner.visible){element.hidden=true;continue;}
       const p=position.clone().project(this.camera),x=(p.x+1)*width/2,y=(1-p.y)*height/2-12;
       element.style.left=`${x}px`; element.style.top=`${y}px`; element.hidden=false;
       const w=element.offsetWidth,h=element.offsetHeight;
@@ -512,6 +519,8 @@ export class Factory {
     this.finishConstruction();this.highlightArtifacts(null);
     for(const node of this.nodes.values()) node.group.visible=false;
     for(const edge of this.edges.values()) {edge.line.visible=false;edge.arrow.visible=false;}
+    for(const enclosure of this.codeEnclosures)enclosure.body.visible=false;
+    this.host.dataset.revealedEnclosures='0';
     this.host.dataset.phase='parsing';
   }
   setParsingState(frame,final) {
@@ -622,6 +631,10 @@ export class Factory {
       edge.line.visible=edge.arrow.visible=visible;
       if(visible)connections++;
     }
+    const visibleCodes=new Set([...this.instructionTiles.values()].filter(tile=>tile.group.visible).map(tile=>tile.code));
+    for(const enclosure of this.codeEnclosures)enclosure.body.visible=visibleCodes.has(enclosure.code);
+    this.host.dataset.revealedEnclosures=String(this.codeEnclosures.filter(e=>e.body.visible).length);
+    this.host.dataset.enclosures=String(this.codeEnclosures.length);
     this.host.dataset.revealedBlocks=String(blocks);
     this.host.dataset.revealedEdges=String(connections);
     this.host.dataset.revealedInternalArrows=String(internal);
