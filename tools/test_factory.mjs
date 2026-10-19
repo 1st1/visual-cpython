@@ -99,6 +99,9 @@ try {
   assert.equal(await page.locator('#factory').getAttribute('data-phase'),'compilation reveal');
   const captureCruise=Number(await page.locator('.starfield').getAttribute('data-warp'));
   assert.ok(captureCruise>.21&&captureCruise<.23,'Cruise continues after worker completion throughout construction');
+  await page.waitForFunction(()=>JSON.parse(document.querySelector('#factory').dataset.pipelineLinks||'{}').astOpcode>0,{},{timeout:30000});
+  const compilationLinks=JSON.parse(await page.locator('#factory').getAttribute('data-pipeline-links'));
+  assert.equal(compilationLinks.sourceToken,0);assert.equal(compilationLinks.tokenAst,0);
   await page.locator('#finish-build').click();
   await page.waitForFunction(()=>Number(document.querySelector('.starfield').dataset.warp)<.01);
   await page.locator('#play').click();
@@ -121,7 +124,7 @@ try {
   assert.ok(Number(await page.locator('#factory').getAttribute('data-active-tokens'))>0);
   assert.ok(Number(await page.locator('#factory').getAttribute('data-active-ast'))>0);
   const links=JSON.parse(await page.locator('#factory').getAttribute('data-pipeline-links'));
-  assert.ok(links.sourceToken>1&&links.tokenAst>1&&links.astOpcode>1,'Dashed connections traverse all three pipeline stages');
+  assert.deepEqual(links,{sourceToken:0,tokenAst:0,astOpcode:0},'Execution highlights artifacts without compilation correspondence links');
   const beforeStack=JSON.parse(await page.locator('#factory').getAttribute('data-stack'));
   assert.match(await page.locator('.opcode-list .current').textContent(),/BINARY_OP\s+\+/);
   const opcode=await page.locator('.opcode-list .current').getAttribute('data-offset');
@@ -139,7 +142,9 @@ try {
   assert.deepEqual(JSON.parse(await page.locator('#factory').getAttribute('data-stack')),beforeStack);
   await page.locator('#first').click();
   assert.equal(JSON.parse(await page.locator('#factory').getAttribute('data-stack')).sampled,false);
-  await capture('import asyncio\nasync def foo():\n await asyncio.sleep(1)\n print(1)\nasyncio.run(foo())');
+  await page.locator('#example').selectOption('asyncio');
+  await page.waitForFunction(()=>document.querySelector('#source').value.includes('async def odds()'));
+  await capture(await page.locator('#source').inputValue());
   assert.equal(await page.locator('#state').textContent(),'completed');
   await capture('print(None)');
   let sentinels=false;

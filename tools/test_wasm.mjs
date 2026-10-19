@@ -9,6 +9,7 @@ const stdlib = new Uint8Array(await readFile(new URL('web/vendor/python3.16.zip'
 const script = await readFile(new URL('runtime/capture.py', base), 'utf8');
 const cases = [
   ['asyncio', 'import asyncio\nasync def foo():\n await asyncio.sleep(1)\n print(1)\nasyncio.run(foo())', 'completed', '1\n'],
+  ['asyncio numbers', await readFile(new URL('web/programs/asyncio_numbers.py',base),'utf8'), 'completed', '1\n2\n3\n4\n5\n6\n7\n8\n9\n10\n'],
   ['shortest path', await readFile(new URL('web/programs/shortest_path.py',base),'utf8'), 'completed', '[0, 1, 3, 5]\n'],
   ['syntax', 'x = (', 'error', ''],
   ['addition', 'a=2\nb=3\nc=a+b\nprint(c)', 'completed', '5\n'],

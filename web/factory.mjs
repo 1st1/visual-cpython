@@ -155,7 +155,7 @@ export class Factory {
           if(t>0) latest=tile; if(t<1) complete=false;
         });
         this.host.dataset.revealedOpcodes=String(this.revealTiles.filter(t=>t.group.visible).length);
-        if(latest) this.highlightSource(latest.instruction.line,latest.position);
+        if(latest) this.highlightSource(latest.instruction.line,latest.position,'opcodes');
         if(complete) this.finishConstruction();
       }
       if(this.pulse && this.pulsePath) {
@@ -562,11 +562,11 @@ export class Factory {
     this.host.dataset.parseCursor=String(frame?.cursor ?? 0);
     this.host.dataset.visibleTokens=String(final?this.parseTokens.length:frame?.tokenCount || 0);
     const token=this.parseTokens.find(t=>t.event.cursor===frame?.cursor);
-    this.highlightSource(final?null:token?.event.line,final?null:token?.group.position);
+    this.highlightSource(final?null:token?.event.line,final?null:token?.group.position,'parsing');
     this.parseRulePaint([final?'AST · completed parse result':`PEG · token ${frame?.cursor ?? 0}`,final?'':frame?.attempts.at(-1)?.slice(0,70) || 'Tokenizer']);
   }
-  highlightSource(line,target) {
-    const signature=`${line}:${target?.x}:${target?.z}`;
+  highlightSource(line,target,linkPhase=null) {
+    const signature=`${line}:${target?.x}:${target?.z}:${linkPhase}`;
     if(signature===this.sourceHighlight) return;
     this.sourceHighlight=signature;
     for(const tile of this.sourceTiles) {
@@ -578,6 +578,7 @@ export class Factory {
     if(!this.link) return;
     release(this.link);
     const counts={sourceToken:0,tokenAst:0,astOpcode:0};
+    if(!linkPhase){this.host.dataset.pipelineLinks=JSON.stringify(counts);return;}
     const connect=(from,to,color,stage,active=false)=>{
       const mid=from.clone().lerp(to,.5);mid.y=active?2:1.3;
       const path=new THREE.QuadraticBezierCurve3(from,mid,to);
@@ -586,18 +587,12 @@ export class Factory {
     };
     const selected=[...this.instructionTiles.values()].find(t=>t.position===target);
     const tokens=this.parseTokens.filter(t=>t.event.line===line&&t.group.visible);
-    if(source&&target) for(const token of tokens) connect(source.group.position.clone().add(new THREE.Vector3(4.1,.5,0)),token.group.position.clone().add(new THREE.Vector3(0,.7,0)),0x91c8dd,'sourceToken');
-    if(selected) {
+    if(linkPhase==='parsing'&&source&&target) for(const token of tokens) connect(source.group.position.clone().add(new THREE.Vector3(4.1,.5,0)),token.group.position.clone().add(new THREE.Vector3(0,.7,0)),0x91c8dd,'sourceToken');
+    if(linkPhase==='opcodes'&&selected) {
       const assignments=[];
       for(const tile of this.instructionTiles.values()) if(tile.code===selected.code&&tile.instruction.line===line) {
         const node=instructionAst(tile.instruction,this.parsing?.ast || [],this.parsing?.events || []);
         if(node) assignments.push({tile,node});
-      }
-      for(const id of new Set(assignments.map(a=>a.node.id))) {
-        const ast=this.astTiles.find(t=>t.node.id===id);
-        const span=this.parsing.events[ast.node.created];
-        const matched=new Set(tokensForConstruction(span,tokens.map(t=>t.event)));
-        for(const token of tokens) if(matched.has(token.event)) connect(token.group.position.clone().add(new THREE.Vector3(0,.7,0)),ast.group.position.clone().add(new THREE.Vector3(0,.4,0)),0xc6a5e9,'tokenAst');
       }
       for(const {tile,node} of assignments) {
         const ast=this.astTiles.find(t=>t.node.id===node.id);

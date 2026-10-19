@@ -11,7 +11,7 @@
   <section class="editor panel" id="editor-panel">
     <div class="title"><h1>Start with a program.</h1><span class="badge">3.16 · WASM</span></div>
     <p class="muted">Real CPython, observable execution. The first building block for the factory.</p>
-    <label for="example">Example</label><select id="example"><option value="accumulate">Accumulator</option><option value="shortest">Shortest path · breadth-first search</option><option value="branch">Branches and calls</option><option value="alias">Shared objects</option><option value="error">Runtime error</option><option value="loop">Execution limit</option></select>
+    <label for="example">Example</label><select id="example"><option value="accumulate">Accumulator</option><option value="shortest">Shortest path · breadth-first search</option><option value="asyncio">Asyncio · odd and even tasks</option><option value="branch">Branches and calls</option><option value="alias">Shared objects</option><option value="error">Runtime error</option><option value="loop">Execution limit</option></select>
     <label for="source">Python source · up to 200 Python tokens</label>
     <div class="source-editor"><pre id="source-highlight" aria-hidden="true"></pre><textarea wrap="off" id="source" spellcheck="false" aria-label="Python source" maxlength="16384"></textarea></div>
     <div class="buttons"><button id="run" class="primary">Run &amp; capture</button><button id="cancel" disabled>Stop capture</button></div>
@@ -32,6 +32,7 @@
     <div id="map" class="map" hidden></div>
   </section>
   <section class="replay panel" id="inspector-panel" hidden>
+    <div class="inspector-main">
     <div class="title"><h2>Execution</h2><span id="counter" class="badge">No recording</span></div>
     <div class="block-controls"><label for="block-select">Inspect block</label><select id="block-select"><option value="">Select a building or block…</option></select><button id="focus-block">Focus opcode</button><button id="visit-block" disabled>Next recorded visit</button></div>
     <div id="frames" class="note"></div>
@@ -39,8 +40,9 @@
     <p class="note">Graphviz routing baseline. Crossings are not junctions; clearance and bridge routing are not validated yet. Exceptions unwind through the frame display.</p>
     <div id="event" class="event">Run a program to inspect its execution.</div>
     <div class="inspect"><div><h3>Source position</h3><pre id="source-view"></pre></div><div><h3>Instructions</h3><div id="instructions" class="instructions"></div></div></div>
-    <div class="inspect"><div><h3>Locals</h3><div id="locals" class="values"></div></div><div><h3>Operand stack <small>top first</small></h3><div id="stack" class="values"></div></div></div>
-    <h3>Program output</h3><pre id="stdout" class="output"></pre>
+    </div>
+    <div class="inspect inspector-values"><div><h3>Locals</h3><div id="locals" class="values" tabindex="0" aria-label="Local variables"></div></div><div><h3>Operand stack <small>top first</small></h3><div id="stack" class="values" tabindex="0" aria-label="Operand stack"></div></div></div>
+    <div class="inspector-output"><h3>Program output</h3><pre id="stdout" class="output" tabindex="0" aria-label="Program output"></pre></div>
   </section>
 </main>
 <footer>Observed execution · shared graph · isometric factory. <span id="provenance"></span></footer>

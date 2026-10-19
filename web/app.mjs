@@ -20,11 +20,12 @@ $('source').value = examples.accumulate;
 let exampleRequest=0;
 $('example').onchange = async () => {
   const request=++exampleRequest, name=$('example').value;
-  if(name!=='shortest') { $('source').value=examples[name]; $('run').disabled=Boolean(worker); previewSource(); return; }
+  const file={shortest:'shortest_path.py',asyncio:'asyncio_numbers.py'}[name];
+  if(!file) { $('source').value=examples[name]; $('run').disabled=Boolean(worker); previewSource(); return; }
   $('run').disabled=true;
   try {
-    const response=await fetch('./programs/shortest_path.py');
-    if(!response.ok) throw new Error('Could not load shortest-path example.');
+    const response=await fetch('./programs/'+file);
+    if(!response.ok) throw new Error('Could not load program example.');
     const source=await response.text(); if(request===exampleRequest) { $('source').value=source; previewSource(); }
   } catch(error) { if(request===exampleRequest) $('message').textContent=error.message; }
   finally { if(request===exampleRequest) $('run').disabled=Boolean(worker); }

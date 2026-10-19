@@ -43,3 +43,13 @@ button[aria-pressed=true]{background:#8ebeff20;color:#d0eaff;border-color:#b0dff
 .syntax-keyword{color:#cfacff}.syntax-string{color:#f1ca9d}.syntax-number{color:#8bded2}.syntax-comment{color:#8394ae}.syntax-builtin{color:#8ecfff}.syntax-operator{color:#b4c2de}.syntax-plain{color:#e2eaff}
 
 .starfield{position:absolute;inset:0;pointer-events:none;overflow:hidden;background:radial-gradient(ellipse at 47% 43%,#bc358c38,transparent 43%),radial-gradient(ellipse at 24% 38%,#75509038,transparent 48%),radial-gradient(ellipse at 57% 52%,#456ca536,transparent 48%),radial-gradient(ellipse at 72% 66%,#724e8530,transparent 44%)}.starfield canvas{width:100%;height:100%}.factory>canvas{position:relative}.factory:has(.starfield){background-image:none}
+
+/* Output stays anchored while inspection regions scroll independently. */
+#inspector-panel{display:flex;flex-direction:column;overflow:hidden;gap:12px;min-height:0}
+.inspector-main{flex:1 1 50%;min-height:0;overflow:auto;overscroll-behavior:contain}
+#inspector-panel .inspector-values{flex:1 1 25%;min-height:70px;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:14px;overflow:hidden}
+.inspector-values>div,.inspector-output{display:flex;flex-direction:column;min-height:0;min-width:0}
+.inspector-values h3,.inspector-output h3{flex:none;margin:0 0 8px}
+#inspector-panel .values{flex:1;min-height:0;max-height:none;overflow:auto;overscroll-behavior:contain}
+.inspector-output{flex:0 1 25%;min-height:80px}
+#inspector-panel #stdout{flex:1;min-height:0;max-height:none;margin:0;overflow:auto;overscroll-behavior:contain}

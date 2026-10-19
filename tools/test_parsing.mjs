@@ -23,6 +23,7 @@ try {
   assert.ok(Number(await page.locator('#factory').getAttribute('data-parse-tokens'))>10);
   await page.locator('#parse-seek').evaluate(e=>e.value='100');await page.locator('#parse-seek').dispatchEvent('input');
   assert.ok(Number(await page.locator('#factory').getAttribute('data-visible-tokens'))>0);
+  assert.ok(JSON.parse(await page.locator('#factory').getAttribute('data-pipeline-links')).sourceToken>0,'Parsing retains source-to-token links');
   await page.locator('#parse-detail').check();
   const cursor=await page.locator('#factory').getAttribute('data-parse-cursor');
   await page.locator('#parse-next').click();await page.locator('#parse-back').click();

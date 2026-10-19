@@ -40,9 +40,9 @@ The initial reveal plays retained token/constructor checkpoints in order before 
 
 Each executing opcode highlights its recorded source line, tokens on that line, and AST nodes whose captured starting line matches.
 
-Dashed links fan from that line to its tokens, converge on AST nodes, and fan out to opcodes on the line in the current code object. These are source-location correspondences, not recorded compiler dataflow or renewed parsing.
+Parsing shows source/token correspondence and token-to-AST construction activity. The subsequent opcode reveal shows only AST → opcode dashed links; earlier pipeline links are cleared. Execution retains synchronized artifact highlights but clears these links to keep evaluation readable. The links describe source locations, not recorded compiler dataflow.
 
-[web/ast-tree.mjs](../../web/ast-tree.mjs) matches each instruction span to the smallest containing captured AST-constructor span. Token links use token starts inside those spans; missing spans remain unmatched. The current opcode link is brighter than other line-local opcode links.
+[web/ast-tree.mjs](../../web/ast-tree.mjs) matches each instruction span to the smallest containing captured AST-constructor span. Token links use token starts inside those spans; missing spans remain unmatched. During compilation reveal, the current opcode link is brighter than other line-local opcode links.
 
 [web/factory.mjs](../../web/factory.mjs) applies these highlights from the execution event and restores them when seeking or rewinding. Non-opcode and terminal positions clear correspondence highlights. Nodes without source locations do not receive inferred matches. The initial skippable reveal stages interleaved token acquisition and AST construction checkpoints, then opcode tiles; this is a presentation sequence rather than captured compilation timing.
 
