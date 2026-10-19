@@ -76,8 +76,6 @@ export class Factory {
     this.renderer.domElement.setAttribute('role','img');
     this.renderer.domElement.addEventListener('webglcontextlost', e => { e.preventDefault(); host.dataset.error='Graphics context lost; use Schematic or reload.'; });
     host.append(this.renderer.domElement);
-    this.labels=document.createElement('div'); this.labels.className='scene-labels'; host.append(this.labels);
-    this.annotations=[];
     this.onInstruction=onInstruction;
     this.opcodePanel=document.createElement('section'); this.opcodePanel.className='opcode-panel';
     this.opcodePanel.innerHTML='<div class="opcode-heading"><strong>Opcodes</strong><button type="button">Follow execution</button></div><div class="opcode-caption"></div><div class="opcode-list"></div>';
@@ -183,8 +181,9 @@ export class Factory {
       if(this.ghosts)this.host.dataset.ghostCount=String(this.ghosts.children.length);
       this.opcodeTrail.update(now,this.reduced.matches);
       host.dataset.opcodeTrail=String(this.opcodeTrail.mesh.visible);
+      if(this.stackGroup)this.stackGroup.visible=this.stackHasOperands&&this.host.dataset.phase==='replay'&&!this.starfield.capturing;
       this.renderer.render(this.scene,this.camera);
-      this.placeLabels();this.minimap?.draw();
+      this.minimap?.draw();
       host.dataset.textAtlas=JSON.stringify(textAtlasStats());
       host.dataset.gpuTextures=String(this.renderer.info.memory.textures);
       host.dataset.gpuGeometries=String(this.renderer.info.memory.geometries);
@@ -198,7 +197,6 @@ export class Factory {
     const previous=preserveCamera&&this.extent&&(layout||parsing)?{center:this.mapCenter(),size:this.projectedSize()}:null;
     this.opcodeTrail.clear();this.previousOpcodeTile=null;
     release(this.world); this.nodes.clear(); this.edges.clear(); this.pickables=[]; this.lastSeq=null; this.pulsePath=null;
-    this.labels.replaceChildren(); this.annotations=[];
     this.graph=graph; this.panelBlock=null; this.replaySource=null;this.replayTile=null;
     this.instructionVisits=new Map();
     for(const event of events) if(event.kind==='opcode') {
@@ -241,24 +239,19 @@ export class Factory {
     machine('COMPILER','AST → bytecode',-d/2-1.75,this.serviceX);
     this.evaluator=machine('EVALUATOR','waiting',-d/2+1);
     this.frameDisplay=machine('FRAMES','0 activations',-d/2+3.5);
-    this.stackOrigin=new THREE.Vector3(this.serviceX,0,footprint.stackZ);
+    this.stackOrigin=new THREE.Vector3(footprint.stackX,0,footprint.stackZ);
     this.stackGroup=new THREE.Group(); this.stackGroup.position.copy(this.stackOrigin); this.world.add(this.stackGroup);
-    box(this.stackGroup,0,.12,0,3.8,.24,2.3,0x1e2e28);
-    // An open rack keeps every visible slot's front face readable.
-    for(const x of [-1.65,1.65]) box(this.stackGroup,x,1.95,-.83,.09,3.6,.09,0x547263);
-    this.stackPaint=label(this.stackGroup,0,.26,.86,3.5,.48,['OPERAND STACK'],'#bdd5c5');
+    // Flat, top-first operand column running alongside the deck edge.
+    this.stackPaint=label(this.stackGroup,0,.12,-5.8,5,.65,['OPERAND STACK'],'#bdd5c5');
     this.stackSlots=Array.from({length:8},(_,i)=>{
-      const group=new THREE.Group(); group.position.y=.48+i*.43; this.stackGroup.add(group);
-      const tile=box(group,0,0,0,3.05,.32,1.6,0x304735);
-      const paint=label(group,0,0,.807,2.9,.27,[''],'#e1eddf',true);
+      const group=new THREE.Group(); group.position.set(0,.22,-4.5+i*1.35); this.stackGroup.add(group);
+      const tile=box(group,0,0,0,5,.28,1.15,0x304735);
+      const paint=label(group,0,.15,0,4.8,1.05,[''],'#e1eddf');
       group.visible=false; return {group,tile,paint};
     });
-    this.stackLabel=this.annotate('OPERAND STACK · not sampled',this.stackOrigin.clone().add(new THREE.Vector3(0,4.1,0)),'stack');
-    this.stackTop=this.annotate('',this.stackOrigin.clone(),'stack');
+    this.stackGroup.visible=false;this.stackHasOperands=false;
     this.sourceTiles=[];this.sourceHighlight=null;
     box(this.world,this.sourceOrigin.x,.08,0,sourceWidth,.15,sourceDepth,0x1a2630);
-    this.annotate('01 / SOURCE · parsing quadrant',this.sourceOrigin.clone().add(new THREE.Vector3(0,.5,-sourceDepth/2)),'enclosure');
-    this.annotate('04 / OPCODES',new THREE.Vector3(0,.5,-d/2-.5),'enclosure');
     this.sourceLines.forEach((text,i)=>{
       const group=new THREE.Group(); group.position.set(this.sourceOrigin.x-sourceWidth/2+.6+4.1+Math.floor(i/rows)*8.7,0,-sourceDepth/2+1.2+(i%rows)*1.15);this.world.add(group);
       const body=box(group,0,.18,0,8.2,.26,1.025,0x293947);
@@ -271,8 +264,6 @@ export class Factory {
     this.codeEnclosures=[];
     for(const enclosure of layout?.enclosures || []) {
       const body=box(this.world,enclosure.x,.085,enclosure.y,enclosure.width,.15,enclosure.height,0x18233b);
-      const label=this.annotate(`${enclosure.name} / ${enclosure.id}`,new THREE.Vector3(enclosure.x,.5,enclosure.y-enclosure.height/2),'enclosure');
-      label.owner=body;
       this.codeEnclosures.push({code:enclosure.id,body});
     }
     for(const route of layout?.edges || []) {
@@ -307,7 +298,6 @@ export class Factory {
       this.nodes.set(block.id,{group,body:tray,roof:tray,height:.3,tiles,arrows});
     }
     this.pulse=new THREE.Mesh(new THREE.SphereGeometry(.085,8,6),new THREE.MeshBasicMaterial({color:colors.active})); this.world.add(this.pulse); this.pulse.visible=false;
-    this.activeLabel=this.annotate('',new THREE.Vector3(),'active');
     this.host.dataset.opcodeTiles=String(this.instructionTiles.size);
     this.host.dataset.blocks=String(this.nodes.size); this.host.dataset.edges=String(this.edges.size);
     this.revealTiles=[...this.instructionTiles.values()].sort((a,b)=>(a.instruction.line??0)-(b.instruction.line??0)||a.instruction.offset-b.instruction.offset);
@@ -366,29 +356,20 @@ export class Factory {
     this.frameDisplay.paint(['FRAMES',state?`${state.frames.length} active · ${event.frame}`:'0 activations']);
     const stack=stackView(event);
     this.host.dataset.stack=JSON.stringify(stack);
+    this.stackHasOperands=event?.kind==='opcode'&&!terminal&&stack.slots.length>0;
+    this.stackGroup.visible=this.stackHasOperands&&this.host.dataset.phase==='replay'&&!this.starfield.capturing;
     this.stackSlots.forEach((slot,i)=>{
-      const value=stack.slots[i]; slot.group.visible=Boolean(value);
+      const value=stack.slots[stack.slots.length-1-i]; slot.group.visible=Boolean(value);
       if(!value) return;
-      const top=i===stack.slots.length-1;
+      const top=i===0;
       slot.tile.material.color.setHex(value.kind==='null'?0x514364:top?0x526f37:0x304735);
       slot.tile.children[0].material.color.setHex(top?colors.active:colors.rim);
-      slot.paint([`${top?'TOP':'#'+value.index}  ${value.text}`]);
+      slot.paint([top?'TOP · #'+value.index:'#'+value.index,value.text]);
     });
     this.stackPaint([stack.hidden?`+${stack.hidden} lower slots hidden`:'OPERAND STACK']);
-    this.stackLabel.element.textContent=`STACK${stack.frame?' / '+stack.frame:''} · ${stack.sampled?stack.total+' slots':'not sampled'}`;
-    this.stackTop.element.textContent=stack.sampled?(stack.total?`TOP · ${stack.slots.at(-1).text}`:'EMPTY'):'';
-    this.stackTop.position.copy(this.stackOrigin).add(new THREE.Vector3(0,stack.slots.length? .48+(stack.slots.length-1)*.43+.2:.4,.9));
-    const active=this.nodes.get(state?.block);
-    this.activeLabel.owner=active?.group;
-    const instruction=this.graph?.blocks.find(b=>b.id===state?.block)?.instructions.find(i=>i.offset===event?.offset);
-    this.activeLabel.element.textContent=state?`${state.block} · ${event?.kind==='opcode'&&!terminal?instruction?.opname:event?.kind || ''}${terminal?' · end':''}`:'';
     this.currentOpcode=event?.kind==='opcode'?`${event.code}:${event.offset}`:null;
     this.host.dataset.activeOpcode=event?.kind==='opcode'&&!terminal?`${event.code}:${event.offset}`:'';
     this.updateOpcodePanel(selected || state?.block,event,terminal,Boolean(selected));
-    if(active) {
-      const tile=this.instructionTiles.get(`${event?.code}:${event?.offset}`);
-      this.activeLabel.position.copy(active.group.position).add(new THREE.Vector3(tile?.x || 0,.8,tile?.y || 0));
-    }
     if(terminal||!event||event.seq<this.lastSeq){this.opcodeTrail.clear();this.previousOpcodeTile=null;}
     if(event?.seq!==this.lastSeq) {
       const nextTile=!terminal&&event?.kind==='opcode'?this.instructionTiles.get(`${event.code}:${event.offset}`):null;
@@ -427,33 +408,11 @@ export class Factory {
     }
   }
   showOpcodes(show) { this.opcodePanel.hidden=!show; }
-  annotate(text,position,kind) {
-    const element=document.createElement('div'); element.className=`scene-label ${kind}`; element.textContent=text; this.labels.append(element);
-    const annotation={element,position,kind}; this.annotations.push(annotation); return annotation;
-  }
-  placeLabels() {
-    const width=this.host.clientWidth,height=this.host.clientHeight,placed=[];
-    const priority={active:0,stack:1,enclosure:2,machine:3};
-    const ordered=[...this.annotations].sort((a,b)=>priority[a.kind]-priority[b.kind]);
-    for(const {element,position,owner,kind} of ordered) {
-      if(kind==='active'&&this.host.dataset.phase!=='replay'){element.hidden=true;continue;}
-      if(owner&&!owner.visible){element.hidden=true;continue;}
-      const p=position.clone().project(this.camera),x=(p.x+1)*width/2,y=(1-p.y)*height/2-12;
-      element.style.left=`${x}px`; element.style.top=`${y}px`; element.hidden=false;
-      const w=element.offsetWidth,h=element.offsetHeight;
-      const r={x:x-w/2,y:y-h,w,h};
-      const collision=placed.some(a=>r.x<a.x+a.w+4&&r.x+r.w+4>a.x&&r.y<a.y+a.h+3&&r.y+r.h+3>a.y);
-      element.hidden=!element.textContent||Math.abs(p.z)>1||r.x<0||r.y<0||r.x+w>width||r.y+h>height||collision;
-      if(!element.hidden) placed.push(r);
-    }
-  }
   buildFrontEnd(tokens,ast) {
     const e=this.extent;
     this.parseTokens=[];this.astTiles=[];this.astGroup=new THREE.Group();this.world.add(this.astGroup);
     box(this.world,e.tokenX,.08,0,14,.15,e.tokenDepth,0x1b2930);
     box(this.world,e.astX,.08,0,e.astWidth,.15,e.astDepth,0x282132);
-    this.annotate('02 / TOKENS · tokenizer',new THREE.Vector3(e.tokenX,.7,-e.tokenDepth/2-1),'enclosure');
-    this.annotate('03 / AST · PEG parser',new THREE.Vector3(e.astX,.7,-e.astDepth/2-1),'enclosure');
     for(const [from,to] of [[e.sourceX+e.sourceWidth/2,e.tokenX-7],[e.tokenX+7,e.astX-e.astWidth/2],[e.astX+e.astWidth/2,e.serviceX-2]]) {
       this.world.add(new THREE.ArrowHelper(new THREE.Vector3(1,0,0),new THREE.Vector3(from,.35,0),Math.max(.2,to-from),0x89adbd,.5,.35));
     }
@@ -568,9 +527,7 @@ export class Factory {
     }
     this.parserDisplay.paint(['PEG PARSER',final?'parse finished':`token ${frame?.cursor ?? 0}`]);
     this.frameDisplay.paint(['RULE CHECKPOINTS',`${frame?.attempts.length || 0} recent levels`]);
-    this.stackLabel.element.textContent=`INDENT NESTING · ${frame?.indent || 0} · token-derived`;
-    this.stackPaint(['INDENT / DEDENT']);this.stackTop.element.textContent='';
-    this.stackSlots.forEach((slot,i)=>{slot.group.visible=i<Math.min(8,frame?.indent || 0);slot.paint([`INDENT · level ${i+1}`]);});
+    this.stackGroup.visible=false;this.stackHasOperands=false;
     this.host.dataset.astVisible=String(this.astGroup.visible);
     this.host.dataset.parseCursor=String(frame?.cursor ?? 0);
     this.host.dataset.visibleTokens=String(final?this.parseTokens.length:frame?.tokenCount || 0);
@@ -700,7 +657,9 @@ export class Factory {
     const e=this.extent,center=this.mapCenter(),rotation=this.camera.quaternion.clone().invert();
     const points=[];
     for(const x of [e.minX,e.maxX]) for(const z of [e.minZ,e.maxZ]) for(const y of [0,1.6]) points.push(new THREE.Vector3(x,y,z));
-    points.push(this.stackOrigin.clone().add(new THREE.Vector3(0,4.6,0)));
+    // Reserve the full flat column even when empty so replay never changes framing.
+    for(const x of [-2.6,2.6]) for(const z of [-6.8,5.7]) for(const y of [0,.7])
+      points.push(this.stackOrigin.clone().add(new THREE.Vector3(x,y,z)));
     const tan=Math.tan(THREE.MathUtils.degToRad(this.camera.fov/2));
     const aspect=(this.host.clientWidth||900)/(this.host.clientHeight||600);
     let distance=1;
@@ -712,9 +671,9 @@ export class Factory {
   }
   zoom(factor) { this.camera.zoom=THREE.MathUtils.clamp(this.camera.zoom*factor,.3,12); this.camera.updateProjectionMatrix(); }
   focusStack() {
-    const target=this.stackOrigin.clone().add(new THREE.Vector3(0,1.8,0));
-    this.camera.position.copy(target).add(new THREE.Vector3(4,4.8,8)); this.controls.target.copy(target);
-    this.viewSize=8;this.camera.zoom=1;this.updateProjection(); this.controls.update();
+    const target=this.stackOrigin.clone().add(new THREE.Vector3(0,0,-.5));
+    this.camera.position.copy(target).add(new THREE.Vector3(1,12,5)); this.controls.target.copy(target);
+    this.viewSize=16;this.camera.zoom=1;this.updateProjection(); this.controls.update();
   }
   focus(id) {
     const node=this.nodes.get(id); if(!node) return;
@@ -726,5 +685,5 @@ export class Factory {
     const span=Math.max(size.depth+1.2,(size.width+1.4)/aspect);
     this.viewSize=span;this.camera.zoom=1;this.updateProjection(); this.controls.update();
   }
-  dispose() { this.opcodeTrail.dispose(); this.starfield?.dispose(); for(const [name,handler] of [['gesturestart',this.gestureStart],['gesturechange',this.gestureChange],['gestureend',this.gestureEnd]]) this.renderer.domElement.removeEventListener(name,handler,true); this.renderer.domElement.removeEventListener('wheel',this.wheelPan,true); this.minimap?.dispose(); this.resizeObserver.disconnect(); this.renderer.setAnimationLoop(null); this.controls.dispose(); release(this.world); disposeTextAtlas();this.sun.shadow.dispose();this.renderer.dispose(); this.renderer.domElement.remove(); this.labels.remove(); this.opcodePanel.remove(); }
+  dispose() { this.opcodeTrail.dispose(); this.starfield?.dispose(); for(const [name,handler] of [['gesturestart',this.gestureStart],['gesturechange',this.gestureChange],['gestureend',this.gestureEnd]]) this.renderer.domElement.removeEventListener(name,handler,true); this.renderer.domElement.removeEventListener('wheel',this.wheelPan,true); this.minimap?.dispose(); this.resizeObserver.disconnect(); this.renderer.setAnimationLoop(null); this.controls.dispose(); release(this.world); disposeTextAtlas();this.sun.shadow.dispose();this.renderer.dispose(); this.renderer.domElement.remove(); this.opcodePanel.remove(); }
 }

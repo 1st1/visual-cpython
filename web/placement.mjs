@@ -3,7 +3,7 @@ import { normalizeLayout } from './layout.mjs';
 
 export function factoryFootprint(layout) {
   const width=Math.max(layout?.bounds.width || 8,8), depth=Math.max(layout?.bounds.height || 8,8);
-  return { width, depth, serviceX:-width/2-2.8, stackZ:depth/2-1,
+  return { width, depth, serviceX:-width/2-2.8, stackX:width/2+5.2, stackZ:0,
     minX:-width/2-5.2, maxX:width/2+1, minZ:-depth/2-3.2, maxZ:depth/2+1 };
 }
 
@@ -18,7 +18,7 @@ export function sourceFootprint(layout,lineCount=1,pipeline={}) {
 }
 
 export function layoutScore(layout,lineCount=1,targetAspect=1.8,pipeline={}) {
-  const f=sourceFootprint(layout,lineCount,pipeline), w=f.maxX-f.minX,d=f.maxZ-f.minZ;
+  const f=sourceFootprint(layout,lineCount,pipeline), w=f.stackX+2.6-f.minX,d=Math.max(f.maxZ,5.7)-Math.min(f.minZ,-6.8);
   // Match the landscape camera: its ground-plane direction is (.35, 1).
   const projectedWidth=.944*w+.330*d;
   const projectedHeight=.238*w+.680*d+3.8;

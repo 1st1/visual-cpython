@@ -99,7 +99,7 @@ try {
   assert.equal(await page.locator('#factory').getAttribute('data-phase'),'compilation reveal');
   assert.equal(await page.locator('#factory').getAttribute('data-revealed-blocks'),'0');
   assert.equal(await page.locator('#factory').getAttribute('data-revealed-enclosures'),'0');
-  assert.equal(await page.locator('.scene-label.active').isVisible(),false,'Execution label stays hidden during compilation');
+  assert.equal(await page.locator('.scene-label').count(),0,'No floating labels during compilation');
   assert.equal(await page.locator('#factory').getAttribute('data-revealed-edges'),'0');
   assert.equal(await page.locator('#factory').getAttribute('data-revealed-internal-arrows'),'0');
   const captureCruise=Number(await page.locator('.starfield').getAttribute('data-warp'));
@@ -196,9 +196,12 @@ try {
   await page.locator('#block-select').selectOption('');
   await page.locator('#toggle-inspector').click();
   await page.locator('#toggle-editor').click();
-  const activeLabel=await page.locator('.scene-label.active').boundingBox();
-  await page.mouse.click(activeLabel.x+activeLabel.width/2,activeLabel.y+activeLabel.height+12);
-  assert.equal(await page.locator('#factory').getAttribute('data-selected-block'),option,'Raycast selects the building beneath its screen label');
+  assert.equal(await page.locator('.scene-label').count(),0,'No floating labels during replay');
+  await page.locator('#toggle-inspector').click();
+  await page.locator('#focus-block').click();
+  await page.locator('#toggle-inspector').click();
+  await page.mouse.click(800,550);
+  assert.equal(await page.locator('#factory').getAttribute('data-selected-block'),option,'Raycast selects the focused tile without floating labels');
   await page.locator('#zoom-in').click(); await page.locator('#toggle-inspector').click(); await page.locator('#focus-block').click(); await page.locator('#toggle-inspector').click();
   await page.locator('#camera-iso').click();
   const canvas=await page.locator('#factory > canvas').boundingBox();
