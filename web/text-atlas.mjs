@@ -50,7 +50,8 @@ function glyph(char) {
 function material(texture) {
   return new THREE.ShaderMaterial({
     uniforms:{atlas:{value:texture},opacity:{value:1}},
-    transparent:true,depthWrite:false,polygonOffset:true,polygonOffsetFactor:-2,
+    // Constant bias also protects near-flat views where slope bias vanishes.
+    transparent:true,depthWrite:false,polygonOffset:true,polygonOffsetFactor:-2,polygonOffsetUnits:-8,
     vertexShader:`
       attribute vec3 color;
       varying vec2 vUv;varying vec3 vColor;
@@ -77,10 +78,10 @@ export function surfaceText(parent,x,y,z,width,height,{front=false,background=nu
   const group=new THREE.Group();group.position.set(x,y,z);group.rotation.x=front?0:-Math.PI/2;parent.add(group);
   let backing;
   if(background){
-    backing=new THREE.Mesh(new THREE.PlaneGeometry(width,height),new THREE.MeshBasicMaterial({color:background,polygonOffset:true,polygonOffsetFactor:-1}));
+    backing=new THREE.Mesh(new THREE.PlaneGeometry(width,height),new THREE.MeshBasicMaterial({color:background,polygonOffset:true,polygonOffsetFactor:-1,polygonOffsetUnits:-4}));
     group.add(backing);
   }
-  const text=new THREE.Group();text.position.z=.002;group.add(text);
+  const text=new THREE.Group();text.position.z=.01;group.add(text);
   return (rows,bg=background)=>{
     if(backing&&bg)backing.material.color.set(bg);
     for(const mesh of text.children){mesh.geometry.dispose();mesh.material.dispose();}
