@@ -1,6 +1,6 @@
 # Capture runtime
 
-The implementation combines a revision-pinned CPython observation module, bounded Python capture driver, and browser workbench with a generated program map. The 3D scene remains unimplemented.
+The implementation combines a revision-pinned CPython observation module, bounded Python capture driver, and browser workbench with a generated program map and first 3D factory scene.
 
 Build recipes and commands are in [README.md](../../README.md). [[tools/build_native.py#build]] exports the pinned revision from the ignored reference checkout and adds [[runtime/probe.c]] as a static module in a disposable build. [[tools/build_wasm.py#build]] prepares a separate Emscripten build; [[tools/package_web.py#package]] stages generated browser assets.
 
@@ -34,7 +34,7 @@ With browser WebAssembly JSPI support, CPython completes asynchronously: the wor
 
 [web/app.mjs](../../web/app.mjs) applies separate runtime-loading and execution deadlines and terminates discarded workers. Play, step, rewind, and seek select recorded snapshots rather than re-executing Python. Output at each event reflects captured output at that time; the terminal position shows final output/status. A wall-clock timeout discards the unfinished capture.
 
-The Emscripten link configuration sets a maximum linear-memory size; JavaScript, fetched assets, and browser overhead are additional. [web/index.html](../../web/index.html) exposes the current capture limits and the instrumentation caveat. [web/style.css](../../web/style.css) provides a responsive diagnostic layout; it is not the final factory art.
+The Emscripten link configuration sets a maximum linear-memory size; JavaScript, fetched assets, and browser overhead are additional. [web/index.html](../../web/index.html) exposes the current capture limits and the instrumentation caveat. [web/style.css](../../web/style.css) provides a responsive diagnostic layout; the first factory renderer is described in [[scene]].
 
 ## Validation
 

@@ -1,4 +1,6 @@
 import { extractGraph, projectReplay } from './graph.mjs';
+import { Factory } from './factory.mjs';
+import { instructionText } from './opcodes.mjs';
 const $ = id => document.getElementById(id);
 const examples = {
   accumulate: "def accumulate(n, step):\n    total = 0\n    for i in range(n):\n        total = total + step\n    return total\n\nprint(accumulate(8, 1))",
@@ -9,8 +11,21 @@ const examples = {
 };
 let worker, timer, playback, recording, index = 0, generation = 0;
 let layoutWorker, layoutTimer, graph, mapStates = [], selectedBlock, zoom = 1;
+let factory, viewMode = '3d', layoutAspect, resizeTimer;
+const windowAspect=()=>window.innerWidth/Math.max(1,window.innerHeight);
 $('source').value = examples.accumulate;
-$('example').onchange = () => { $('source').value = examples[$('example').value]; };
+let exampleRequest=0;
+$('example').onchange = async () => {
+  const request=++exampleRequest, name=$('example').value;
+  if(name!=='shortest') { $('source').value=examples[name]; $('run').disabled=Boolean(worker); previewSource(); return; }
+  $('run').disabled=true;
+  try {
+    const response=await fetch('./programs/shortest_path.py');
+    if(!response.ok) throw new Error('Could not load shortest-path example.');
+    const source=await response.text(); if(request===exampleRequest) { $('source').value=source; previewSource(); }
+  } catch(error) { if(request===exampleRequest) $('message').textContent=error.message; }
+  finally { if(request===exampleRequest) $('run').disabled=Boolean(worker); }
+};
 
 function stopPlayback() { clearInterval(playback); playback = null; $('play').textContent = 'Play'; }
 function stopWorker() { generation++; clearTimeout(timer); worker?.terminate(); worker = null; $('run').disabled = false; $('cancel').disabled = true; }
@@ -18,6 +33,7 @@ function fail(message) { stopWorker(); $('state').textContent = 'Stopped'; $('me
 $('cancel').onclick = () => fail('Capture cancelled. Run again to start a fresh interpreter.');
 $('run').onclick = () => {
   layoutWorker?.terminate(); clearTimeout(layoutTimer); graph = null; mapStates = []; selectedBlock = null;
+  factory?.load(null,null,[],$('source').value); $('block-select').replaceChildren(new Option('Select a building or block…',''));
   $('map').replaceChildren(); $('map-status').textContent = 'Waiting for capture'; $('block-detail').textContent = '';
   stopPlayback(); stopWorker(); recording = null; render();
   $('message').textContent = '';
@@ -86,7 +102,7 @@ function render() {
   }));
   $('instructions').replaceChildren(...code.instructions.map(ins => {
     const div = document.createElement('div'); div.className = 'instruction' + (ins.offset === event.offset ? ' active' : '');
-    div.textContent = `${String(ins.offset).padStart(3)}  ${ins.opname}${ins.arg === null ? '' : ' ' + ins.arg}`; return div;
+    div.textContent = instructionText(ins); return div;
   }));
   const activeInstruction = $('instructions').querySelector('.active');
   if (activeInstruction) $('instructions').scrollTop += activeInstruction.getBoundingClientRect().top - $('instructions').getBoundingClientRect().top - 70;
@@ -95,7 +111,9 @@ function render() {
   $('stdout').textContent = index === count ? recording.stdout : event.stdout;
 }
 
-function buildMap() {
+function buildMap(relayout=false) {
+  layoutWorker?.terminate(); clearTimeout(layoutTimer);
+  const targetAspect=windowAspect(); layoutAspect=targetAspect;
   try {
     graph = extractGraph(recording);
     mapStates = projectReplay(recording, graph);
@@ -115,28 +133,33 @@ function buildMap() {
       svg.setAttribute('aria-label', 'Program control-flow map');
       svg.removeAttribute('width'); svg.removeAttribute('height');
       $('map').replaceChildren(document.importNode(svg, true)); zoom = 1; setZoom();
+      factory?.load(data.layout,graph,recording.events,recording.source);
+      if(relayout) factory?.finishConstruction();
+      $('factory').dataset.layoutAspect=String(data.layout.placement.targetAspect);
+      $('block-select').replaceChildren(new Option('Select a building or block…',''), ...graph.blocks.map(b=>new Option(`${b.id} · ${b.instructions.at(-1).opname}`,b.id)));
+      $('block-select').value=selectedBlock || '';
       for (const block of graph.blocks) {
         const node = document.getElementById(block.id);
         node.setAttribute('tabindex', '0'); node.setAttribute('role', 'button');
         node.setAttribute('aria-label', `Inspect ${block.id}`);
-        const select = () => { selectedBlock = block.id; renderMapState(); };
+        const select = () => selectBlock(block.id);
         node.onclick = select;
         node.onkeydown = e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); select(); } };
       }
-      $('map-status').textContent = `Graphviz ${data.version} · ${graph.blocks.length} blocks · ${graph.edges.length} connections`;
+      $('map-status').textContent = `Graphviz ${data.version} · ${graph.blocks.reduce((n,b)=>n+b.instructions.length,0)} opcodes · ${graph.blocks.length} blocks · ${graph.edges.length} connections`;
       if (graph.diagnostics.length) $('map-status').textContent += ` · ${graph.diagnostics.length} mapping warnings`;
       renderMapState();
     };
-    layoutWorker.postMessage({ graph });
+    layoutWorker.postMessage({ graph, targetAspect });
   } catch (error) { $('map-status').textContent = `Map unavailable: ${error.message}`; }
 }
 function setZoom() {
   const svg = $('map').querySelector('svg');
   if (svg) svg.style.width = `${zoom * 100}%`;
 }
-$('zoom-in').onclick = () => { zoom = Math.min(4, zoom * 1.25); setZoom(); };
-$('zoom-out').onclick = () => { zoom = Math.max(0.5, zoom / 1.25); setZoom(); };
-$('zoom-fit').onclick = () => { zoom = 1; setZoom(); };
+$('zoom-in').onclick = () => { if(viewMode==='3d') return factory?.zoom(1.25); zoom = Math.min(4, zoom * 1.25); setZoom(); };
+$('zoom-out').onclick = () => { if(viewMode==='3d') return factory?.zoom(.8); zoom = Math.max(0.5, zoom / 1.25); setZoom(); };
+$('zoom-fit').onclick = () => { if(viewMode==='3d') return factory?.view('iso'); zoom = 1; setZoom(); };
 $('visit-block').onclick = () => {
   if (!selectedBlock) return;
   const visits = mapStates.flatMap((state, i) => state.block === selectedBlock && recording.events[i].kind === 'opcode' ? [i] : []);
@@ -145,6 +168,7 @@ $('visit-block').onclick = () => {
 };
 function renderMapState() {
   const state = mapStates[Math.min(index, mapStates.length - 1)];
+  factory?.setState(state,recording?.events[Math.min(index,mapStates.length-1)],selectedBlock,index===mapStates.length);
   $('map').querySelectorAll('.executing,.traversed,.selected').forEach(n => n.classList.remove('executing', 'traversed', 'selected'));
   if (state) {
     document.getElementById(state.block)?.classList.add('executing');
@@ -155,6 +179,49 @@ function renderMapState() {
   $('visit-block').disabled = !selected || !mapStates.some((s, i) => s.block === selected.id && recording.events[i].kind === 'opcode');
   if (selected) {
     document.getElementById(selected.id)?.classList.add('selected');
-    $('block-detail').textContent = `${selected.id}\n` + selected.instructions.map(i => `${i.offset}  ${i.opname}${i.arg === null ? '' : ' ' + i.arg} · line ${i.line ?? '—'}`).join('\n');
-  }
+    $('block-detail').textContent = `${selected.id}\n` + selected.instructions.map(i => `${instructionText(i)} · line ${i.line ?? '—'}`).join('\n');
+  } else $('block-detail').textContent='';
 }
+
+function selectBlock(id) { selectedBlock=id; $('block-select').value=id; renderMapState(); }
+function changeView(mode) {
+  viewMode=mode; $('factory').hidden=mode!=='3d'; $('map').hidden=mode!=='map'; $('scene-hint').hidden=mode!=='3d';
+  $('view-3d').setAttribute('aria-pressed',String(mode==='3d')); $('view-map').setAttribute('aria-pressed',String(mode==='map'));
+  for(const id of ['camera-iso','camera-top','finish-build','focus-block','focus-stack','focus-source','show-opcodes']) $(id).disabled=mode!=='3d';
+  if(mode==='3d') factory?.resize();
+}
+$('view-3d').onclick=()=>changeView('3d'); $('view-map').onclick=()=>changeView('map');
+$('camera-iso').onclick=()=>factory?.view('iso'); $('camera-top').onclick=()=>factory?.view('top');
+$('finish-build').onclick=()=>factory?.finishConstruction();
+$('focus-block').onclick=()=>factory?.focus(selectedBlock || mapStates[index]?.block);
+$('focus-source').onclick=()=>factory?.focusSource();
+$('focus-stack').onclick=()=>factory?.focusStack();
+$('show-opcodes').onclick=()=>{
+  const show=$('show-opcodes').getAttribute('aria-pressed')!=='true';
+  $('show-opcodes').setAttribute('aria-pressed',String(show)); factory?.showOpcodes(show);
+};
+$('block-select').onchange=()=>selectBlock($('block-select').value);
+function seekInstruction(blockId,offset) {
+  const block=graph.blocks.find(b=>b.id===blockId);
+  const visits=recording.events.filter(e=>e.kind==='opcode'&&e.code===block.code&&e.offset===offset);
+  const visit=visits.find(e=>e.seq>index)??visits[0];
+  if(visit) { stopPlayback(); move(visit.seq); }
+}
+function previewSource() { if(!recording&&!worker) factory?.load(null,null,[],$('source').value); }
+let previewTimer;
+$('source').addEventListener('input',()=>{ clearTimeout(previewTimer); previewTimer=setTimeout(previewSource,180); });
+for(const name of ['editor','inspector']) $('toggle-'+name).onclick=()=>{
+  const panel=$(name+'-panel'); panel.hidden=!panel.hidden;
+  $('toggle-'+name).setAttribute('aria-expanded',String(!panel.hidden));
+};
+try { factory=new Factory($('factory'),selectBlock,seekInstruction); previewSource(); }
+catch(error) { $('scene-hint').textContent=`3D unavailable: ${error.message}. The schematic is available.`; changeView('map'); $('view-3d').disabled=true; $('message').textContent='3D graphics unavailable; using the schematic.'; }
+window.addEventListener('pagehide',event=>{ if(!event.persisted) factory?.dispose(); });
+
+window.addEventListener('resize',()=>{
+  clearTimeout(resizeTimer);
+  resizeTimer=setTimeout(()=>{
+    if(recording?.codes.length && Math.abs(windowAspect()-(layoutAspect || 0))>.01) buildMap(true);
+    else if(!recording&&!worker) factory?.view('iso');
+  },250);
+});

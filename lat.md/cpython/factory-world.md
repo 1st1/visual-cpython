@@ -2,7 +2,7 @@
 
 The proposed visual direction is a Factorio-inspired map: persistent CPython machinery surrounds a program-generated neighborhood. Compilation builds that neighborhood; execution activates its blocks and nearby runtime machinery.
 
-This is the user's requested spatial metaphor, not an implemented renderer or a claim that CPython runs a network of autonomous machines. It develops the stable layout in [[postgres-reference#PostgreSQL visual reference]] and the execution semantics in [[execution#Interpreter and JIT execution]].
+This is the user's requested spatial metaphor; [[scene]] records the first implemented renderer. It is not a claim that CPython runs a network of autonomous machines. It develops the stable layout in [[postgres-reference#PostgreSQL visual reference]] and the execution semantics in [[execution#Interpreter and JIT execution]].
 
 The first implementation is interpreter-only. JIT structures below describe a deferred extension; omit them from the initial map and controls. Placement and connection routing are developed in [[layout#Block placement and connection routing]].
 

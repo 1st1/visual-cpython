@@ -1,6 +1,6 @@
 # Block placement and connection routing
 
-The factory plan separates placement from routing. The implemented [[graph]] uses Graphviz for a schematic baseline; libavoid, circuit routing, and geometric clearance validation remain planned.
+The factory separates placement from routing. The implemented [[scene#Isometric factory scene#Compact placement]] compares Graphviz arrangements; libavoid, circuit routing, and geometric clearance validation remain planned.
 
 This develops [[factory-world#Program-built factory world#Stable layout and controlled detail]]. The immediate scope excludes JIT machinery and native execution. Existing JIT research remains a future reference rather than a requirement for the first layout.
 

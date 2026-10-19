@@ -8,6 +8,7 @@ const base = new URL('../', import.meta.url);
 const stdlib = new Uint8Array(await readFile(new URL('web/vendor/python3.16.zip', base)));
 const script = await readFile(new URL('runtime/capture.py', base), 'utf8');
 const cases = [
+  ['shortest path', await readFile(new URL('web/programs/shortest_path.py',base),'utf8'), 'completed', '[0, 1, 3, 5]\n'],
   ['addition', 'a=2\nb=3\nc=a+b\nprint(c)', 'completed', '5\n'],
   ['calls', 'def f(x):\n    return x+1\nprint(f(1), f(2))', 'completed', '2 3\n'],
   ['error', 'x=1/0', 'error', ''],

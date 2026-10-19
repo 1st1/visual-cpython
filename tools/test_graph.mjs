@@ -1,12 +1,16 @@
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { existsSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { instance } from '@viz-js/viz';
 import { extractGraph, projectReplay, toDot } from '../web/graph.mjs';
+import { normalizeLayout } from '../web/layout.mjs';
+import { chooseLayout } from '../web/placement.mjs';
+import { instructionGrid } from '../web/opcodes.mjs';
 
 const python = existsSync('.build/native/python.exe') ? '.build/native/python.exe' : '.build/native/python';
 const viz = await instance();
 const cases = [
+  ['shortest path', readFileSync('web/programs/shortest_path.py','utf8'), '[0, 1, 3, 5]\n'],
   ['diamond', 'x=2\nif x>1:\n y=3\nelse:\n y=4\nprint(y)', '3\n'],
   ['loops', 's=0\nfor i in range(4):\n for j in range(3):\n  if j==1:\n   continue\n  s=s+i\nprint(s)', '12\n'],
   ['break', 'i=0\nwhile i<10:\n i=i+1\n if i==3:\n  break\nprint(i)', '3\n'],
@@ -39,7 +43,45 @@ for (const [name, source, output] of cases) {
   assert.deepEqual(projectReplay(trace, again), states);
   assert.equal(toDot(again), toDot(graph));
   if (graph.blocks.length) {
-    const layout = viz.renderJSON(toDot(graph));
+    const winner = chooseLayout(viz,graph);
+    assert.ok(winner.score <= winner.layout.placement.candidates[0].score);
+    assert.equal(chooseLayout(viz,graph).dot,winner.dot);
+    console.log(`  placement: ${winner.options.direction}, score ${winner.score.toFixed(1)} vs ${winner.layout.placement.candidates[0].score.toFixed(1)} baseline`);
+    if(name==='shortest path') {
+      assert.equal(winner.options.direction,'LR');
+      const portrait=chooseLayout(viz,graph,.55),wide=chooseLayout(viz,graph,2.4);
+      assert.equal(portrait.layout.placement.targetAspect,.55);
+      assert.equal(wide.layout.placement.targetAspect,2.4);
+      assert.notEqual(portrait.options.direction,wide.options.direction,'Window aspect changes the preferred BFS arrangement');
+      for(const chosen of [portrait,wide]) assert.ok(chosen.layout.placement.candidates.every(c=>chosen.score<=c.score));
+      const selected=winner.layout.placement.candidates.find(c=>c.options.direction===winner.options.direction&&c.options.compact===winner.options.compact);
+      assert.ok(selected.projectedAspect>1.5,'BFS fits a landscape scene including source and runtime areas');
+    }
+    const layout = viz.renderJSON(winner.dot);
+    const geometry = normalizeLayout(layout, graph, viz.graphvizVersion);
+    for (const block of graph.blocks) {
+      const grid=instructionGrid(block.instructions,winner.options.compact);
+      const placed=geometry.nodes.find(n=>n.id===block.id);
+      assert.equal(grid.tiles.length,block.instructions.length);
+      for(const tile of grid.tiles) {
+        assert.ok(Math.abs(tile.x)+tile.width/2 <= placed.width/2+.01);
+        assert.ok(Math.abs(tile.y)+tile.height/2 <= placed.height/2+.01);
+      }
+      for(let i=0;i<grid.tiles.length;i++) for(let j=i+1;j<grid.tiles.length;j++) {
+        const a=grid.tiles[i],b=grid.tiles[j];
+        assert.ok(Math.abs(a.x-b.x)>=(a.width+b.width)/2 || Math.abs(a.y-b.y)>=(a.height+b.height)/2);
+      }
+    }
+    assert.equal(geometry.nodes.length, graph.blocks.length);
+    assert.equal(geometry.edges.length, graph.edges.length);
+    assert.equal(geometry.enclosures.length, graph.codes.length);
+    assert.deepEqual(normalizeLayout(layout,graph,viz.graphvizVersion),geometry);
+    for (const edge of geometry.edges) {
+      assert.ok(edge.points.length >= 2);
+      assert.ok(edge.points.flat().every(Number.isFinite));
+      const target=geometry.nodes.find(n=>n.id===edge.target), p=edge.points.at(-1);
+      assert.ok(Math.abs(p[0]-target.x) <= target.width/2+.05 && Math.abs(p[1]-target.y) <= target.height/2+.05, `${name}: route endpoint misses target`);
+    }
     const boxes = layout.objects.filter(o => o.pos).map(o => {
       const [x, y] = o.pos.split(',').map(Number);
       return { x, y, w: Number(o.width) * 72, h: Number(o.height) * 72 };

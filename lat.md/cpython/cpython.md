@@ -1,6 +1,6 @@
 # CPython visualization plan
 
-This directory contains CPython research, the factory presentation plan, and the first capture implementation. The full factory presentation remains planned; current code provides an instrumented workbench and generated program map.
+This directory contains CPython research, the factory presentation plan, and the first capture implementation. Current code provides an instrumented workbench, generated program map, and first isometric scene; the full presentation remains planned.
 
 Current implementation scope is the adaptive interpreter only. JIT research is retained for a later phase; it must not block the first program layout, execution capture, or visualization.
 
@@ -11,6 +11,7 @@ Current implementation scope is the adaptive interpreter only. JIT research is r
 - [[factory-world]] defines the program-built factory map, construction sequence, execution activity, and stable spatial layout.
 - [[layout]] evaluates Graphviz placement and diagram/circuit routing for the interpreter-only map.
 - [[v1-plan]] defines the interpreter-only first release, implementation milestones, feasibility gates, and acceptance criteria.
+- [[scene]] describes the shared 3D geometry, camera, runtime indicators, and scene validation.
 - [[graph]] describes bytecode block extraction, replay projection, and the Graphviz schematic.
 - [[runtime]] describes the implemented capture probe, build recipes, bounded recording, and diagnostic workbench.
 

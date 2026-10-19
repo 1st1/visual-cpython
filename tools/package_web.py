@@ -12,6 +12,10 @@ def package():
         shutil.copy2(ROOT / ".build/wasm" / name, output / name)
     shutil.copy2(ROOT / "runtime/capture.py", output / "capture.py")
     shutil.copy2(ROOT / "node_modules/@viz-js/viz/dist/viz.js", output / "viz.js")
+    for name in ("three.module.js", "three.core.js"):
+        shutil.copy2(ROOT / "node_modules/three/build" / name, output / name)
+    shutil.copy2(ROOT / "node_modules/three/examples/jsm/controls/OrbitControls.js", output / "OrbitControls.js")
+    shutil.copy2(ROOT / "node_modules/three/LICENSE", output / "three-LICENSE.txt")
     print("Staged runtime in web/vendor")
 
 

@@ -2,7 +2,7 @@
 
 The workbench derives a runtime control-flow graph from captured bytecode and renders it with Graphviz WASM. Replay selects blocks, observed call connections, and frame chains without changing positions.
 
-This implements the first program-map slice of [[v1-plan#First-version implementation plan#Milestone 2 - Extract graphs and define replay]] and the Graphviz baseline from [[layout]]. The 3D factory, compiler-intermediate views, and clearance-aware routing remain planned.
+This implements the first program-map slice of [[v1-plan#First-version implementation plan#Milestone 2 - Extract graphs and define replay]] and the Graphviz baseline from [[layout]]. The first [[scene]] shares this graph; compiler-intermediate views and clearance-aware routing remain planned.
 
 ## Bytecode graph
 
@@ -24,13 +24,13 @@ The bounded recording already contains state snapshots at every event. The map p
 
 ## Layout and interaction
 
-A disposable layout worker runs the native Graphviz dot engine through pinned Viz.js. Code-object clusters, fixed-size blocks, and orthogonal connections form a top-down SVG diagnostic map.
+A layout worker runs Graphviz through pinned Viz.js. Code-object clusters, block trays, and orthogonal connections form the SVG map. The 3D view expands each tray into opcode tiles.
 
-[web/layout-worker.mjs](../../web/layout-worker.mjs) uses the pinned dependency in [package.json](../../package.json). [tools/package_web.py](../../tools/package_web.py) stages its self-contained WASM bundle beside CPython assets. Layout has a separate deadline and is discarded on a new capture. Only the SVG and engine version return to the main thread.
+[web/layout-worker.mjs](../../web/layout-worker.mjs) uses the pinned dependency in [package.json](../../package.json). [tools/package_web.py](../../tools/package_web.py) stages its self-contained WASM bundle beside CPython assets. Layout has a separate deadline and is discarded on a new capture. The SVG, normalized geometry from [web/layout.mjs](../../web/layout.mjs), and engine version return to the main thread.
 
 [web/app.mjs](../../web/app.mjs) keeps geometry fixed while replay updates node and edge classes. Users can zoom, scroll, select blocks with pointer or keyboard, inspect their instructions, and seek their next recorded opcode visit. Source, locals, and operand stack follow that event. Syntax failures clear the map. Layout failures leave the execution inspector usable.
 
-This baseline does not yet expose renderer-independent route polylines, named ports, clearance guarantees, or crossing bridges. Graphviz may overlap or cross connectors; crossings are not junctions. The libavoid and PCB comparisons in [[layout#Block placement and connection routing#First routing experiment]] remain unimplemented.
+The shared layout exposes renderer-independent route polylines, but does not yet provide named ports, clearance guarantees, or crossing bridges. Graphviz may overlap or cross connectors; crossings are not junctions. The libavoid and PCB comparisons in [[layout#Block placement and connection routing#First routing experiment]] remain unimplemented.
 
 ## Validation
 

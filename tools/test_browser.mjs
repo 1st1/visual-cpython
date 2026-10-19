@@ -26,6 +26,7 @@ async function end() {
 
 try {
   await page.goto(base);
+  await page.locator('#view-map').click();
   await capture('a=2\nb=3\nc=a+b\nprint(c)');
   let foundAddition = false;
   for (let i = 0; i < 30; i++) {
@@ -48,9 +49,13 @@ try {
   assert.equal(await page.locator('#event').textContent(), before);
   assert.equal(await page.locator('#map .executing').getAttribute('id'), activeBlock);
   assert.equal(await page.locator('#map svg').getAttribute('viewBox'), geometry);
+  await page.locator('#toggle-editor').click();
   await page.locator('#map .node').first().click();
+  await page.locator('#toggle-editor').click();
   assert.match(await page.locator('#block-detail').textContent(), /RESUME/);
+  await page.locator('#toggle-inspector').click();
   await page.locator('#visit-block').click();
+  await page.locator('#toggle-inspector').click();
   assert.equal(await page.locator('#map .selected').getAttribute('id'), await page.locator('#map .executing').getAttribute('id'));
   await page.screenshot({ path: 'artifacts/workbench-desktop.png', fullPage: true });
   await end();

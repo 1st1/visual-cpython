@@ -101,6 +101,7 @@ class Observer:
             elif ins.opname.startswith("CALL"):
                 flow = "call"
             instructions.append({"offset": ins.offset, "opname": ins.opname, "arg": ins.arg,
+                                 "argrepr": (f"<code {ins.argval.co_name}>" if type(ins.argval) is types.CodeType else ins.argrepr)[:100],
                                  "target": target, "encoded_target": ins.argval if ins.opcode in dis.hasjump else None,
                                  "flow": flow,
                                  "line": ins.positions.lineno, "column": ins.positions.col_offset})

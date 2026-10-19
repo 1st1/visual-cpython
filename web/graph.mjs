@@ -1,7 +1,8 @@
+import { instructionGrid } from './opcodes.mjs';
 // Runtime CFG derived from assembled bytecode, not the compiler's internal CFG.
 export function extractGraph(recording) {
   if (recording.schema !== 2) throw new Error('Unsupported capture schema; run a fresh capture.');
-  const graph = { schema: 1, codes: [], blocks: [], edges: [], locations: {}, diagnostics: [] };
+  const graph = { schema: 1, sourceLineCount: recording.source.split('\n').length, codes: [], blocks: [], edges: [], locations: {}, diagnostics: [] };
   for (const code of recording.codes) {
     const instructions = code.instructions;
     if (!instructions.length) continue;
@@ -68,17 +69,19 @@ export function projectReplay(recording, graph) {
   return states;
 }
 
-export function toDot(graph) {
+export function toDot(graph, {direction = 'TB', compact = false} = {}) {
   const q = JSON.stringify;
-  const lines = ['digraph program {', 'graph [bgcolor="transparent", rankdir=TB, splines=ortho, nodesep=0.55, ranksep=0.7, pad=0.25];',
-    'node [shape=box, fixedsize=true, width=3.5, height=0.9, style="rounded,filled", fillcolor="#192522", color="#526c61", fontcolor="#dce5e5", fontname="monospace", fontsize=11, margin="0.18,0.13"];',
+  const lines = ['digraph program {', `graph [bgcolor="transparent", rankdir=${direction}, splines=ortho, nodesep=${compact ? .45 : .55}, ranksep=${compact ? .55 : .7}, pad=0.25];`,
+    `node [shape=box, fixedsize=true, width=${compact ? 3 : 3.5}, height=${compact ? 1 : .9}, style="rounded,filled", fillcolor="#192522", color="#526c61", fontcolor="#dce5e5", fontname="monospace", fontsize=11, margin="0.18,0.13"];`,
     'edge [color="#617f70", arrowsize=0.7];'];
   for (const code of graph.codes) {
     lines.push(`subgraph cluster_${code.id} { label=${q(`${code.name} · ${code.id}`)}; fontname="monospace"; fontcolor="#8d9f9a"; color="#35473e"; margin=22;`);
     for (const block of graph.blocks.filter(b => b.code === code.id)) {
       const first = block.instructions[0], last = block.instructions.at(-1);
-      const label = `${block.id} · L${first.line ?? '?'}\n${first.offset}–${last.offset} · ${block.instructions.length} instructions\n${last.opname}`;
-      lines.push(`${q(block.id)} [id=${q(block.id)}, label=${q(label)}];`);
+      const operation = compact && last.opname.length > 25 ? last.opname.match(/.{1,22}/g).join('\n') : last.opname;
+      const label = `${block.id} · L${first.line ?? '?'}\n${first.offset}–${last.offset} · ${block.instructions.length} instructions\n${operation}`;
+      const grid=instructionGrid(block.instructions,compact);
+      lines.push(`${q(block.id)} [id=${q(block.id)}, width=${grid.width*60/72}, height=${grid.height*60/72}, label=${q(label)}];`);
     }
     lines.push('}');
   }
