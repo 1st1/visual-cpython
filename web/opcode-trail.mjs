@@ -30,9 +30,9 @@ export class OpcodeTrail {
           float alpha=min(.95,core*.8+halo*.4)*tail*(1.-age);
           if(alpha<.002)discard;
           float heat=pow(core,2.)*(.65+.35*tail);
-          vec3 color=mix(vec3(.8,.012,0.),vec3(1.,.16,.002),core);
-          color=mix(color,vec3(1.,.40,.015),heat);
-          color=mix(color,vec3(1.,.64,.07),pow(heat,5.));
+          vec3 color=mix(vec3(.48,.005,.11),vec3(.9,.025,.25),core);
+          color=mix(color,vec3(1.,.16,.42),heat);
+          color=mix(color,vec3(1.,.52,.70),pow(heat,5.));
           gl_FragColor=vec4(color,alpha);
           #include <colorspace_fragment>
         }`

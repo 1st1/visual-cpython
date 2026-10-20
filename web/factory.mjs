@@ -13,7 +13,7 @@ import { factoryFootprint, sourceFootprint } from './placement.mjs';
 import { stackView } from './stack.mjs';
 import { instructionText, instructionGrid } from './opcodes.mjs';
 
-const colors = { base: 0x151a30, block: 0x25304a, rim: 0x687fa8, active: 0xd98a46, selected: 0xe7cf89, error: 0xff926b };
+const colors = { base: 0x141124, block: 0x24203c, rim: 0x649cae, active: 0xc92359, selected: 0xe7cf89, error: 0xff926b };
 function release(group) {
   group.traverse(o => {
     o.geometry?.dispose();
@@ -39,28 +39,28 @@ function box(parent, x, y, z, w, h, d, color = colors.block) {
   mesh.add(outline);
   return mesh;
 }
-function label(parent,x,y,z,width,depth,lines,accent='#c8d9d0',front=false) {
+function label(parent,x,y,z,width,depth,lines,accent='#65d4df',front=false) {
   const update=surfaceText(parent,x,y,z,width,depth,{front});let previous;
   const paint=values=>{
     const signature=JSON.stringify(values);if(signature===previous)return;previous=signature;
-    update(values.slice(0,3).map((text,i)=>({text:String(text),color:i===0?accent:'#a2b9ad',align:'center'})));
+    update(values.slice(0,3).map((text,i)=>({text:String(text),color:i===0?accent:'#9c8fc5',align:'center'})));
   };
   paint(lines);return paint;
 }
 function opcodeTile(parent,width,depth,y,instruction) {
-  const update=surfaceText(parent,0,y,0,width,depth,{background:'#11192c'});let previous;
+  const update=surfaceText(parent,0,y,0,width,depth,{background:'#30206a'});let previous;
   return active=>{
     if(previous===active)return;previous=active;
     const argument=instruction.argrepr || (instruction.arg===null?'':String(instruction.arg));
     const lines=[`@${instruction.offset}`,...instruction.opname.match(/.{1,22}/g),...(argument?[argument]:[])];
-    update(lines.map((text,i)=>({text,color:active?'#291207':i===0?'#a2b8db':'#f0f7f1'})),active?'#d98a46':'#11192c');
+    update(lines.map((text,i)=>({text,color:active?'#fff0f6':i===0?'#9c8fc5':'#65d4df'})),active?'#c92359':'#30206a');
   };
 }
 function sourceTile(parent,width,depth,line,tokens) {
-  const update=surfaceText(parent,0,.32,0,width,depth,{background:'#10182b'});let previous;
+  const update=surfaceText(parent,0,.32,0,width,depth,{background:'#30206a'});let previous;
   return active=>{
     if(previous===active)return;previous=active;
-    update([{size:depth*.22,runs:[{text:String(line).padStart(3)+'  ',color:'#8296b9'},...(tokens || []).map(t=>({text:t.text,color:syntaxColors[t.kind]}))]}],active?'#56301c':'#10182b');
+    update([{size:depth*.22,runs:[{text:String(line).padStart(3)+'  ',color:'#8296b9'},...(tokens || []).map(t=>({text:t.text,color:syntaxColors[t.kind]}))]}],active?'#572042':'#30206a');
   };
 }
 
@@ -112,8 +112,8 @@ export class Factory {
       this.renderer.domElement.addEventListener(name,handler,{capture:true,passive:false});
     this.controls.enableDamping=true; this.controls.dampingFactor=.12;
     this.controls.maxPolarAngle=Math.PI*.48; this.controls.minZoom=.3; this.controls.maxZoom=12;
-    this.scene.add(new THREE.HemisphereLight(0xcbd9ff,0x283044,1.25));
-    const sun=this.sun=new THREE.DirectionalLight(0xe7edff,2.5);sun.castShadow=true;
+    this.scene.add(new THREE.HemisphereLight(0xffffff,0x28282c,1.25));
+    const sun=this.sun=new THREE.DirectionalLight(0xffffff,2.5);sun.castShadow=true;
     sun.shadow.mapSize.set(2048,2048);sun.shadow.radius=1.5;sun.shadow.intensity=.45;sun.shadow.bias=-.00015;sun.shadow.normalBias=.035;
     this.scene.add(sun,sun.target);
     this.world=new THREE.Group(); this.scene.add(this.world);
@@ -220,7 +220,7 @@ export class Factory {
     this.sourceOrigin=new THREE.Vector3(sourceBounds.sourceX,0,0);
     this.extent=sourceBounds;
     const e=this.extent, width=e.maxX-e.minX, depth=e.maxZ-e.minZ;
-    const deck=box(this.world,(e.minX+e.maxX)/2,-.22,(e.minZ+e.maxZ)/2,width,.42,depth,0x11182d);
+    const deck=box(this.world,(e.minX+e.maxX)/2,-.22,(e.minZ+e.maxZ)/2,width,.42,depth,0x141124);
     deck.castShadow=false;deck.material.transparent=true;deck.material.opacity=.7;deck.material.depthWrite=false;
     deck.renderOrder=-2;
     const span=Math.max(width,depth),center=new THREE.Vector3((e.minX+e.maxX)/2,0,(e.minZ+e.maxZ)/2);
@@ -239,18 +239,18 @@ export class Factory {
     this.stackOrigin=new THREE.Vector3(footprint.stackX,0,footprint.stackZ);
     this.stackGroup=new THREE.Group(); this.stackGroup.position.copy(this.stackOrigin); this.world.add(this.stackGroup);
     // Flat, top-first operand column running alongside the deck edge.
-    this.stackPaint=label(this.stackGroup,0,.12,-5.8,5,.65,['OPERAND STACK'],'#bdd5c5');
+    this.stackPaint=label(this.stackGroup,0,.12,-5.8,5,.65,['OPERAND STACK'],'#65d4df');
     this.stackSlots=Array.from({length:8},(_,i)=>{
       const group=new THREE.Group(); group.position.set(0,.22,-4.5+i*1.35); this.stackGroup.add(group);
-      const tile=box(group,0,0,0,5,.28,1.15,0x304735);
-      const paint=label(group,0,.15,0,4.8,1.05,[''],'#e1eddf');
+      const tile=box(group,0,0,0,5,.28,1.15,0x24203c);
+      const paint=label(group,0,.15,0,4.8,1.05,[''],'#65d4df');
       group.visible=false; return {group,tile,paint};
     });
     this.stackGroup.visible=false;this.stackHasOperands=false;
     this.sourceTiles=[];this.sourceHighlight=null;
     this.sourceLines.forEach((text,i)=>{
       const group=new THREE.Group(); group.position.set(this.sourceOrigin.x-sourceWidth/2+.6+4.1+Math.floor(i/rows)*8.7,0,-sourceDepth/2+1.2+(i%rows)*1.15);this.world.add(group);
-      const body=box(group,0,.18,0,8.2,.26,1.025,0x293947);
+      const body=box(group,0,.18,0,8.2,.26,1.025,0x24203c);
       const paint=sourceTile(group,8.1,1.0125,i+1,this.sourceSyntax[i]);paint(false);
       this.sourceTiles.push({group,body,paint,line:i+1});
     });
@@ -258,11 +258,11 @@ export class Factory {
     this.host.dataset.activeSource='';
     this.codeEnclosures=[];
     for(const enclosure of layout?.enclosures || []) {
-      const body=box(this.world,enclosure.x,.085,enclosure.y,enclosure.width,.15,enclosure.height,0x17191f);
+      const body=box(this.world,enclosure.x,.085,enclosure.y,enclosure.width,.15,enclosure.height,0x141124);
       this.codeEnclosures.push({code:enclosure.id,body});
     }
     for(const route of layout?.edges || []) {
-      const color=route.kind==='call'?0xa895cf:route.kind==='taken'?0xc4a068:0x658775;
+      const color=route.kind==='call'?0x9b77c9:route.kind==='taken'?0xc276a3:0x649cae;
       const edge=connector(route.points,color,{dashed:route.kind==='call'});
       this.world.add(edge.line,edge.arrow);
       this.edges.set(route.id,{...edge,source:route.source,target:route.target});
@@ -271,7 +271,7 @@ export class Factory {
     for(const placed of layout?.nodes || []) {
       const block=graph.blocks.find(b=>b.id===placed.id);
       const group=new THREE.Group(); group.position.set(placed.x,0,placed.y); this.world.add(group);
-      const tray=box(group,0,.19,0,placed.width,.20,placed.height,0x302c2a);
+      const tray=box(group,0,.19,0,placed.width,.20,placed.height,0x24203c);
       tray.userData.block=block.id; this.pickables.push(tray);
       label(group,0,.3,-placed.height/2+.24,Math.min(placed.width-.2,4),.35,[block.id]);
       const grid=instructionGrid(block.instructions,layout.placement?.selected.compact ?? true,layout.placement?.selected.tileAspect ?? 1);
@@ -288,7 +288,7 @@ export class Factory {
         const a=tiles[i-1],b=tiles[i],direction=new THREE.Vector3(b.x-a.x,0,b.y-a.y).normalize();
         const length=Math.hypot(b.x-a.x,b.y-a.y),edge=Math.abs(direction.x)>.5?a.width/2:a.height/2;
         const start=new THREE.Vector3(a.x,.32,a.y).addScaledVector(direction,edge);
-        const arrow=new THREE.ArrowHelper(direction,start,Math.max(.01,length-2*edge),0x88a895,.12,.1);group.add(arrow);arrows.push({arrow,from:a,to:b});
+        const arrow=new THREE.ArrowHelper(direction,start,Math.max(.01,length-2*edge),0x649cae,.12,.1);group.add(arrow);arrows.push({arrow,from:a,to:b});
       }
       this.nodes.set(block.id,{group,body:tray,roof:tray,height:.3,tiles,arrows});
     }
@@ -349,11 +349,11 @@ export class Factory {
     for(const [id,node] of this.nodes) {
       const active=id===state?.block, chosen=id===selected;
       const color=active?(state.kind==='exception'||state.kind==='unwind'?colors.error:colors.active):chosen?colors.selected:colors.rim;
-      node.body.material.color.setHex(chosen?0x3c3825:active?0x50301e:0x302c2a);
+      node.body.material.color.setHex(chosen?0x3e315c:active?0x482039:0x24203c);
       node.body.children[0].material.color.setHex(color);
       for(const tile of node.tiles) {
         const executing=active&&event?.kind==='opcode'&&!terminal&&tile.instruction.offset===event.offset;
-        tile.paint(executing); tile.body.material.color.setHex(executing?0x9a4b1b:colors.block);
+        tile.paint(executing); tile.body.material.color.setHex(executing?0x8a204d:colors.block);
         tile.body.children[0].material.color.setHex(executing?colors.active:colors.rim);
       }
     }
@@ -371,7 +371,7 @@ export class Factory {
       const value=stack.slots[stack.slots.length-1-i]; slot.group.visible=Boolean(value);
       if(!value) return;
       const top=i===0;
-      slot.tile.material.color.setHex(value.kind==='null'?0x514364:top?0x526f37:0x304735);
+      slot.tile.material.color.setHex(value.kind==='null'?0x393443:top?0x495566:0x24203c);
       slot.tile.children[0].material.color.setHex(top?colors.active:colors.rim);
       slot.paint([top?'TOP · #'+value.index:'#'+value.index,value.text]);
     });
@@ -422,12 +422,12 @@ export class Factory {
     this.parseTokens=[];this.astTiles=[];this.astGroup=new THREE.Group();this.world.add(this.astGroup);
     this.pipelineArrows=[];
     for(const [from,to] of [[e.sourceX+e.sourceWidth/2,e.tokenX-7],[e.tokenX+7,e.astX-e.astWidth/2],[e.astX+e.astWidth/2,e.serviceX-2]]) {
-      const arrow=new THREE.ArrowHelper(new THREE.Vector3(1,0,0),new THREE.Vector3(from,.35,0),Math.max(.2,to-from),0x89adbd,.5,.35);
+      const arrow=new THREE.ArrowHelper(new THREE.Vector3(1,0,0),new THREE.Vector3(from,.35,0),Math.max(.2,to-from),0x649cae,.5,.35);
       arrow.visible=false;this.world.add(arrow);this.pipelineArrows.push(arrow);
     }
     tokens.forEach((event,i)=>{
       const group=new THREE.Group();group.position.set(e.tokenX+(i%4-1.5)*3.4,0,-e.tokenDepth/2+1+Math.floor(i/4)*1.2);this.world.add(group);
-      const body=box(group,0,.3,0,3.15,.45,1,0x31404b);
+      const body=box(group,0,.3,0,3.15,.45,1,0x24203c);
       const paint=opcodeTile(group,3.05,.9,.54,{offset:event.cursor,opname:event.token,argrepr:event.text,arg:null});paint(false);
       this.parseTokens.push({group,body,paint,event});
     });
@@ -437,7 +437,7 @@ export class Factory {
       const tree=treePositions.get(node.id);
       const pos=new THREE.Vector3(e.astX+tree.x,.4,tree.z);positions.set(node.id,pos);
       const group=new THREE.Group();group.position.copy(pos);this.astGroup.add(group);
-      const body=box(group,0,0,0,2.5,.4,1.2,0x3e354e);
+      const body=box(group,0,0,0,2.5,.4,1.2,0x24203c);
       const paint=opcodeTile(group,2.4,1.1,.22,{offset:node.id,opname:node.kind,argrepr:[node.label,node.operator].filter(Boolean).join(' · '),arg:null});paint(false);
       this.astTiles.push({node,group,body,paint});
       if(node.parent!==null) {
@@ -452,7 +452,7 @@ export class Factory {
           const middle=(parent.z+end.z)/2;
           points=[parent,new THREE.Vector3(parent.x,.22,middle),new THREE.Vector3(end.x,.22,middle),end];
         }
-        const edge=new THREE.Line(new THREE.BufferGeometry().setFromPoints(points),new THREE.LineBasicMaterial({color:0xa08db6}));
+        const edge=new THREE.Line(new THREE.BufferGeometry().setFromPoints(points),new THREE.LineBasicMaterial({color:0x8874b5}));
         this.astGroup.add(edge);this.astEdges.push({edge,parent:node.parent,child:node.id});
       }
     });
@@ -476,7 +476,7 @@ export class Factory {
     if(counterpart) group.position.copy(counterpart.group.position).add(new THREE.Vector3(0,.45,0));
     else group.position.set(this.extent.astX-this.extent.astWidth/2+1.6+(seq%2)*3,.7,-this.extent.astDepth/2+1+(seq%3)*1.6);
     this.ghosts.add(group);
-    box(group,0,0,0,2.5,.4,1.2,0x3e354e);
+    box(group,0,0,0,2.5,.4,1.2,0x24203c);
     opcodeTile(group,2.4,1.1,.22,{offset:seq,opname:event.text,argrepr:'temporary',arg:null})(false);
     group.traverse(o=>{if(o.material){o.material.transparent=true;o.material.depthWrite=false;o.userData.ghostOpacity=o.isLineSegments ? .55 : o.material.isShaderMaterial ? .6 : .25;o.material.opacity=o.userData.ghostOpacity;}});
     group.userData.born=performance.now();group.userData.event=seq;
@@ -517,7 +517,7 @@ export class Factory {
     for(const [i,tile] of this.parseTokens.entries()) {
       tile.group.visible=final||i<(frame?.tokenCount || 0);
       const active=!final&&(spanTokens.size?spanTokens.has(tile.event):tile.event.cursor===frame?.cursor)&&tile.group.visible;
-      tile.paint(active);tile.body.material.color.setHex(active?0x9a4b1b:0x31404b);
+      tile.paint(active);tile.body.material.color.setHex(active?0x8a204d:0x24203c);
     }
     const visible=new Set();
     for(const tile of this.astTiles) {
@@ -545,7 +545,7 @@ export class Factory {
           if(this.constructionFlights.children.length>=512) break;
           const from=this.parseTokens.find(t=>t.event===token).group.position.clone().add(new THREE.Vector3(0,.6,0));
           const mid=from.clone().lerp(end,.5);mid.y=3;
-          const particle=new THREE.Mesh(new THREE.SphereGeometry(.13,6,4),new THREE.MeshBasicMaterial({color:0xc4ee89}));
+          const particle=new THREE.Mesh(new THREE.SphereGeometry(.13,6,4),new THREE.MeshBasicMaterial({color:0xf06c9c}));
           particle.userData.start=performance.now();
           particle.userData.path=new THREE.QuadraticBezierCurve3(from,mid,end.clone());
           particle.visible=!this.reduced.matches;this.constructionFlights.add(particle);
@@ -566,7 +566,7 @@ export class Factory {
     this.sourceHighlight=signature;
     for(const tile of this.sourceTiles) {
       const active=tile.line===line; tile.paint(active);
-      tile.body.material.color.setHex(active?0x9a4b1b:0x293947);
+      tile.body.material.color.setHex(active?0x8a204d:0x24203c);
     }
     const source=this.sourceTiles.find(t=>t.line===line);
     this.host.dataset.activeSource=source?String(line):'';
@@ -582,7 +582,7 @@ export class Factory {
     };
     const selected=[...this.instructionTiles.values()].find(t=>t.position===target);
     const tokens=this.parseTokens.filter(t=>t.event.line===line&&t.group.visible);
-    if(linkPhase==='parsing'&&source&&target) for(const token of tokens) connect(source.group.position.clone().add(new THREE.Vector3(4.1,.5,0)),token.group.position.clone().add(new THREE.Vector3(0,.7,0)),0x91c8dd,'sourceToken');
+    if(linkPhase==='parsing'&&source&&target) for(const token of tokens) connect(source.group.position.clone().add(new THREE.Vector3(4.1,.5,0)),token.group.position.clone().add(new THREE.Vector3(0,.7,0)),0x56c6d5,'sourceToken');
     if(linkPhase==='opcodes'&&selected) {
       const assignments=[];
       for(const tile of this.instructionTiles.values()) if(tile.group.visible&&tile.code===selected.code&&tile.instruction.line===line) {
@@ -591,7 +591,7 @@ export class Factory {
       }
       for(const {tile,node} of assignments) {
         const ast=this.astTiles.find(t=>t.node.id===node.id);
-        connect(ast.group.position.clone().add(new THREE.Vector3(0,.4,0)),tile.position, tile===selected?0xd4f7a1:0x91ac7d,'astOpcode',tile===selected);
+        connect(ast.group.position.clone().add(new THREE.Vector3(0,.4,0)),tile.position, tile===selected?0xf06c9c:0x9b77c9,'astOpcode',tile===selected);
       }
     }
     this.host.dataset.pipelineLinks=JSON.stringify(counts);

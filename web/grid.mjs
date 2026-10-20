@@ -3,7 +3,7 @@ import * as THREE from 'three';
 // One antialiased surface draws the base grid and its lane activity.
 export function createGrid(e,lanes) {
     const uniforms={
-      time:{value:0},gridStart:{value:e.minZ+1.8},baseColor:{value:new THREE.Color(0x293d60)},
+      time:{value:0},gridStart:{value:e.minZ+1.8},baseColor:{value:new THREE.Color(0x393055)},
       activation:{value:[0,0,0,0]},deckEdges:{value:new THREE.Vector2(e.minX,e.maxX)},
       bounds:{value:lanes.map(lane=>new THREE.Vector4(lane.x-lane.width/2,lane.minZ,lane.width,lane.maxZ-lane.minZ))},
     };
