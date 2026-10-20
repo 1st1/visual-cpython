@@ -45,7 +45,7 @@ export function createGrid(e,lanes) {
           vec3 glow=(edgeGlow(vertical)*coverage.x+edgeGlow(horizontal)*coverage.y+edgeGlow(header)*border)
                     /max(.001,coverage.x+coverage.y+border);
           vec3 color=baseColor+glow;
-          gl_FragColor=vec4(color,alpha);
+          gl_FragColor=vec4(color,alpha*.8);
           #include <tonemapping_fragment>
           #include <colorspace_fragment>
         }`,
