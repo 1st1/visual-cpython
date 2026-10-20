@@ -111,3 +111,5 @@ button[aria-pressed=true]{background:#30206a;color:#65d4df;border-color:#7960aa}
 @media(max-width:600px){.program-toolbar{top:8px;left:8px;gap:5px;max-width:calc(100% - 16px)}.program-toolbar select{width:160px}.program-toolbar button{padding:6px 9px}#editor-panel{top:94px;left:8px;width:calc(100% - 16px)}}
 
 .minimap-tools-row button:has(svg){display:flex;align-items:center;justify-content:center}.minimap-tools-row svg{width:17px;height:17px;fill:none;stroke:currentColor;stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round}
+
+.minimap-tools-row #zoom-out{margin-left:7%}

@@ -19,7 +19,6 @@ async function capture(source,execute=true) {
     }
     requestAnimationFrame(settled);
   }));
-  const camera=JSON.parse(await page.locator('#factory').getAttribute('data-framing'));
   await page.locator('#run').click();
   if(await page.evaluate(()=>matchMedia('(prefers-reduced-motion: reduce)').matches)){
     await page.evaluate(()=>new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r))));
@@ -31,7 +30,10 @@ async function capture(source,execute=true) {
   await page.waitForFunction(()=>/Graphviz|No compiled/.test(document.querySelector('#map-status').textContent),null,{timeout:20000});
   await page.evaluate(()=>new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r))));
   const after=JSON.parse(await page.locator('#factory').getAttribute('data-framing'));
-  assert.ok(camera.every((value,i)=>Math.abs(value-after[i])<.01),'Capture preserves orientation, relative pan, and map framing, including failure results '+JSON.stringify({camera,after}));
+  await page.locator('#camera-iso').click();
+  await page.evaluate(()=>new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r))));
+  const fitted=JSON.parse(await page.locator('#factory').getAttribute('data-framing'));
+  assert.ok(fitted.every((value,i)=>Math.abs(value-after[i])<.01),'Compile fits the completed scene and resets orientation and pan, including failure results '+JSON.stringify({fitted,after}));
   if(execute&&await page.locator('#state').textContent()==='compiled')await runCapture();
 }
 async function runCapture(){

@@ -55,7 +55,7 @@ function startOperation(mode) {
     appliedSource=source;
     lastLayout=null;graph=null;mapStates=[];selectedBlock=null;recording=null;
     $('map').replaceChildren();
-    factory?.load(null,null,[],source,null,true);
+    factory?.load(null,null,[],source,null,false);
   } else {
     recording={...recording,events:[],stdout:'',status:'compiled'};delete recording.error;
     mapStates=[];selectedBlock=null;index=0;
@@ -91,7 +91,7 @@ function startOperation(mode) {
       stopWorker(false);recording=data.trace;index=0;runAfterLayout=mode==='run'&&recording.events.length>0;
       $('state').textContent=recording.status;$('message').textContent=recording.error||'';
       $('provenance').textContent=`CPython ${recording.provenance.python.split(' ')[0]} · ${recording.provenance.revision.slice(0,8)}`;
-      if(!recording.codes.length)factory?.load(null,null,[],recording.source,recording.parsing,true);
+      if(!recording.codes.length)factory?.load(null,null,[],recording.source,recording.parsing,mode!=='compile');
       render();buildMap(false,mode==='run');
     }else if(data.type==='error')fail(data.message);
   };
@@ -200,7 +200,7 @@ function buildMap(relayout=false,executed=false) {
       svg.removeAttribute('width'); svg.removeAttribute('height');
       $('map').replaceChildren(document.importNode(svg, true)); zoom = 1; setZoom();
       lastLayout=data.layout;
-      factory?.load(data.layout,graph,recording.events,recording.source,recording.parsing,!relayout);
+      factory?.load(data.layout,graph,recording.events,recording.source,recording.parsing,executed&&!relayout);
       if(parsingMode) {factory?.loadParsing();parsingReplay.render();}
       if((relayout||executed)&&!parsingMode) factory?.finishConstruction();
       if(relayout&&parsingMode) factory?.view('iso');

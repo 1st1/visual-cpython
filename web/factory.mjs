@@ -684,6 +684,8 @@ export class Factory {
     this.camera.updateProjectionMatrix();
   }
   view(mode) {
+    const damping=this.controls.enableDamping;
+    this.controls.enableDamping=false;this.controls.update();this.controls.enableDamping=damping;
     const e=this.extent, center=new THREE.Vector3((e.minX+e.maxX)/2,0,(e.minZ+e.maxZ)/2);
     const span=Math.max(e.maxX-e.minX,e.maxZ-e.minZ);
     this.camera.position.copy(center).add(mode==='top'?new THREE.Vector3(0,span*2,.001):new THREE.Vector3(0,span*1.1,span));
