@@ -1,3 +1,4 @@
+import {codeObjectTitle} from './graph.mjs';
 import {BackgroundBlur} from './background-blur.mjs';
 import {frostSurface} from './frosted-surface.mjs';
 import {pipelineChevrons} from './pipeline-chevrons.mjs';
@@ -295,7 +296,8 @@ export class Factory {
       tray.castShadow=false;tray.renderOrder=-.6;
       frostSurface(tray,placed.width,placed.height,this.backgroundBlur);
       tray.userData.block=block.id; this.pickables.push(tray);
-      label(group,0,.3,-placed.height/2+.24,Math.min(placed.width-.2,4),.35,[block.id]);
+      const code=graph.codes.find(c=>c.id===block.code);
+      label(group,0,.3,-placed.height/2+.37,placed.width-.2,.55,[codeObjectTitle(code),`Block @${block.instructions[0].offset}`]);
       const grid=instructionGrid(block.instructions,layout.placement?.selected.compact ?? true,layout.placement?.selected.tileAspect ?? 1);
       const tiles=[],arrows=[];
       for(const entry of grid.tiles) {
@@ -430,7 +432,7 @@ export class Factory {
       }));
     }
     const code=this.graph.codes.find(c=>c.id===block.code);
-    this.opcodePanel.querySelector('.opcode-caption').textContent=`${pinned?'Pinned':'Following'} · ${code.name} / ${block.id} · ${block.instructions.length} instructions`;
+    this.opcodePanel.querySelector('.opcode-caption').textContent=`${pinned?'Pinned':'Following'} · ${codeObjectTitle(code)} / Block @${block.instructions[0].offset} · ${block.instructions.length} instructions`;
     for(const button of list.children) button.classList.toggle('current',event?.kind==='opcode'&&!terminal&&event.code===block.code&&Number(button.dataset.offset)===event.offset);
     const current=list.querySelector('.current');
     if(current) {

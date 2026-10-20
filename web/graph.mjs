@@ -1,5 +1,12 @@
 import {astTreeLayout} from './ast-tree.mjs';
 import { instructionGrid } from './opcodes.mjs';
+
+export function codeObjectTitle(code) {
+  if(code?.name==='<module>')return 'Module Code: <module>';
+  if(code?.kind==='function')return `Function Code: ${code.name}`;
+  return `Code Object #${String(code?.id ?? '?').replace(/^c(?=\d+$)/,'')}`;
+}
+
 // Runtime CFG derived from assembled bytecode, not the compiler's internal CFG.
 export function extractGraph(recording) {
   if (recording.schema !== 2) throw new Error('Unsupported capture schema; run a fresh capture.');
@@ -21,7 +28,9 @@ export function extractGraph(recording) {
       block.instructions.push(ins);
       graph.locations[`${code.id}:${ins.offset}`] = block.id;
     }
-    graph.codes.push({ id: code.id, name: code.name, blocks: blocks.map(b => b.id) });
+    const isFunction=(recording.parsing?.ast || []).some(node=>
+      ['FunctionDef','AsyncFunctionDef'].includes(node.kind)&&node.line===code.first_line&&node.label===code.name);
+    graph.codes.push({ id: code.id, name: code.name, kind:isFunction?'function':code.name==='<module>'?'module':'unknown', blocks: blocks.map(b => b.id) });
     graph.blocks.push(...blocks);
     for (let i = 0; i < blocks.length; i++) {
       const block = blocks[i], last = block.instructions.at(-1);
@@ -77,7 +86,7 @@ export function toDot(graph, {direction = 'TB', compact = false, tileAspect = 1}
     `node [shape=box, fixedsize=true, width=${compact ? 3 : 3.5}, height=${compact ? 1 : .9}, style="rounded,filled", fillcolor="#192522", color="#526c61", fontcolor="#dce5e5", fontname="monospace", fontsize=11, margin="0.18,0.13"];`,
     'edge [color="#617f70", arrowsize=0.7];'];
   for (const code of graph.codes) {
-    lines.push(`subgraph cluster_${code.id} { label=${q(`${code.name} · ${code.id}`)}; fontname="monospace"; fontcolor="#8d9f9a"; color="#35473e"; margin=22;`);
+    lines.push(`subgraph cluster_${code.id} { label=${q(codeObjectTitle(code))}; fontname="monospace"; fontcolor="#8d9f9a"; color="#35473e"; margin=22;`);
     for (const block of graph.blocks.filter(b => b.code === code.id)) {
       const first = block.instructions[0], last = block.instructions.at(-1);
       const operation = compact && last.opname.length > 25 ? last.opname.match(/.{1,22}/g).join('\n') : last.opname;
