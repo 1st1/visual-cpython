@@ -1,9 +1,12 @@
+import {isMobileNavigationDevice,preventPageZoom} from './navigation.mjs';
 import {sourceVisits,nextSourceVisit} from './source-navigation.mjs';
 import {paintPython} from './python-syntax.mjs';
 import { extractGraph, projectReplay, createReplayProjector } from './graph.mjs';
 import { ParsingReplay } from './parsing.mjs';
 import { Factory } from './factory.mjs';
 const $ = id => document.getElementById(id);
+preventPageZoom();
+document.documentElement.classList.toggle('mobile-device',isMobileNavigationDevice());
 const examples = {
   accumulate: "def accumulate(n, step):\n    total = 0\n    for i in range(n):\n        total = total + step\n    return total\n\nprint(accumulate(8, 1))",
   branch: "def choose(x):\n    if x > 3:\n        return x * 2\n    return x + 1\n\nprint(choose(2), choose(7))",

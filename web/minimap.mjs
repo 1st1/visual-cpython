@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import {isMobileNavigationDevice} from './navigation.mjs';
 
 export class Minimap {
   constructor(host,factory) {
@@ -33,6 +34,7 @@ export class Minimap {
     }
     const update=()=>navigation.querySelectorAll('button').forEach(button=>button.setAttribute('aria-pressed',String(button.dataset.mode===factory.navigationMode)));
     const navigationControls=this.navigationControls=document.createElement('div');navigationControls.className='navigation-controls';
+    navigationControls.hidden=isMobileNavigationDevice();
     update();navigationControls.append(navigation,document.getElementById('scene-hint'));host.append(navigationControls);
 
     this.canvas.onkeydown=e=>{if(['ArrowLeft','ArrowRight'].includes(e.key)){e.preventDefault();this.pan(e.key==='ArrowLeft'?-1:1);}};
