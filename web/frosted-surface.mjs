@@ -23,7 +23,7 @@ export function frostSurface(mesh,width,depth,background,replaceBackground=false
         diffuseColor.rgb+=vec3(.002+grazing*.015+edge*.015+grain*.004*grainVisibility);
         diffuseColor.a=min(1.,diffuseColor.a+grazing*.06+edge*.04);
       `).replace('#include <opaque_fragment>',`
-        vec3 backdrop=texture2D(frostBackground,gl_FragCoord.xy/frostViewport).rgb*.72;
+        vec3 backdrop=texture2D(frostBackground,gl_FragCoord.xy/frostViewport).rgb*.612;
         outgoingLight=mix(backdrop,outgoingLight,diffuseColor.a);
         ${replaceBackground?'diffuseColor.a=1.;':''}
         #include <opaque_fragment>`);
