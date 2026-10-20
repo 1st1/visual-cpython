@@ -231,6 +231,7 @@ function render() {
   const current=count?(recording.events[Math.min(index,count-1)].position??recording.events[Math.min(index,count-1)].seq)+1:0;
   const back=latest-current;
   const steps=n=>`${n.toLocaleString()} ${n===1?'step':'steps'}`;
+  $('counter').hidden=latest===0;
   $('counter').textContent=back
     ?`Step ${current.toLocaleString()} of ${latest.toLocaleString()} · ${steps(back)} back`
     :steps(latest);
