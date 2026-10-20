@@ -47,6 +47,32 @@ export class Starfield {
       glow.addColorStop(0,'rgba(100,155,255,'+(this.warp*.1)+')');glow.addColorStop(1,'rgba(100,155,255,0)');
       ctx.fillStyle=glow;ctx.fillRect(0,0,width,height);
     }
+    if(this.warp>.01){
+      // Batch faded streaks by color, width, and exposure instead of allocating
+      // and rasterizing a separate gradient stroke for every visible star.
+      const paths=Array.from({length:27},()=>new Path2D());
+      for(const star of this.stars){
+        const z=.3+((star.z-.3-this.distance)%3.7+3.7)%3.7;
+        const x=cx+star.x*focal/z,y=cy+star.y*focal/z;
+        if(x< -10||y< -10||x>width+10||y>height+10)continue;
+        const fade=Math.max(0,Math.min(1,(z-.3)*2,(4-z)*2));
+        if(fade<.05)continue;
+        const tailZ=z+this.warp*this.warp*.55;
+        const dx=star.x*focal/tailZ+cx-x,dy=star.y*focal/tailZ+cy-y;
+        const cap=Math.min(1,180/Math.max(1,Math.hypot(dx,dy)))*fade;
+        const color=star.c<.15?0:star.c>.75?1:2;
+        const widthBucket=Math.min(2,Math.floor(Math.max(.6,Math.min(1.8,star.r/z)*.85)*2)-1);
+        for(let band=0;band<3;band++){
+          const path=paths[color*9+widthBucket*3+band];
+          path.moveTo(x+dx*cap*(1-band/3),y+dy*cap*(1-band/3));
+          path.lineTo(x+dx*cap*(1-(band+1)/3),y+dy*cap*(1-(band+1)/3));
+        }
+      }
+      for(let color=0;color<3;color++)for(let width=0;width<3;width++)for(let band=0;band<3;band++){
+        ctx.strokeStyle=palette[color];ctx.lineWidth=[.6,1,1.5][width];
+        ctx.globalAlpha=[.08,.22,.38][band];ctx.stroke(paths[color*9+width*3+band]);
+      }
+    }
     for(const star of this.stars){
       // A crossing takes about three minutes. Depth changes create gentle radial parallax.
       const z=.3+((star.z-.3-this.distance)%3.7+3.7)%3.7;
@@ -55,17 +81,6 @@ export class Starfield {
       const fade=Math.min(1,(z-.3)*2,(4-z)*2),radius=Math.min(1.8,star.r/z);
       ctx.globalAlpha=Math.max(0,fade)*(.35+.4*(1-z/4));
       ctx.fillStyle=palette[star.c<.15?0:star.c>.75?1:2];
-      if(this.warp>.01){
-        // Project an exposure behind each star without moving the map camera.
-        const tailZ=z+this.warp*this.warp*.55;
-        const tx=cx+star.x*focal/tailZ,ty=cy+star.y*focal/tailZ;
-        const length=Math.hypot(x-tx,y-ty),cap=Math.min(1,180/Math.max(1,length));
-        const sx=x+(tx-x)*cap,sy=y+(ty-y)*cap;
-        const glow=ctx.createLinearGradient(sx,sy,x,y);
-        glow.addColorStop(0,'#a3cfff00');glow.addColorStop(1,ctx.fillStyle);
-        ctx.strokeStyle=glow;ctx.lineWidth=Math.max(.6,radius*.85);
-        ctx.beginPath();ctx.moveTo(sx,sy);ctx.lineTo(x,y);ctx.stroke();
-      }
       ctx.beginPath();ctx.arc(x,y,Math.max(.35,radius),0,Math.PI*2);ctx.fill();
       if(radius>1.1){ctx.globalAlpha*=.12;ctx.beginPath();ctx.arc(x,y,radius*3,0,Math.PI*2);ctx.fill();}
     }
