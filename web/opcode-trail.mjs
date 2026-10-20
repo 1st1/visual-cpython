@@ -19,7 +19,10 @@ export class OpcodeTrail {
           float behind=1.-trailUv.x;
           float tail=1.-smoothstep(0.,max(.001,remaining),behind);
           float tongues=sin(trailUv.x*24.-age*12.+sin(trailUv.y*19.)*2.);
-          float across=abs(trailUv.y-.5)*2.;
+          // Two cones meet at the midpoint; each tip lands at a tile center.
+          // Shape in the fragment shader so the reusable quad needs no subdivisions.
+          float taper=max(.001,1.-abs(2.*trailUv.x-1.));
+          float across=abs(trailUv.y-.5)*2./taper;
           across+=tongues*.10*behind;
 
           float core=1.-smoothstep(.45,.95,across);
