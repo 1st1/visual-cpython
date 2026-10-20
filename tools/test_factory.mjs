@@ -31,7 +31,7 @@ async function capture(source,execute=true) {
   await page.evaluate(()=>new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r))));
   const after=JSON.parse(await page.locator('#factory').getAttribute('data-framing'));
   if(await page.locator('#editor-panel').isVisible()) await page.locator('#close-editor').click();
-  await page.locator('#camera-iso').click();
+  await page.locator('#zoom-fit').click();
   await page.evaluate(()=>new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r))));
   const fitted=JSON.parse(await page.locator('#factory').getAttribute('data-framing'));
   assert.ok(fitted.every((value,i)=>Math.abs(value-after[i])<.01),'Compile fits the completed scene and resets orientation and pan, including failure results '+JSON.stringify({fitted,after}));

@@ -52,7 +52,7 @@ button[aria-pressed=true]{background:#8ebeff20;color:#d0eaff;border-color:#b0dff
 #inspector-panel #stdout{flex:1;min-height:0;max-height:none;margin:0;overflow:auto;overscroll-behavior:contain}
 
 /* Cyberdeck keycaps: violet surfaces, cyan legends, raspberry action keys. */
-.primary{background:#c92359;color:#fff0f6;border-color:#ee5788;box-shadow:none}
+.primary,.playback-buttons .primary{background:#c92359;color:#fff0f6;border-color:#ee5788;box-shadow:none}
 button[aria-pressed=true]{background:#30206a;color:#65d4df;border-color:#7960aa}
 .opcode-list button.current{background:#572042;border-color:#c92359;color:#fff0f6}
 .opcode-heading,#parse-status{color:#65d4df}
@@ -125,9 +125,9 @@ button[aria-pressed=true]{background:#30206a;color:#65d4df;border-color:#7960aa}
 .playback-buttons{display:flex;gap:6px;justify-content:flex-end}
 .playback-buttons button{height:36px;padding:6px 10px;display:flex;align-items:center;justify-content:center;background:#101322d9;border-color:#b2c9ff50}
 .playback-buttons svg{width:19px;height:19px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
-.playback-buttons #toggle-inspector{margin-left:12px}
+.playback-buttons #toggle-inspector{margin-left:12px;gap:7px}
 .playback-controls #seek{margin:0}
-.playback-controls #capture-progress{contain:inline-size;margin:0;background:#101322d9;padding:8px;border-radius:5px}
+.playback-controls #capture-progress{contain:inline-size;margin:0;padding:0;background:none;gap:8px}
 #inspector-panel{top:var(--playback-bottom,88px);bottom:18px}
 .program-toolbar{max-width:calc(100% - 340px)}
 @media(max-width:900px){
@@ -148,3 +148,20 @@ button[aria-pressed=true]{background:#30206a;color:#65d4df;border-color:#7960aa}
 #seek:enabled:hover::-moz-range-thumb,#seek:active::-moz-range-thumb{background:#65d4df}
 #seek:focus-visible{outline:1px solid #65d4df80;outline-offset:3px;border-radius:4px}
 #seek:disabled{opacity:.35;cursor:default}
+
+.camera-mode-switch{display:flex;flex:2;min-width:0}
+.camera-mode-switch button:first-child{border-radius:5px 0 0 5px}
+.camera-mode-switch button:last-child{border-radius:0 5px 5px 0;margin-left:-1px}
+.camera-mode-switch button[aria-pressed="true"]{position:relative;color:#65d4df;border-color:#65d4df80;background:#65d4df12}
+
+.capture-track{position:relative;width:100%;height:3px;overflow:hidden;border-radius:2px;background:#b2c9ff26}
+.capture-track::after{content:"";position:absolute;inset:0 auto 0 0;width:35%;border-radius:2px;background:#65d4df90;animation:capture-sweep 1.4s ease-in-out infinite}
+#capture-progress .capture-track progress{position:absolute;inset:0;width:100%;height:100%;opacity:0}
+@keyframes capture-sweep{from{transform:translateX(-100%)}to{transform:translateX(286%)}}
+@media(prefers-reduced-motion:reduce){.capture-track::after{animation:none;left:32.5%}}
+
+.playback-run-slot{display:grid}
+.playback-run-slot button{grid-area:1 / 1}
+.playback-run-slot:has(#cancel:not([hidden])) #play{visibility:hidden}
+.playback-controls #capture-progress{min-width:0}
+#capture-progress-label{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}

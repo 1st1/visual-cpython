@@ -96,6 +96,9 @@ export class Factory {
     let navigationMode;
     try { navigationMode=localStorage.getItem('factory-navigation-mode'); } catch {}
     this.setNavigationMode(navigationMode);
+    let cameraMode;
+    try { cameraMode=localStorage.getItem('factory-camera-mode'); } catch {}
+    this.setCameraMode(cameraMode,false);
     this.wheelPan=event=>{
       event.preventDefault();event.stopImmediatePropagation();
       if(!this.controls.enabled) return;
@@ -336,7 +339,7 @@ export class Factory {
     let labelBytes=0;
     this.world.traverse(o=>{const canvas=o.material?.map?.image;if(canvas instanceof HTMLCanvasElement)labelBytes+=canvas.width*canvas.height*4;});
     this.host.dataset.labelCanvasBytes=String(labelBytes);
-    if(!preserveCamera) this.view('iso');
+    if(!preserveCamera) this.view();
     else if(previous){
       const ratio=this.projectedSize()/previous.size;
       const center=this.mapCenter();
@@ -683,7 +686,7 @@ export class Factory {
     this.camera.far=Math.max(2000,size*12);
     this.camera.updateProjectionMatrix();
   }
-  view(mode) {
+  view(mode=this.cameraMode==='2d'?'top':'iso') {
     const damping=this.controls.enableDamping;
     this.controls.enableDamping=false;this.controls.update();this.controls.enableDamping=damping;
     const e=this.extent, center=new THREE.Vector3((e.minX+e.maxX)/2,0,(e.minZ+e.maxZ)/2);
@@ -734,6 +737,19 @@ export class Factory {
     const span=Math.max(size.depth+1.2,(size.width+1.4)/aspect);
     this.viewSize=span;this.camera.zoom=1;this.updateProjection(); this.controls.update();
   }
+  setCameraMode(mode,fit=true) {
+    this.cameraMode=mode==='2d'?'2d':'3d';
+    const flat=this.cameraMode==='2d';
+    this.controls.enableRotate=!flat;
+    this.controls.mouseButtons.LEFT=flat?THREE.MOUSE.PAN:THREE.MOUSE.ROTATE;
+    this.controls.touches.ONE=flat?THREE.TOUCH.PAN:THREE.TOUCH.ROTATE;
+    this.host.dataset.cameraMode=this.cameraMode;
+    document.getElementById('camera-iso').setAttribute('aria-pressed',String(!flat));
+    document.getElementById('camera-top').setAttribute('aria-pressed',String(flat));
+    this.setNavigationMode(this.navigationMode);
+    try { localStorage.setItem('factory-camera-mode',this.cameraMode); } catch {}
+    if(fit)this.view();
+  }
   setNavigationMode(mode) {
     this.navigationMode=['mouse','trackpad'].includes(mode)?mode:'auto';
     this.navigationGesture.reset();
@@ -742,6 +758,7 @@ export class Factory {
       ?'Drag to orbit · Right/middle-drag to pan · Wheel to zoom'
       :this.navigationMode==='trackpad'?'Drag to orbit · Two-finger scroll to pan · Pinch to zoom'
       :'Wheel to zoom · Two-finger scroll to pan · Pinch to zoom';
+    if(this.cameraMode==='2d')this.navigationHint=this.navigationHint.replace('Drag to orbit · Right/middle-drag to pan','Drag to pan').replace('Drag to orbit','Drag to pan');
     document.getElementById('scene-hint').textContent=this.navigationHint;
     this.renderer.domElement.setAttribute('aria-label',`Interactive CPython factory. ${this.navigationHint}. Click a tile to select it.`);
     try { localStorage.setItem('factory-navigation-mode',this.navigationMode); } catch {}

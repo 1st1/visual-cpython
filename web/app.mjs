@@ -23,7 +23,7 @@ let appliedSource=$('source').value;
 $('example').onchange = async () => {
   const request=++exampleRequest, name=$('example').value;
   if(name==='custom')return;
-  const applyExample=source=>{ $('source').value=source;resetProgram();previewSource();factory?.view('iso'); };
+  const applyExample=source=>{ $('source').value=source;resetProgram();previewSource();factory?.view(); };
   const file={shortest:new URL('./programs/shortest_path.py',import.meta.url),asyncio:new URL('./programs/asyncio_numbers.py',import.meta.url)}[name];
   if(!file) { applyExample(examples[name]); return; }
   $('run').disabled=true;
@@ -210,7 +210,7 @@ function buildMap(relayout=false,executed=false) {
       factory?.load(data.layout,graph,recording.events,recording.source,recording.parsing,executed&&!relayout);
       if(parsingMode) {factory?.loadParsing();parsingReplay.render();}
       if((relayout||executed)&&!parsingMode) factory?.finishConstruction();
-      if(relayout&&parsingMode) factory?.view('iso');
+      if(relayout&&parsingMode) factory?.view();
       $('factory').dataset.layoutAspect=String(data.layout.placement.targetAspect);
       for (const block of graph.blocks) {
         const node = document.getElementById(block.id);
@@ -235,7 +235,7 @@ function setZoom() {
 }
 $('zoom-in').onclick = () => { if(viewMode==='3d') return factory?.zoom(1.25); zoom = Math.min(4, zoom * 1.25); setZoom(); };
 $('zoom-out').onclick = () => { if(viewMode==='3d') return factory?.zoom(.8); zoom = Math.max(0.5, zoom / 1.25); setZoom(); };
-$('zoom-fit').onclick = () => { if(viewMode==='3d') return factory?.view('iso'); zoom = 1; setZoom(); };
+$('zoom-fit').onclick = () => { if(viewMode==='3d') return factory?.view(); zoom = 1; setZoom(); };
 function renderMapState() {
   const state = mapStates[Math.min(index, mapStates.length - 1)];
   if(!parsingMode) factory?.setState(state,recording?.events[Math.min(index,mapStates.length-1)],selectedBlock,index===mapStates.length);
@@ -258,7 +258,7 @@ function changeView(mode) {
   for(const id of ['camera-iso','camera-top']) $(id).disabled=mode!=='3d';
   if(mode==='3d') factory?.resize();
 }
-$('camera-iso').onclick=()=>factory?.view('iso'); $('camera-top').onclick=()=>factory?.view('top');
+$('camera-iso').onclick=()=>factory?.setCameraMode('3d'); $('camera-top').onclick=()=>factory?.setCameraMode('2d');
 function seekInstruction(blockId,offset) {
   const block=graph.blocks.find(b=>b.id===blockId);
   const visits=recording.events.filter(e=>e.kind==='opcode'&&e.code===block.code&&e.offset===offset);
@@ -298,7 +298,7 @@ const playbackObserver=new ResizeObserver(()=>{
 });
 playbackObserver.observe(document.querySelector('.playback-controls'));
 
-try { factory=new Factory($('factory'),selectBlock,seekInstruction,seekSourceLine); parsingReplay=new ParsingReplay(factory); previewSource(); factory.view('iso'); }
+try { factory=new Factory($('factory'),selectBlock,seekInstruction,seekSourceLine); parsingReplay=new ParsingReplay(factory); previewSource(); factory.view(); }
 catch(error) { $('toggle-minimap').disabled=true;$('toggle-minimap').setAttribute('aria-pressed','false'); $('scene-hint').textContent=`3D unavailable: ${error.message}. The schematic is available.`; changeView('map'); $('message').textContent='3D graphics unavailable; using the schematic.'; }
 window.addEventListener('pagehide',event=>{ if(!event.persisted) factory?.dispose(); });
 
@@ -306,7 +306,7 @@ window.addEventListener('resize',()=>{
   clearTimeout(resizeTimer);
   resizeTimer=setTimeout(()=>{
     if(recording?.codes.length && Math.abs(windowAspect()-(layoutAspect || 0))>.01) buildMap(true);
-    else if(!recording&&!worker) factory?.view('iso');
+    else if(!recording&&!worker) factory?.view();
   },250);
 });
 
