@@ -18,10 +18,13 @@ try {
     await page.evaluate(()=>new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r))));
     samples.push(await page.evaluate(()=>{
       const f=document.querySelector('#factory'),canvas=f.querySelector(':scope > canvas'),stars=f.querySelector('.starfield canvas');
-      return {atlas:JSON.parse(f.dataset.textAtlas),labels:Number(f.dataset.labelCanvasBytes),textures:Number(f.dataset.gpuTextures),geometries:Number(f.dataset.gpuGeometries),pixels:canvas.width*canvas.height,starPixels:stars.width*stars.height};
+      return {blur:JSON.parse(f.dataset.backgroundBlur),atlas:JSON.parse(f.dataset.textAtlas),labels:Number(f.dataset.labelCanvasBytes),textures:Number(f.dataset.gpuTextures),geometries:Number(f.dataset.gpuGeometries),pixels:canvas.width*canvas.height,starPixels:stars.width*stars.height};
     }));
   }
   for(const sample of samples){
+    assert.ok(sample.blur.width<=512&&sample.blur.height<=512,'Shared background blur remains capped');
+    assert.ok(sample.blur.updates>0,'Shared background blur rendered');
+    assert.equal(sample.blur.updates,samples[0].blur.updates,'Static nebula blur is reused across captures');
     assert.ok(sample.pixels<=8010000);
     assert.ok(sample.starPixels<=2010000);
     assert.ok(sample.pixels>3000000,'Retina scene gets more pixels than the old blurry cap');

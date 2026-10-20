@@ -1,3 +1,5 @@
+import {BackgroundBlur} from './background-blur.mjs';
+import {frostSurface} from './frosted-surface.mjs';
 import {pipelineChevrons} from './pipeline-chevrons.mjs';
 import {createGrid} from './grid.mjs';
 import {OpcodeTrail} from './opcode-trail.mjs';
@@ -137,10 +139,13 @@ export class Factory {
     this.load(null,null);
     this.minimap=new Minimap(host,this);
     this.starfield=new Starfield(host);
+    this.backgroundBlur=new BackgroundBlur();
     this.renderer.setAnimationLoop(now=>{
       if (document.hidden || !host.clientWidth || host.hidden) {this.starfield.pause();return;}
       this.starfield.setConstructing(Boolean(this.revealStart));
       this.starfield.draw(now,host.clientWidth,host.clientHeight,this.reduced.matches);
+      this.backgroundBlur.update(this.renderer,this.starfield);
+      host.dataset.backgroundBlur=JSON.stringify({width:this.backgroundBlur.canvas.width,height:this.backgroundBlur.canvas.height,updates:this.backgroundBlur.updates});
       this.controls.update();
       this.updateLighting();
       if(!this.revealStart&&this.host.dataset.phase!=='parsing')this.setActiveStage(this.starfield.capturing?1:this.replayStage);
@@ -227,6 +232,7 @@ export class Factory {
     const deck=box(this.world,(e.minX+e.maxX)/2,-.22,(e.minZ+e.maxZ)/2,width,.42,depth,0x141124);
     deck.castShadow=false;deck.receiveShadow=false;deck.material.dispose();
     deck.material=new THREE.MeshBasicMaterial({color:0x000000,transparent:true,opacity:.2,depthWrite:false});
+    frostSurface(deck,width,depth,this.backgroundBlur,true);
     deck.renderOrder=-2;
     const span=Math.max(width,depth),center=new THREE.Vector3((e.minX+e.maxX)/2,0,(e.minZ+e.maxZ)/2);
     this.lightSpan=span;this.sun.target.position.copy(center);
@@ -266,6 +272,7 @@ export class Factory {
       const body=box(this.world,enclosure.x,.085,enclosure.y,enclosure.width,.15,enclosure.height,0x141124);
       body.material.transparent=true;body.material.opacity=.35;body.material.depthWrite=false;
       body.castShadow=false;body.renderOrder=-.8;
+      frostSurface(body,enclosure.width,enclosure.height,this.backgroundBlur);
       this.codeEnclosures.push({code:enclosure.id,body});
     }
     for(const route of layout?.edges || []) {
@@ -281,6 +288,7 @@ export class Factory {
       const tray=box(group,0,.19,0,placed.width,.20,placed.height,0x24203c);
       tray.material.transparent=true;tray.material.opacity=.55;tray.material.depthWrite=false;
       tray.castShadow=false;tray.renderOrder=-.6;
+      frostSurface(tray,placed.width,placed.height,this.backgroundBlur);
       tray.userData.block=block.id; this.pickables.push(tray);
       label(group,0,.3,-placed.height/2+.24,Math.min(placed.width-.2,4),.35,[block.id]);
       const grid=instructionGrid(block.instructions,layout.placement?.selected.compact ?? true,layout.placement?.selected.tileAspect ?? 1);
@@ -728,5 +736,5 @@ export class Factory {
     const span=Math.max(size.depth+1.2,(size.width+1.4)/aspect);
     this.viewSize=span;this.camera.zoom=1;this.updateProjection(); this.controls.update();
   }
-  dispose() { this.opcodeTrail.dispose(); this.starfield?.dispose(); for(const [name,handler] of [['gesturestart',this.gestureStart],['gesturechange',this.gestureChange],['gestureend',this.gestureEnd]]) this.renderer.domElement.removeEventListener(name,handler,true); this.renderer.domElement.removeEventListener('wheel',this.wheelPan,true); this.minimap?.dispose(); this.resizeObserver.disconnect(); this.renderer.setAnimationLoop(null); this.controls.dispose(); release(this.world); disposeTextAtlas();this.sun.shadow.dispose();this.renderer.dispose(); this.renderer.domElement.remove(); this.opcodePanel.remove(); }
+  dispose() { this.backgroundBlur.dispose();this.opcodeTrail.dispose(); this.starfield?.dispose(); for(const [name,handler] of [['gesturestart',this.gestureStart],['gesturechange',this.gestureChange],['gestureend',this.gestureEnd]]) this.renderer.domElement.removeEventListener(name,handler,true); this.renderer.domElement.removeEventListener('wheel',this.wheelPan,true); this.minimap?.dispose(); this.resizeObserver.disconnect(); this.renderer.setAnimationLoop(null); this.controls.dispose(); release(this.world); disposeTextAtlas();this.sun.shadow.dispose();this.renderer.dispose(); this.renderer.domElement.remove(); this.opcodePanel.remove(); }
 }
