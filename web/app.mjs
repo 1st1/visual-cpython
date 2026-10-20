@@ -227,7 +227,13 @@ function render() {
   $('back').disabled = operation==='compile' || !count || index === 0; $('next').disabled = operation==='compile' || (operation==='run'?(!liveWaiting&&index>=count-1):!count || index === count);
   $('seek').max = operation==='run'?Math.max(0,count-1):count; $('seek').value = index;
   $('seek').style.setProperty('--seek-progress',`${count?index/count*100:0}%`);
-  $('counter').textContent = count ? `${Math.min(index + 1, count)} / ${count}${index === count ? ' · end' : ''}` : 'No recording';
+  const latest=count?(recording.events.at(-1).position??recording.events.at(-1).seq)+1:0;
+  const current=count?(recording.events[Math.min(index,count-1)].position??recording.events[Math.min(index,count-1)].seq)+1:0;
+  const back=latest-current;
+  const steps=n=>`${n.toLocaleString()} ${n===1?'step':'steps'}`;
+  $('counter').textContent=back
+    ?`Step ${current.toLocaleString()} of ${latest.toLocaleString()} · ${steps(back)} back`
+    :steps(latest);
   const event = recording?.events[Math.min(index, count - 1)];
   if (!event) {
     for (const id of ['source-view', 'locals', 'stack', 'stdout']) $(id).replaceChildren();

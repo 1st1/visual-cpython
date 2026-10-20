@@ -28,9 +28,12 @@ try{
  assert.equal(await page.locator('#locals').textContent(),locals);
  assert.equal(await page.locator('#message').textContent(),'');
  assert.equal(await page.locator('#seek').getAttribute('max'),'1999','bounded history after rollover');
+ const steps=Number((await page.locator('#counter').textContent()).replace(/[^0-9]/g,''));
+ assert.ok(steps>2000,'Step count continues past history rollover');
  await page.locator('#next').click();await page.waitForTimeout(100);
  assert.notEqual(await page.locator('#event').textContent(),before,'one real opcode advances');
  await page.locator('#back').click();assert.equal(await page.locator('#event').textContent(),before);
+ assert.equal(await page.locator('#counter').textContent(),`Step ${steps.toLocaleString()} of ${(steps+1).toLocaleString()} · 1 step back`);
  await page.locator('#play').click();await page.waitForTimeout(100);
  assert.equal(await page.locator('#play').getAttribute('aria-label'),'Pause');
  assert.equal(await page.locator('#cancel, #capture-progress').count(),0);
@@ -51,6 +54,7 @@ try{
  await page.locator('#play').click();assert.equal(await page.locator('#reset').isEnabled(),true);
  await page.locator('#reset').click();await page.waitForTimeout(200);
  assert.equal(await page.locator('#reset').isDisabled(),true);
+ assert.equal(await page.locator('#counter').textContent(),'0 steps');
  assert.equal(await page.locator('#reset').isVisible(),true);
  assert.equal(await page.locator('#factory').getAttribute('data-opcode-tiles'),tiles);
  assert.equal(await page.locator('#play').isEnabled(),true);

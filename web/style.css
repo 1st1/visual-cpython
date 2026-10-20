@@ -126,6 +126,7 @@ button[aria-pressed=true]{background:#30206a;color:#65d4df;border-color:#7960aa}
 .playback-buttons #reset{margin-right:12px}
 .playback-buttons #toggle-inspector{margin-left:12px;gap:7px}
 .playback-controls #seek{margin:0}
+.playback-controls #counter{contain:inline-size;min-width:0;border:0;padding:0;background:none;color:var(--muted);font-size:11px;line-height:1.4;text-align:right;font-variant-numeric:tabular-nums}
 #inspector-panel{top:var(--playback-bottom,88px);bottom:18px}
 .program-toolbar{max-width:calc(100% - 340px)}
 @media(max-width:900px){
