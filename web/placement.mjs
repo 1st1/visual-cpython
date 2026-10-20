@@ -28,7 +28,15 @@ export function sourceFootprint(layout,lineCount=1,pipeline={}) {
   ].map((lane,i)=>({...lane,
     x:lane.x+(i===0?-.1:i===3?.1:0),
     width:lane.width+1.6+(i===0||i===3?.2:0),minZ,maxZ}));
-  return {...f,rows,columns,sourceTileWidth,sourceColumnPitch,sourceWidth,sourceDepth,sourceX,tokenX,astX,tokenDepth,astDepth,astWidth,lanes,
+  const sourceOnly=Boolean(pipeline.sourceOnly);
+  if(sourceOnly){
+    const laneWidth=Math.max(10,sourceWidth+1.6);
+    const sourceMinZ=-sourceDepth/2-1.8,sourceMaxZ=sourceDepth/2+.2;
+    return {...f,rows,columns,sourceTileWidth,sourceColumnPitch,sourceWidth,sourceDepth,sourceX,tokenX,astX,tokenDepth,astDepth,astWidth,sourceOnly,
+      lanes:[{...lanes[0],x:sourceX,width:laneWidth,minZ:sourceMinZ,maxZ:sourceMaxZ}],
+      minX:sourceX-laneWidth/2,maxX:sourceX+laneWidth/2,minZ:sourceMinZ,maxZ:sourceMaxZ};
+  }
+  return {...f,rows,columns,sourceTileWidth,sourceColumnPitch,sourceWidth,sourceDepth,sourceX,tokenX,astX,tokenDepth,astDepth,astWidth,lanes,sourceOnly,
     minX:sourceX-sourceWidth/2-1,minZ,maxZ};
 }
 

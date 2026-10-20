@@ -213,7 +213,7 @@ export class Factory {
     });
   }
   load(layout, graph, events = [], source = '', parsing = null, preserveCamera = false) {
-    const previous=preserveCamera&&this.extent&&(layout||parsing)?{center:this.mapCenter(),size:this.projectedSize()}:null;
+    const previous=preserveCamera&&this.extent?{center:this.mapCenter(),size:this.projectedSize()}:null;
     this.opcodeTrail.clear();this.previousOpcodeTile=null;
     release(this.world); this.nodes.clear(); this.edges.clear(); this.pickables=[]; this.lastSeq=null; this.pulsePath=null;
     this.graph=graph; this.panelBlock=null; this.replaySource=null;this.replayTile=null;
@@ -231,7 +231,8 @@ export class Factory {
     this.astLayout=astTreeLayout(ast);
     this.sourceTileWidth=Math.max(...this.sourceLines.map((line,i)=>measureSurfaceText(String(i+1).padStart(3)+'  '+line+'     ',SOURCE_FONT_SIZE)))+.26;
     this.sourceColumnPitch=this.sourceTileWidth+.5;
-    const sourceBounds=sourceFootprint(layout,this.sourceLines.length,{sourceTileWidth:this.sourceTileWidth,tokenCount:tokens.length,astWidth:this.astLayout.width,astDepth:this.astLayout.depth});
+    const sourceBounds=sourceFootprint(layout,this.sourceLines.length,{sourceOnly:!layout&&!tokens.length&&!ast.length,sourceTileWidth:this.sourceTileWidth,tokenCount:tokens.length,astWidth:this.astLayout.width,astDepth:this.astLayout.depth});
+    this.host.dataset.pipelineColumns=String(sourceBounds.lanes.length);
     const {rows,sourceWidth,sourceDepth}=sourceBounds;
     this.sourceOrigin=new THREE.Vector3(sourceBounds.sourceX,0,0);
     this.extent=sourceBounds;
@@ -727,7 +728,7 @@ export class Factory {
     const points=[];
     for(const x of [e.minX,e.maxX]) for(const z of [e.minZ,e.maxZ]) for(const y of [0,1.6]) points.push(new THREE.Vector3(x,y,z));
     // Reserve the full flat column even when empty so replay never changes framing.
-    for(const x of [-2.6,2.6]) for(const z of [-6.8,5.7]) for(const y of [0,.7])
+    if(!e.sourceOnly) for(const x of [-2.6,2.6]) for(const z of [-6.8,5.7]) for(const y of [0,.7])
       points.push(this.stackOrigin.clone().add(new THREE.Vector3(x,y,z)));
     const tan=Math.tan(THREE.MathUtils.degToRad(this.camera.fov/2));
     const aspect=(this.host.clientWidth||900)/(this.host.clientHeight||600);

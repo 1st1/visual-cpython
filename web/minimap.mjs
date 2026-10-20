@@ -30,7 +30,8 @@ export class Minimap {
     const ctx=this.canvas.getContext('2d'),w=this.canvas.width,h=this.canvas.height;
     const x=v=>(v-e.minX)/(e.maxX-e.minX)*w,z=v=>(v-e.minZ)/(e.maxZ-e.minZ)*h;
     ctx.clearRect(0,0,w,h);ctx.fillStyle='#0c1222';ctx.fillRect(0,0,w,h);
-    for(const [cx,width,depth,color,name] of [[e.sourceX,e.sourceWidth,e.sourceDepth,'#4b6679','SRC'],[e.tokenX,14,e.tokenDepth,'#638e91','TOK'],[e.astX,e.astWidth,e.astDepth,'#8c71aa','AST'],[0,e.width,e.depth,'#6898c6','OPS']]) {
+    const regions=[[e.sourceX,e.sourceWidth,e.sourceDepth,'#4b6679','SRC'],[e.tokenX,14,e.tokenDepth,'#638e91','TOK'],[e.astX,e.astWidth,e.astDepth,'#8c71aa','AST'],[0,e.width,e.depth,'#6898c6','OPS']];
+    for(const [cx,width,depth,color,name] of regions.slice(0,e.sourceOnly?1:4)) {
       ctx.fillStyle=color;ctx.globalAlpha=.55;ctx.fillRect(x(cx-width/2),z(-depth/2),width/(e.maxX-e.minX)*w,depth/(e.maxZ-e.minZ)*h);ctx.globalAlpha=1;
       ctx.font='17px monospace';ctx.textAlign='center';ctx.fillStyle='#edf7e7';ctx.fillText(name,x(cx),h/2+6);
     }

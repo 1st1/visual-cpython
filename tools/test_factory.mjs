@@ -41,6 +41,7 @@ try {
   const viewport=await page.locator('#factory').boundingBox();
   assert.equal(viewport.width,1600);assert.equal(viewport.height,1100);
   assert.equal(await page.locator('#factory').getAttribute('data-source-tiles'),'7');
+  assert.equal(await page.locator('#factory').getAttribute('data-pipeline-columns'),'1','Source preview only renders its own stage');
   assert.equal(await page.locator('#source-highlight').textContent(),await page.locator('#source').inputValue()+'\n');
   assert.ok(await page.locator('#source-highlight .syntax-keyword').count()>0);
   assert.ok(await page.locator('#source-highlight .syntax-number').count()>0);
@@ -94,6 +95,7 @@ try {
   await page.locator('#camera-iso').click();
   await page.screenshot({path:'artifacts/factory-empty.png',fullPage:true});
   await capture('a=2\nb=3\nc=a+b\nprint(c)');
+  assert.equal(await page.locator('#factory').getAttribute('data-pipeline-columns'),'4','Deck expands before artifact construction');
   assert.equal(await page.locator('#map-status').isVisible(),false);
   await page.screenshot({path:'artifacts/factory-hyperspace.png'});
   await page.waitForTimeout(1800);
