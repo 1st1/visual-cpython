@@ -37,6 +37,8 @@ function box(parent, x, y, z, w, h, d, color = colors.block) {
     geometry=new THREE.ExtrudeGeometry(shape,{depth:h-2*r,bevelEnabled:true,bevelThickness:r,bevelSize:r,bevelSegments:1,steps:1,curveSegments:1});
     geometry.rotateX(-Math.PI/2);geometry.translate(-w/2,-h/2+r,d/2);
   }else geometry=new THREE.BoxGeometry(w,h,d);
+  // Thin every plate from below, preserving top surfaces and label clearances.
+  geometry.scale(1,.7,1);geometry.translate(0,h*.15,0);
   const material = new THREE.MeshStandardMaterial({ color, roughness: .82, metalness: .12 });
   const mesh = new THREE.Mesh(geometry,material); mesh.position.set(x,y,z); mesh.castShadow=true;mesh.receiveShadow=true;parent.add(mesh);
   const outline = new THREE.LineSegments(new THREE.EdgesGeometry(geometry), new THREE.LineBasicMaterial({ color: colors.rim, transparent: true, opacity: .18 }));
