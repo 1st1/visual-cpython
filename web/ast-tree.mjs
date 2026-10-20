@@ -1,18 +1,41 @@
-// Ordered rooted tree: depth runs top-to-bottom; disjoint leaf intervals separate branches.
+// Pack sibling contours at each depth, preserving ordered parent-child structure.
 export function astTreeLayout(nodes=[]) {
-  if(!nodes.length)return {width:8,depth:4,nodes:[]};
+  if(!nodes.length)return {width:8,depth:4,direction:'TB',nodes:[]};
   const byId=new Map(nodes.map(n=>[n.id,{...n,children:[]}]));
-  for(const n of byId.values()) if(n.parent!==null) byId.get(n.parent)?.children.push(n);
-  let leaf=0,maxDepth=0;const placed=[];
-  function visit(n,depth) {
-    maxDepth=Math.max(maxDepth,depth);
-    const children=n.children.map(c=>visit(c,depth+1));
-    const z=children.length?(children[0]+children.at(-1))/2:leaf++*3;
-    placed.push({id:n.id,x:z,z:depth*2.3,depth});return z;
+  for(const n of byId.values())if(n.parent!==null)byId.get(n.parent)?.children.push(n);
+  const roots=[...byId.values()].filter(n=>n.parent===null);
+  function candidate(direction) {
+    const across=direction==='TB'?3:1.8,along=direction==='TB'?2.3:3.8;
+    function pack(n) {
+      const children=n.children.map(pack),merged=[],offsets=[];
+      for(const child of children) {
+        let shift=0;
+        child.contours.forEach(([left],level)=>{
+          if(merged[level])shift=Math.max(shift,merged[level][1]+across-left);
+        });
+        offsets.push(shift);
+        child.contours.forEach(([left,right],level)=>{
+          merged[level]=merged[level]?[Math.min(merged[level][0],left+shift),Math.max(merged[level][1],right+shift)]:[left+shift,right+shift];
+        });
+      }
+      const center=offsets.length?(offsets[0]+offsets.at(-1))/2:0;
+      const placed=[{id:n.id,cross:0,level:0}];
+      children.forEach((child,i)=>child.nodes.forEach(p=>placed.push({...p,cross:p.cross+offsets[i]-center,level:p.level+1})));
+      return {nodes:placed,contours:[[0,0],...merged.map(([left,right])=>[left-center,right-center])]};
+    }
+    const packed=pack({id:null,children:roots}).nodes.filter(n=>n.id!==null);
+    const placed=packed.map(n=>({id:n.id,depth:n.level-1,
+      x:direction==='TB'?n.cross:(n.level-1)*along,
+      z:direction==='TB'?(n.level-1)*along:n.cross}));
+    const minX=Math.min(...placed.map(n=>n.x)),maxX=Math.max(...placed.map(n=>n.x));
+    const minZ=Math.min(...placed.map(n=>n.z)),maxZ=Math.max(...placed.map(n=>n.z));
+    const width=Math.max(8,maxX-minX+4),depth=Math.max(4,maxZ-minZ+3);
+    return {width,depth,direction,nodes:placed.map(n=>({...n,x:n.x-(minX+maxX)/2,z:n.z-(minZ+maxZ)/2}))};
   }
-  for(const n of byId.values())if(n.parent===null)visit(n,0);
-  const width=Math.max(8,leaf*3+1),depth=maxDepth*2.3+3;
-  return {width,depth,nodes:placed.map(n=>({...n,x:n.x-(leaf-1)*3/2,z:n.z-maxDepth*2.3/2}))};
+  const candidates=[candidate('TB'),candidate('LR')];
+  // Favor a column footprint; keep small trees top-down when similarly compact.
+  const score=t=>Math.max(t.depth,t.width/.8)**2*.8+(t.width*t.depth)*.15;
+  return candidates.reduce((a,b)=>score(b)<score(a)*.9?b:a);
 }
 
 export function tokensForConstruction(event,tokens) {

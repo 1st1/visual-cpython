@@ -18,12 +18,18 @@ export class OpcodeTrail {
           float remaining=pow(max(0.,1.-age),3.);
           float behind=1.-trailUv.x;
           float tail=1.-smoothstep(0.,max(.001,remaining),behind);
+          float tongues=sin(trailUv.x*24.-age*12.+sin(trailUv.y*19.)*2.);
           float across=abs(trailUv.y-.5)*2.;
+          across+=tongues*.10*behind;
+
           float core=1.-smoothstep(.45,.95,across);
           float halo=exp(-across*across*1.5)*(1.-smoothstep(.7,1.,across));
           float alpha=min(.95,core*.8+halo*.4)*tail*(1.-age);
           if(alpha<.002)discard;
-          vec3 color=mix(vec3(.48,.35,.95),vec3(.64,.88,1.),core);
+          float heat=pow(core,2.)*(.65+.35*tail);
+          vec3 color=mix(vec3(.85,.035,.002),vec3(1.,.30,.015),core);
+          color=mix(color,vec3(1.,.85,.38),heat);
+          color=mix(color,vec3(1.,.97,.82),pow(heat,5.));
           gl_FragColor=vec4(color,alpha);
           #include <colorspace_fragment>
         }`

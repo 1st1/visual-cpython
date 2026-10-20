@@ -13,7 +13,7 @@ import { factoryFootprint, sourceFootprint } from './placement.mjs';
 import { stackView } from './stack.mjs';
 import { instructionText, instructionGrid } from './opcodes.mjs';
 
-const colors = { base: 0x151a30, block: 0x25304a, rim: 0x687fa8, active: 0xa4dfff, selected: 0xe7cf89, error: 0xff926b };
+const colors = { base: 0x151a30, block: 0x25304a, rim: 0x687fa8, active: 0xff8a24, selected: 0xe7cf89, error: 0xff926b };
 function release(group) {
   group.traverse(o => {
     o.geometry?.dispose();
@@ -53,14 +53,14 @@ function opcodeTile(parent,width,depth,y,instruction) {
     if(previous===active)return;previous=active;
     const argument=instruction.argrepr || (instruction.arg===null?'':String(instruction.arg));
     const lines=[`@${instruction.offset}`,...instruction.opname.match(/.{1,22}/g),...(argument?[argument]:[])];
-    update(lines.map((text,i)=>({text,color:active?'#0c1730':i===0?'#a2b8db':'#f0f7f1'})),active?'#a4dfff':'#11192c');
+    update(lines.map((text,i)=>({text,color:active?'#291207':i===0?'#a2b8db':'#f0f7f1'})),active?'#ff8a24':'#11192c');
   };
 }
 function sourceTile(parent,width,depth,line,tokens) {
   const update=surfaceText(parent,0,.32,0,width,depth,{background:'#10182b'});let previous;
   return active=>{
     if(previous===active)return;previous=active;
-    update([{size:depth*.22,runs:[{text:String(line).padStart(3)+'  ',color:'#8296b9'},...(tokens || []).map(t=>({text:t.text,color:syntaxColors[t.kind]}))]}],active?'#293d60':'#10182b');
+    update([{size:depth*.22,runs:[{text:String(line).padStart(3)+'  ',color:'#8296b9'},...(tokens || []).map(t=>({text:t.text,color:syntaxColors[t.kind]}))]}],active?'#56301c':'#10182b');
   };
 }
 
@@ -349,11 +349,11 @@ export class Factory {
     for(const [id,node] of this.nodes) {
       const active=id===state?.block, chosen=id===selected;
       const color=active?(state.kind==='exception'||state.kind==='unwind'?colors.error:colors.active):chosen?colors.selected:colors.rim;
-      node.body.material.color.setHex(chosen?0x3c3825:active?0x2c402b:0x18233d);
+      node.body.material.color.setHex(chosen?0x3c3825:active?0x50301e:0x18233d);
       node.body.children[0].material.color.setHex(color);
       for(const tile of node.tiles) {
         const executing=active&&event?.kind==='opcode'&&!terminal&&tile.instruction.offset===event.offset;
-        tile.paint(executing); tile.body.material.color.setHex(executing?0x466d94:colors.block);
+        tile.paint(executing); tile.body.material.color.setHex(executing?0x9a4b1b:colors.block);
         tile.body.children[0].material.color.setHex(executing?colors.active:colors.rim);
       }
     }
@@ -441,10 +441,18 @@ export class Factory {
       const paint=opcodeTile(group,2.4,1.1,.22,{offset:node.id,opname:node.kind,argrepr:[node.label,node.operator].filter(Boolean).join(' · '),arg:null});paint(false);
       this.astTiles.push({node,group,body,paint});
       if(node.parent!==null) {
-        const parent=positions.get(node.parent).clone();parent.z+=.6;parent.y=.22;
-        const end=pos.clone();end.z-=.6;end.y=.22;
-        const middle=(parent.z+end.z)/2;
-        const edge=new THREE.Line(new THREE.BufferGeometry().setFromPoints([parent,new THREE.Vector3(parent.x,.22,middle),new THREE.Vector3(end.x,.22,middle),end]),new THREE.LineBasicMaterial({color:0xa08db6}));
+        const parent=positions.get(node.parent).clone(),end=pos.clone();parent.y=end.y=.22;
+        let points;
+        if(this.astLayout.direction==='LR'){
+          parent.x+=1.25;end.x-=1.25;
+          const middle=(parent.x+end.x)/2;
+          points=[parent,new THREE.Vector3(middle,.22,parent.z),new THREE.Vector3(middle,.22,end.z),end];
+        }else{
+          parent.z+=.6;end.z-=.6;
+          const middle=(parent.z+end.z)/2;
+          points=[parent,new THREE.Vector3(parent.x,.22,middle),new THREE.Vector3(end.x,.22,middle),end];
+        }
+        const edge=new THREE.Line(new THREE.BufferGeometry().setFromPoints(points),new THREE.LineBasicMaterial({color:0xa08db6}));
         this.astGroup.add(edge);this.astEdges.push({edge,parent:node.parent,child:node.id});
       }
     });
@@ -499,7 +507,7 @@ export class Factory {
     for(const [i,tile] of this.parseTokens.entries()) {
       tile.group.visible=final||i<(frame?.tokenCount || 0);
       const active=!final&&(spanTokens.size?spanTokens.has(tile.event):tile.event.cursor===frame?.cursor)&&tile.group.visible;
-      tile.paint(active);tile.body.material.color.setHex(active?0x466d94:0x31404b);
+      tile.paint(active);tile.body.material.color.setHex(active?0x9a4b1b:0x31404b);
     }
     const visible=new Set();
     for(const tile of this.astTiles) {
@@ -548,7 +556,7 @@ export class Factory {
     this.sourceHighlight=signature;
     for(const tile of this.sourceTiles) {
       const active=tile.line===line; tile.paint(active);
-      tile.body.material.color.setHex(active?0x466d94:0x293947);
+      tile.body.material.color.setHex(active?0x9a4b1b:0x293947);
     }
     const source=this.sourceTiles.find(t=>t.line===line);
     this.host.dataset.activeSource=source?String(line):'';

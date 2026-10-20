@@ -26,15 +26,16 @@ try {
     scene.add(mesh);
     const camera=new THREE.PerspectiveCamera(38,1.6,.1,2000),results=[];
     const read=()=>{renderer.render(scene,camera);const data=new Uint8Array(800*500*4);renderer.readRenderTargetPixels(target,0,0,800,500,data);return data;};
-    for(const distance of [20,100,400])for(const elevation of [.15,.4,1.3])for(const pan of [-.2,0,.2]){
+    for(const header of [false,true])for(const distance of [20,100,400])for(const elevation of [.15,.4,1.3])for(const pan of [-.2,0,.2]){
       camera.position.set(.3,Math.sin(elevation),Math.cos(elevation)).normalize().multiplyScalar(distance);
       camera.lookAt(0,0,0);camera.position.x+=pan;camera.zoom=distance/12;camera.updateProjectionMatrix();camera.updateMatrixWorld();
       for(const active of [0,1]){
+        uniforms.gridStart.value=header?-.2:-18.2;
         uniforms.activation.value.fill(active);uniforms.time.value=9;
         mesh.visible=false;const background=read();mesh.visible=true;const actual=read();
         let samples=0,missing=0;
         for(let z=-3;z<=3;z+=.05){
-          const point=new THREE.Vector3(0,.04,z).project(camera);
+          const point=(header?new THREE.Vector3(z,.04,-.2):new THREE.Vector3(0,.04,z)).project(camera);
           const x=Math.round((point.x+1)*400),y=Math.round((point.y+1)*250);
           if(x<3||x>796||y<3||y>496)continue;
           samples++;let contrast=0;
@@ -44,7 +45,7 @@ try {
           }
           if(contrast<5)missing++;
         }
-        results.push({distance,elevation,pan,active,samples,missing});
+        results.push({header,distance,elevation,pan,active,samples,missing});
       }
     }
     renderer.setRenderTarget(null);renderer.render(scene,camera);
@@ -53,5 +54,5 @@ try {
   assert.deepEqual(errors,[]);
   for(const result of results){assert.ok(result.samples>50);assert.equal(result.missing,0,JSON.stringify(result));}
   await page.screenshot({path:'artifacts/grid-continuity.png'});
-  console.log('PASS grid continuity: 54 distance/elevation/pan/activity combinations');
+  console.log('PASS grid continuity: 108 grid/header distance/elevation/pan/activity combinations');
 } finally {await browser.close();}

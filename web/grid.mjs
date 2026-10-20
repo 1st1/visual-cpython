@@ -23,16 +23,18 @@ export function createGrid(e,lanes) {
               // Feather internal lane boundaries across three complete grid edges.
               float left=bounds[i].x<=deckEdges.x+.001?1.:smoothstep(0.,3.,point.x-bounds[i].x);
               float right=bounds[i].x+bounds[i].z>=deckEdges.y-.001?1.:smoothstep(0.,3.,bounds[i].x+bounds[i].z-point.x);
-              color+=mix(vec3(.16,.38,.65),vec3(.35,.75,1.),ripple)*activation[i]*left*right*(.30*ripple);
+              color+=mix(vec3(.16,.38,.65),vec3(.35,.75,1.),ripple)*activation[i]*left*right*(.15*ripple);
             }
           }
           return color;
         }
         void main(){
-          if(ground.y<gridStart)discard;
           vec2 pixel=max(fwidth(ground),vec2(.00001));
           vec2 distanceToLine=abs(fract(ground+.5)-.5)/pixel;
           vec2 coverage=1.-smoothstep(vec2(.35),vec2(1.25),distanceToLine);
+          // Clip grid segments by coverage, not fragments: keep the full separator stroke.
+          coverage.x*=smoothstep(-.5,.5,(ground.y-gridStart)/pixel.y);
+          coverage.y*=step(gridStart+.0001,floor(ground.y+.5));
           float border=1.-smoothstep(.35,1.25,abs(ground.y-gridStart)/pixel.y);
           float alpha=max(max(coverage.x,coverage.y),border);
           if(alpha<.001)discard;

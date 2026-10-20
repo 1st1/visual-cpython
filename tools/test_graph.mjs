@@ -28,9 +28,15 @@ for (const [name, source, output] of cases) {
   const trace = JSON.parse(result.stdout);
   assert.equal(trace.stdout, output, trace.error);
   const tree=astTreeLayout(trace.parsing?.ast);
+  assert.deepEqual(tree,astTreeLayout(trace.parsing?.ast),'AST packing is deterministic');
+  if(name==='shortest path'){
+    const parents=new Set(trace.parsing.ast.map(n=>n.parent));
+    const oldWidth=trace.parsing.ast.filter(n=>!parents.has(n.id)).length*3+1;
+    assert.ok(tree.width<oldWidth/2,'Broad AST uses the column height instead of spreading across every leaf');
+  }
   for(const node of trace.parsing?.ast || []) {
     const placed=tree.nodes.find(n=>n.id===node.id);
-    if(node.parent!==null) assert.ok(placed.z>tree.nodes.find(n=>n.id===node.parent).z);
+    if(node.parent!==null) assert.ok(tree.direction==='LR'?placed.x>tree.nodes.find(n=>n.id===node.parent).x:placed.z>tree.nodes.find(n=>n.id===node.parent).z);
   }
   for(let i=0;i<tree.nodes.length;i++) for(let j=i+1;j<tree.nodes.length;j++) {
     const a=tree.nodes[i],b=tree.nodes[j];assert.ok(Math.abs(a.x-b.x)>=2.5 || Math.abs(a.z-b.z)>=1.2);
