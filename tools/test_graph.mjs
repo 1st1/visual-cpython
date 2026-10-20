@@ -1,3 +1,4 @@
+import {TileRouter} from '../web/tile-routing.mjs';
 import {astTreeLayout} from '../web/ast-tree.mjs';
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
@@ -85,6 +86,42 @@ for (const [name, source, output] of cases) {
       for(let i=0;i<grid.tiles.length;i++) for(let j=i+1;j<grid.tiles.length;j++) {
         const a=grid.tiles[i],b=grid.tiles[j];
         assert.ok(Math.abs(a.x-b.x)>=(a.width+b.width)/2 || Math.abs(a.y-b.y)>=(a.height+b.height)/2);
+      }
+    }
+    // @lat: [[scene#Isometric factory scene#Obstacle-aware opcode routing]]
+    const routedBlocks=new Map(geometry.nodes.map(placed=>{
+      const block=graph.blocks.find(b=>b.id===placed.id);
+      return [placed.id,instructionGrid(block.instructions,winner.options.compact,winner.options.tileAspect).tiles.map(t=>({x:placed.x+t.x,z:placed.y+t.y,width:t.width,depth:t.height}))];
+    }));
+    const obstacles=[...routedBlocks.values()].flat(),router=new TileRouter(obstacles);
+    for(const tiles of routedBlocks.values())for(let i=1;i<tiles.length;i++){
+      const a=tiles[i-1],b=tiles[i],dx=Math.sign(b.x-a.x),dz=Math.sign(b.z-a.z);
+      router.reserve([[a.x+dx*a.width/2,a.z+dz*a.depth/2],[b.x-dx*b.width/2,b.z-dz*b.depth/2]]);
+    }
+    for(const edge of geometry.edges){
+      const occupied=[...router.reserved];
+      const source=routedBlocks.get(edge.source).at(-1),target=routedBlocks.get(edge.target)[0];
+      const points=router.route(source,target);
+      assert.ok(points.length>=2);
+      for(const [p,t] of [[points[0],source],[points.at(-1),target]]){
+        const x=Math.abs(p[0]-t.x),z=Math.abs(p[1]-t.z);
+        assert.ok(x<=t.width/2+1e-5&&z<=t.depth/2+1e-5);
+        assert.ok(Math.abs(x-t.width/2)<1e-5||Math.abs(z-t.depth/2)<1e-5,'Route touches a tile face');
+      }
+      for(let i=1;i<points.length;i++){
+        const a=points[i-1],b=points[i];
+        assert.ok(Math.abs(a[0]-b[0])<1e-5||Math.abs(a[1]-b[1])<1e-5,'Routes are orthogonal');
+        const axis=Math.abs(a[0]-b[0])>1e-5?0:1;
+        for(const r of occupied)if(r.axis===axis&&Math.min(Math.max(a[axis],b[axis]),r.max)-Math.max(Math.min(a[axis],b[axis]),r.min)>1e-5)
+          assert.ok(Math.abs(a[1-axis]-r.constant)>=.22-1e-5,`${name}: parallel routes keep their separation`);
+        for(const tile of obstacles){
+          const pad=tile===source&&i===1||tile===target&&i===points.length-1?0:.12;
+          const l=tile.x-tile.width/2-pad,r=tile.x+tile.width/2+pad,t=tile.z-tile.depth/2-pad,d=tile.z+tile.depth/2+pad;
+          const crosses=Math.abs(a[0]-b[0])<1e-5
+            ? a[0]>l+1e-5&&a[0]<r-1e-5&&Math.max(a[1],b[1])>t+1e-5&&Math.min(a[1],b[1])<d-1e-5
+            : a[1]>t+1e-5&&a[1]<d-1e-5&&Math.max(a[0],b[0])>l+1e-5&&Math.min(a[0],b[0])<r-1e-5;
+          assert.ok(!crosses,`${name}: ${edge.id} clears every opcode box`);
+        }
       }
     }
     assert.equal(geometry.nodes.length, graph.blocks.length);

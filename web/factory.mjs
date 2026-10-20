@@ -5,6 +5,7 @@ import {pipelineChevrons} from './pipeline-chevrons.mjs';
 import {createGrid} from './grid.mjs';
 import {OpcodeTrail} from './opcode-trail.mjs';
 import {connector} from './connector.mjs';
+import {TileRouter} from './tile-routing.mjs';
 import {surfaceText,measureSurfaceText,textAtlasStats,disposeTextAtlas} from './text-atlas.mjs';
 import {Starfield} from './starfield.mjs';
 import {syntaxLines,syntaxColors} from './python-syntax.mjs';
@@ -284,12 +285,6 @@ export class Factory {
       label(group,0,.17,-enclosure.height/2+.35,enclosure.width-.4,.5,[codeObjectTitle(code)]);
       this.codeEnclosures.push({code:enclosure.id,body,group});
     }
-    for(const route of layout?.edges || []) {
-      const color=route.kind==='call'?0x9b77c9:route.kind==='taken'?0xc276a3:0x649cae;
-      const edge=connector(route.points,color,{dashed:route.kind==='call'});
-      this.world.add(edge.line,edge.arrow);
-      this.edges.set(route.id,{...edge,source:route.source,target:route.target});
-    }
     this.instructionTiles=new Map();
     for(const placed of layout?.nodes || []) {
       const block=graph.blocks.find(b=>b.id===placed.id);
@@ -307,10 +302,25 @@ export class Factory {
       for(let i=1;i<tiles.length;i++) {
         const a=tiles[i-1],b=tiles[i],direction=new THREE.Vector3(b.x-a.x,0,b.y-a.y).normalize();
         const length=Math.hypot(b.x-a.x,b.y-a.y),edge=Math.abs(direction.x)>.5?a.width/2:a.height/2;
-        const start=new THREE.Vector3(a.x,.32,a.y).addScaledVector(direction,edge);
+        const start=new THREE.Vector3(a.x,.54,a.y).addScaledVector(direction,edge);
         const arrow=new THREE.ArrowHelper(direction,start,Math.max(.01,length-2*edge),0x649cae,.12,.1);group.add(arrow);arrows.push({arrow,from:a,to:b});
       }
       this.nodes.set(block.id,{group,height:.3,tiles,arrows});
+    }
+    const footprints=new Map([...this.instructionTiles.values()].map(tile=>[tile,{x:tile.position.x,z:tile.position.z,width:tile.width,depth:tile.height}]));
+    const router=footprints.size?new TileRouter([...footprints.values()]):null;
+    for(const node of this.nodes.values())for(const {from,to} of node.arrows){
+      const dx=Math.sign(to.position.x-from.position.x),dz=Math.sign(to.position.z-from.position.z);
+      router.reserve([[from.position.x+dx*from.width/2,from.position.z+dz*from.height/2],
+        [to.position.x-dx*to.width/2,to.position.z-dz*to.height/2]]);
+    }
+    for(const route of layout?.edges || []) {
+      const source=this.nodes.get(route.source).tiles.at(-1),target=this.nodes.get(route.target).tiles[0];
+      const points=router.route(footprints.get(source),footprints.get(target));
+      const color=route.kind==='call'?0x9b77c9:route.kind==='taken'?0xc276a3:0x649cae;
+      const edge=connector(points,color,{dashed:route.kind==='call',height:.54});
+      this.world.add(edge.line,edge.arrow);
+      this.edges.set(route.id,{...edge,source:route.source,target:route.target});
     }
     this.pulse=new THREE.Mesh(new THREE.SphereGeometry(.085,8,6),new THREE.MeshBasicMaterial({color:colors.active})); this.world.add(this.pulse); this.pulse.visible=false;
     this.host.dataset.opcodeTiles=String(this.instructionTiles.size);
