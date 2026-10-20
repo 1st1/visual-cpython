@@ -39,7 +39,8 @@ try {
   await capture('a=2\nb=3\nc=a+b\nprint(c)');
   let foundAddition = false;
   for (let i = 0; i < 30; i++) {
-    if ((await page.locator('#instructions .active').textContent())?.includes('BINARY_OP')) {
+    const stack = await page.locator('#stack').textContent();
+    if (stack.includes('int: "2"') && stack.includes('int: "3"')) {
       foundAddition = true;
       break;
     }

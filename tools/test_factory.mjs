@@ -139,10 +139,10 @@ try {
   await page.locator('#seek').fill('0');await page.locator('#seek').dispatchEvent('input');
 
   for(let i=0;i<30;i++) {
-    if((await page.locator('#instructions .active').textContent()).includes('BINARY_OP')) break;
+    if((await page.locator('.opcode-list .current').allTextContents()).some(text=>text.includes('BINARY_OP'))) break;
     await page.locator('#next').click();
   }
-  assert.equal(Number(await page.locator('#factory').getAttribute('data-opcode-tiles')),await page.locator('#instructions .instruction').count());
+  assert.equal(await page.locator('#instructions').count(),0);
   assert.equal(await page.locator('#factory').getAttribute('data-active-source'),'3');
   const pipeline=JSON.parse(await page.locator('#factory').getAttribute('data-pipeline'));
   assert.ok(pipeline.source<pipeline.tokens&&pipeline.tokens<pipeline.ast&&pipeline.ast<pipeline.opcodes);

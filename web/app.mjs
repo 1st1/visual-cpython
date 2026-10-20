@@ -3,7 +3,6 @@ import {paintPython} from './python-syntax.mjs';
 import { extractGraph, projectReplay } from './graph.mjs';
 import { ParsingReplay } from './parsing.mjs';
 import { Factory } from './factory.mjs';
-import { instructionText } from './opcodes.mjs';
 const $ = id => document.getElementById(id);
 const examples = {
   accumulate: "def accumulate(n, step):\n    total = 0\n    for i in range(n):\n        total = total + step\n    return total\n\nprint(accumulate(8, 1))",
@@ -152,7 +151,7 @@ function render() {
   $('counter').textContent = count ? `${Math.min(index + 1, count)} / ${count}${index === count ? ' · end' : ''}` : 'No recording';
   const event = recording?.events[Math.min(index, count - 1)];
   if (!event) {
-    for (const id of ['source-view', 'instructions', 'locals', 'stack', 'stdout']) $(id).replaceChildren();
+    for (const id of ['source-view', 'locals', 'stack', 'stdout']) $(id).replaceChildren();
     $('stdout').textContent = recording?.stdout || '';
     $('event').textContent = 'Run a program to inspect its execution.';
     return;
@@ -168,12 +167,6 @@ function render() {
     button.setAttribute('aria-label',`Line ${i+1}: ${line}`);
     button.onclick=()=>seekSourceLine(i+1);paintPython(button,`${String(i+1).padStart(2)}  ${line}`);return button;
   }));
-  $('instructions').replaceChildren(...code.instructions.map(ins => {
-    const div = document.createElement('div'); div.className = 'instruction' + (ins.offset === event.offset ? ' active' : '');
-    div.textContent = instructionText(ins); return div;
-  }));
-  const activeInstruction = $('instructions').querySelector('.active');
-  if (activeInstruction) $('instructions').scrollTop += activeInstruction.getBoundingClientRect().top - $('instructions').getBoundingClientRect().top - 70;
   rows($('locals'), Object.entries(event.locals).map(([name, value]) => `${name} → ${describe(value)}`));
   rows($('stack'), event.stack ? [...event.stack].reverse().map(v => v.kind === 'object' ? describe(v.value) : v.kind === 'null' ? 'NULL · internal call sentinel' : `tagged integer: ${v.value}`) : ['Stack sampled at opcode events only']);
   $('stdout').textContent = index === count ? recording.stdout : event.stdout;
