@@ -3,7 +3,7 @@ import { normalizeLayout } from './layout.mjs';
 
 export function factoryFootprint(layout) {
   const width=Math.max(layout?.bounds.width || 8,8), depth=Math.max(layout?.bounds.height || 8,8);
-  return { width, depth, serviceX:-width/2-2.8, stackX:width/2+5.2, stackZ:0,
+  return { width, depth, serviceX:-width/2-2.8,
     minX:-width/2-5.2, maxX:width/2+1, minZ:-depth/2-3.2, maxZ:depth/2+1 };
 }
 

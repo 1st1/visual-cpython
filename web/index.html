@@ -35,13 +35,14 @@
   </section>
   <section class="replay panel" id="inspector-panel" hidden>
     <div class="inspector-main">
-    <div class="title"><h2>Execution</h2><span id="counter" class="badge">No recording</span></div>
+    <div class="title"><h2>Inspector</h2><span id="counter" class="badge">No recording</span></div>
     <div class="block-controls"><label for="block-select">Inspect block</label><select id="block-select"><option value="">Select a building or block…</option></select><button id="focus-block">Focus opcode</button><button id="visit-block" disabled>Next recorded visit</button></div>
     <div id="frames" class="note"></div>
-    <pre id="block-detail">Select a block to inspect its instructions.</pre>
-    <p class="note">Graphviz routing baseline. Crossings are not junctions; clearance and bridge routing are not validated yet. Exceptions unwind through the frame display.</p>
+    <div id="opcode-inspector"></div>
+    <details><summary>Block details</summary><pre id="block-detail">Select a block to inspect its instructions.</pre></details>
     <div id="event" class="event">Run a program to inspect its execution.</div>
-    <div class="inspect"><div><h3>Source position</h3><pre id="source-view"></pre></div><div><h3>Instructions</h3><div id="instructions" class="instructions"></div></div></div>
+    <div><h3>Source position</h3><pre id="source-view"></pre></div>
+    <details><summary>Code object instructions</summary><div id="instructions" class="instructions"></div></details>
     </div>
     <div class="inspect inspector-values"><div><h3>Locals</h3><div id="locals" class="values" tabindex="0" aria-label="Local variables"></div></div><div><h3>Operand stack <small>top first</small></h3><div id="stack" class="values" tabindex="0" aria-label="Operand stack"></div></div></div>
     <div class="inspector-output"><h3>Program output</h3><pre id="stdout" class="output" tabindex="0" aria-label="Program output"></pre></div>

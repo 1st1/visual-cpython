@@ -43,6 +43,8 @@ try {
   await page.goto(process.env.FACTORY_URL || 'http://127.0.0.1:8000');
   await page.waitForFunction(()=>document.querySelector('#factory').dataset.rendered==='true');
   assert.equal(await page.locator('#factory > canvas').count(),1);
+  assert.equal(await page.locator('#factory .opcode-panel').count(),0);
+  assert.equal(await page.locator('#inspector-panel .opcode-panel').count(),1);
   assert.equal(await page.locator('header, .camera-controls, #view-map, #finish-build, #show-opcodes, #focus-source, #focus-stack').count(),0);
   assert.equal(await page.locator('#run').textContent(),'Compile');
   assert.equal(await page.locator('.minimap #camera-iso, .minimap #camera-top, .minimap #zoom-fit').count(),3);
@@ -148,22 +150,22 @@ try {
   assert.ok(Number(await page.locator('#factory').getAttribute('data-active-ast'))>0);
   const links=JSON.parse(await page.locator('#factory').getAttribute('data-pipeline-links'));
   assert.deepEqual(links,{sourceToken:0,tokenAst:0,astOpcode:0},'Execution highlights artifacts without compilation correspondence links');
-  const beforeStack=JSON.parse(await page.locator('#factory').getAttribute('data-stack'));
+  const beforeStack=await page.locator('#stack .value').allTextContents();
   assert.match(await page.locator('.opcode-list .current').textContent(),/BINARY_OP\s+\+/);
   const opcode=await page.locator('.opcode-list .current').getAttribute('data-offset');
   assert.equal(await page.locator('#factory').getAttribute('data-active-opcode'),`c0:${opcode}`);
-  assert.deepEqual(beforeStack.slots.map(s=>s.text.split(' · ')[0]),['int 2','int 3']);
+  assert.deepEqual(beforeStack.map(s=>s.split(' · ')[0]),['int: \"3\"','int: \"2\"']);
   await page.screenshot({path:'artifacts/factory-stack.png',fullPage:true});
   await page.locator('#next').click();
   assert.match(await page.locator('.opcode-list .current').textContent(),/STORE_NAME\s+c/);
   await page.waitForFunction(()=>document.querySelector('#factory').dataset.opcodeTrail==='true');
   await page.waitForFunction(()=>document.querySelector('#factory').dataset.opcodeTrail==='false');
-  const afterStack=JSON.parse(await page.locator('#factory').getAttribute('data-stack'));
-  assert.equal(afterStack.slots.length,1); assert.match(afterStack.slots[0].text,/int 5/);
+  const afterStack=await page.locator('#stack .value').allTextContents();
+  assert.equal(afterStack.length,1); assert.match(afterStack[0],/int: \"5\"/);
   await page.locator('#back').click();
-  assert.deepEqual(JSON.parse(await page.locator('#factory').getAttribute('data-stack')),beforeStack);
+  assert.deepEqual(await page.locator('#stack .value').allTextContents(),beforeStack);
   await page.locator('#seek').fill('0');await page.locator('#seek').dispatchEvent('input');
-  assert.equal(JSON.parse(await page.locator('#factory').getAttribute('data-stack')).sampled,false);
+  assert.match(await page.locator('#stack').textContent(),/sampled at opcode events only/);
   await page.locator('#example').selectOption('asyncio');
   await page.waitForFunction(()=>document.querySelector('#source').value.includes('async def odds()'));
   await capture(await page.locator('#source').inputValue());
@@ -172,23 +174,20 @@ try {
   await capture('print(None)');
   let sentinels=false;
   for(let i=0;i<15;i++) {
-    const s=JSON.parse(await page.locator('#factory').getAttribute('data-stack'));
-    if(s.slots.some(v=>v.kind==='null')&&s.slots.some(v=>v.text.includes('NoneType None'))) {sentinels=true;break;}
+    const s=await page.locator('#stack .value').allTextContents();
+    if(s.some(v=>v.includes('NULL · internal call sentinel'))&&s.some(v=>v.includes('NoneType: null'))) {sentinels=true;break;}
     if(await page.locator('#next').isDisabled()) break;
     await page.locator('#next').click();
   }
-  assert.ok(sentinels,'3D stack distinguishes internal NULL from Python None');
+  assert.ok(sentinels,'Inspector stack distinguishes internal NULL from Python None');
   await capture('print(0,1,2,3,4,5,6,7,8,9)');
   let overflow;
   for(let i=0;i<30;i++) {
-    const s=JSON.parse(await page.locator('#factory').getAttribute('data-stack'));
-    if(s.total>8) {overflow=s;break;}
+    const s=await page.locator('#stack .value').allTextContents();
+    if(s.length>8) {overflow=s;break;}
     await page.locator('#next').click();
   }
-  assert.ok(overflow); assert.equal(overflow.slots.length,8);
-  assert.equal(overflow.hidden+overflow.slots.length,overflow.total);
-  assert.equal(overflow.slots[0].index,overflow.hidden);
-  assert.equal(overflow.slots.at(-1).index,overflow.total-1);
+  assert.ok(overflow);assert.ok(overflow.length>8,'Inspector retains the full captured stack without an eight-slot rack limit');
   await capture('def accumulate(n):\n total=0\n for i in range(n):\n  total=total+i\n return total\nprint(accumulate(4))');
   assert.ok(Number(await page.locator('#factory').getAttribute('data-blocks'))>5);
   await page.waitForFunction(()=>document.querySelector('#factory').dataset.phase==='replay',null,{timeout:60000});
@@ -215,7 +214,8 @@ try {
   await page.locator('#toggle-inspector').click();
   await page.mouse.click(800,550);
   assert.equal(await page.locator('#factory').getAttribute('data-selected-block'),option,'Raycast selects the focused tile without floating labels');
-  await page.locator('#zoom-in').click(); await page.locator('#toggle-inspector').click(); await page.locator('#focus-block').click(); await page.locator('#toggle-inspector').click();
+  assert.equal(await page.locator('#inspector-panel').isVisible(),true,'Selecting a scene tile opens its Inspector');
+  await page.locator('#zoom-in').click(); await page.locator('#focus-block').click(); await page.locator('#toggle-inspector').click();
   await page.locator('#camera-iso').click();
   const canvas=await page.locator('#factory > canvas').boundingBox();
   await page.mouse.move(canvas.x+canvas.width*.5,canvas.y+canvas.height*.5);
@@ -234,11 +234,12 @@ try {
   if(await page.locator('#state').textContent()==='compiled')await runCapture();
   assert.equal(await page.locator('#state').textContent(),'completed');
   assert.doesNotMatch(await page.locator('#map-status').textContent(),/warnings/);
-  const instruction=page.locator('.opcode-list button:not(:disabled)').first();
+  await page.locator('#toggle-inspector').click();
+  const instruction=page.locator('#inspector-panel .opcode-list button:not(:disabled)').first();
   const targetOffset=await instruction.getAttribute('data-offset');
   await instruction.click();
   assert.equal(await page.locator('.opcode-list .current').getAttribute('data-offset'),targetOffset);
-  await page.locator('#toggle-inspector').click(); await page.locator('#focus-block').click(); await page.locator('#toggle-inspector').click();
+  await page.locator('#focus-block').click(); await page.locator('#toggle-inspector').click();
   await page.screenshot({path:'artifacts/factory-opcodes.png',fullPage:true});
   await page.locator('#camera-iso').click();
   await page.locator('#toggle-editor').click();

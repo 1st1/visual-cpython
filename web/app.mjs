@@ -245,7 +245,7 @@ function renderMapState() {
   } else $('block-detail').textContent='';
 }
 
-function selectBlock(id) { selectedBlock=id; $('block-select').value=id; renderMapState(); }
+function selectBlock(id) { if(id){$('inspector-panel').hidden=false;$('toggle-inspector').setAttribute('aria-expanded','true');} selectedBlock=id; $('block-select').value=id; renderMapState(); }
 function changeView(mode) {
   if(mode==='map'&&parsingMode) showExecution();
   viewMode=mode; $('factory').hidden=mode!=='3d'; $('map').hidden=mode!=='map'; $('scene-hint').hidden=mode!=='3d';

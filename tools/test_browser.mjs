@@ -62,7 +62,7 @@ try {
   await page.locator('#map .node').first().click();
   await page.locator('#toggle-editor').click();
   assert.match(await page.locator('#block-detail').textContent(), /RESUME/);
-  await page.locator('#toggle-inspector').click();
+  assert.equal(await page.locator('#inspector-panel').isVisible(),true);
   await page.locator('#visit-block').click();
   await page.locator('#toggle-inspector').click();
   assert.equal(await page.locator('#map .selected').getAttribute('id'), await page.locator('#map .executing').getAttribute('id'));

@@ -15,7 +15,6 @@ import {astTreeLayout,tokensForConstruction,instructionAst} from './ast-tree.mjs
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { factoryFootprint, sourceFootprint } from './placement.mjs';
-import { stackView } from './stack.mjs';
 import { instructionText, instructionGrid } from './opcodes.mjs';
 
 const SOURCE_FONT_SIZE=1.0125*.28;
@@ -88,7 +87,7 @@ export class Factory {
     this.onInstruction=onInstruction;
     this.opcodePanel=document.createElement('section'); this.opcodePanel.className='opcode-panel';
     this.opcodePanel.innerHTML='<div class="opcode-heading"><strong>Opcodes</strong><button type="button">Follow execution</button></div><div class="opcode-caption"></div><div class="opcode-list"></div>';
-    host.append(this.opcodePanel);
+    document.getElementById('opcode-inspector').append(this.opcodePanel);
     this.opcodePanel.querySelector('button').onclick=()=>this.onSelect('');
     this.camera=new THREE.PerspectiveCamera(38,1,.1,2000);
     this.controls=new OrbitControls(this.camera,this.renderer.domElement);
@@ -196,7 +195,6 @@ export class Factory {
       if(this.ghosts)this.host.dataset.ghostCount=String(this.ghosts.children.length);
       this.opcodeTrail.update(now,this.reduced.matches);
       host.dataset.opcodeTrail=String(this.opcodeTrail.mesh.visible);
-      if(this.stackGroup)this.stackGroup.visible=this.stackHasOperands&&this.host.dataset.phase==='replay'&&!this.starfield.capturing;
       this.updateLaneActivity(now);
       this.updatePipelineArrows(now);
       this.starfield.render(this.renderer);
@@ -256,17 +254,6 @@ export class Factory {
     });
     this.activeStage=null;this.displayStage=null;this.replayStage=layout?0:1;this.setActiveStage(this.replayStage);
 
-    this.stackOrigin=new THREE.Vector3(footprint.stackX,0,footprint.stackZ);
-    this.stackGroup=new THREE.Group(); this.stackGroup.position.copy(this.stackOrigin); this.world.add(this.stackGroup);
-    // Flat, top-first operand column running alongside the deck edge.
-    this.stackPaint=label(this.stackGroup,0,.12,-5.8,5,.65,['OPERAND STACK'],'#65d4df');
-    this.stackSlots=Array.from({length:8},(_,i)=>{
-      const group=new THREE.Group(); group.position.set(0,.22,-4.5+i*1.35); this.stackGroup.add(group);
-      const tile=box(group,0,0,0,5,.28,1.15,0x24203c);
-      const paint=label(group,0,.15,0,4.8,1.05,[''],'#65d4df');
-      group.visible=false; return {group,tile,paint};
-    });
-    this.stackGroup.visible=false;this.stackHasOperands=false;
     this.sourceTiles=[];this.sourceHighlight=null;
     this.sourceLines.forEach((text,i)=>{
       const group=new THREE.Group(); group.position.set(this.sourceOrigin.x-sourceWidth/2+.6+this.sourceTileWidth/2+Math.floor(i/rows)*this.sourceColumnPitch,0,-sourceDepth/2+1.2+(i%rows)*1.15);this.world.add(group);
@@ -392,22 +379,9 @@ export class Factory {
       for(const child of edge.line.children) child.material.color.setHex(color);
     }
     this.host.dataset.activeBlock=state?.block || ''; this.host.dataset.selectedBlock=selected || '';
-    const stack=stackView(event);
-    this.host.dataset.stack=JSON.stringify(stack);
-    this.stackHasOperands=event?.kind==='opcode'&&!terminal&&stack.slots.length>0;
-    this.stackGroup.visible=this.stackHasOperands&&this.host.dataset.phase==='replay'&&!this.starfield.capturing;
-    this.stackSlots.forEach((slot,i)=>{
-      const value=stack.slots[stack.slots.length-1-i]; slot.group.visible=Boolean(value);
-      if(!value) return;
-      const top=i===0;
-      slot.tile.material.color.setHex(value.kind==='null'?0x393443:top?0x495566:0x24203c);
-      slot.tile.children[0].material.color.setHex(top?colors.active:colors.rim);
-      slot.paint([top?'TOP · #'+value.index:'#'+value.index,value.text]);
-    });
-    this.stackPaint([stack.hidden?`+${stack.hidden} lower slots hidden`:'OPERAND STACK']);
     this.currentOpcode=event?.kind==='opcode'?`${event.code}:${event.offset}`:null;
     this.host.dataset.activeOpcode=event?.kind==='opcode'&&!terminal?`${event.code}:${event.offset}`:'';
-    this.updateOpcodePanel(selected || state?.block,event,terminal,Boolean(selected));
+    this.updateOpcodePanel(selected || state?.block || this.graph?.blocks[0]?.id,event,terminal,Boolean(selected));
     if(terminal||!event||event.seq<this.lastSeq){this.opcodeTrail.clear();this.previousOpcodeTile=null;}
     if(event?.seq!==this.lastSeq) {
       const nextTile=!terminal&&event?.kind==='opcode'?this.instructionTiles.get(`${event.code}:${event.offset}`):null;
@@ -593,7 +567,6 @@ export class Factory {
         this.flightStart=performance.now();
       }
     }
-    this.stackGroup.visible=false;this.stackHasOperands=false;
     this.host.dataset.astVisible=String(this.astGroup.visible);
     this.host.dataset.parseCursor=String(frame?.cursor ?? 0);
     this.host.dataset.visibleTokens=String(final?this.parseTokens.length:frame?.tokenCount || 0);
@@ -728,9 +701,6 @@ export class Factory {
     const e=this.extent,center=this.mapCenter(),rotation=this.camera.quaternion.clone().invert();
     const points=[];
     for(const x of [e.minX,e.maxX]) for(const z of [e.minZ,e.maxZ]) for(const y of [0,1.6]) points.push(new THREE.Vector3(x,y,z));
-    // Reserve the full flat column even when empty so replay never changes framing.
-    if(!e.sourceOnly) for(const x of [-2.6,2.6]) for(const z of [-6.8,5.7]) for(const y of [0,.7])
-      points.push(this.stackOrigin.clone().add(new THREE.Vector3(x,y,z)));
     const tan=Math.tan(THREE.MathUtils.degToRad(this.camera.fov/2));
     const aspect=(this.host.clientWidth||900)/(this.host.clientHeight||600);
     let distance=1;
@@ -741,11 +711,6 @@ export class Factory {
     return distance*2*tan*1.12;
   }
   zoom(factor) { this.camera.zoom=THREE.MathUtils.clamp(this.camera.zoom*factor,.3,12); this.camera.updateProjectionMatrix(); }
-  focusStack() {
-    const target=this.stackOrigin.clone().add(new THREE.Vector3(0,0,-.5));
-    this.camera.position.copy(target).add(new THREE.Vector3(1,12,5)); this.controls.target.copy(target);
-    this.viewSize=16;this.camera.zoom=1;this.updateProjection(); this.controls.update();
-  }
   focus(id) {
     const node=this.nodes.get(id); if(!node) return;
     const tile=node.tiles.find(t=>`${this.graph.blocks.find(b=>b.id===id).code}:${t.instruction.offset}`===this.currentOpcode) || node.tiles[0];
