@@ -2,7 +2,7 @@ import * as THREE from 'three';
 
 // A transparent strip of antialiased fixed chevrons with a traveling highlight.
 export function pipelineChevrons(from,to) {
-  const length=Math.max(.2,to-from),width=1.55;
+  const gap=to-from,length=Math.max(.2,Math.min(2.2,gap-.6)),width=1.55;
   const material=new THREE.ShaderMaterial({
     transparent:true,depthWrite:false,side:THREE.DoubleSide,
     uniforms:{time:{value:0},length:{value:length},color:{value:new THREE.Color(0xe8bc4e)}},
@@ -12,7 +12,7 @@ export function pipelineChevrons(from,to) {
       void main(){
         float x=vUv.x*length;
         float y=abs(vUv.y-.5)*2.;
-        float phase=(vUv.x+y*.22-.30)/.30;
+        float phase=(vUv.x+y*.22-.31)/.30;
         float index=floor(phase+.5);
         if(index<0.||index>2.)discard;
         float distance=abs(fract(phase+.5)-.5)*length*.30;
@@ -29,7 +29,7 @@ export function pipelineChevrons(from,to) {
       }`,
   });
   const mesh=new THREE.Mesh(new THREE.PlaneGeometry(length,width),material);
-  mesh.rotation.x=-Math.PI/2;mesh.position.set(from+length/2,.12,0);
+  mesh.rotation.x=-Math.PI/2;mesh.position.set((from+to)/2,.12,0);
   mesh.visible=false;
   return mesh;
 }

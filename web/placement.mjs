@@ -13,7 +13,9 @@ export function sourceFootprint(layout,lineCount=1,pipeline={}) {
   const sourceWidth=columns*sourceColumnPitch+.6,sourceDepth=rows*1.15+1.6;
   const tokenDepth=Math.max(4,Math.ceil((pipeline.tokenCount || 0)/4)*1.2+2);
   const astDepth=pipeline.astDepth || 4,astWidth=pipeline.astWidth || 8;
-  const astX=f.minX-2-astWidth/2,tokenX=astX-astWidth/2-9,sourceX=tokenX-9-sourceWidth/2;
+  // Leave 1.6 world units either side of the 2.2-unit chevron strip.
+  const pipelineGap=5.4;
+  const astX=-f.width/2-pipelineGap-astWidth/2,tokenX=astX-astWidth/2-pipelineGap-7,sourceX=tokenX-7-pipelineGap-sourceWidth/2;
   const minZ=Math.min(f.minZ,-Math.max(sourceDepth,tokenDepth,astDepth)/2-3);
   const maxZ=Math.max(f.maxZ,Math.max(sourceDepth,tokenDepth,astDepth)/2+1);
   // Artifact bounds already include nodes and routed opcode connections.

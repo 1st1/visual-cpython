@@ -448,10 +448,6 @@ export class Factory {
     const e=this.extent;
     this.parseTokens=[];this.astTiles=[];this.astGroup=new THREE.Group();this.world.add(this.astGroup);
     this.pipelineArrows=[];
-    for(const [from,to] of [[e.sourceX+e.sourceWidth/2,e.tokenX-7],[e.tokenX+7,e.astX-e.astWidth/2],[e.astX+e.astWidth/2,e.serviceX-2]]) {
-      const arrow=pipelineChevrons(from,to);
-      arrow.visible=false;this.world.add(arrow);this.pipelineArrows.push(arrow);
-    }
     tokens.forEach((event,i)=>{
       const group=new THREE.Group();group.position.set(e.tokenX+(i%4-1.5)*3.4,0,-e.tokenDepth/2+1+Math.floor(i/4)*1.2);this.world.add(group);
       const body=box(group,0,.3,0,3.15,.45,1,0x18152c);
@@ -483,6 +479,18 @@ export class Factory {
         this.astGroup.add(edge);this.astEdges.push({edge,parent:node.parent,child:node.id});
       }
     });
+    // Use complete artifact extents so reveal does not move the connectors.
+    const bounds=(items,x,halfWidth,fallback)=>items.length
+      ? [Math.min(...items.map(t=>x(t)-halfWidth(t))),Math.max(...items.map(t=>x(t)+halfWidth(t)))] : fallback;
+    const sourceBounds=bounds(this.sourceTiles,t=>t.group.position.x,()=>this.sourceTileWidth/2,[e.sourceX-e.sourceWidth/2,e.sourceX+e.sourceWidth/2]);
+    const tokenBounds=bounds(this.parseTokens,t=>t.group.position.x,()=>3.15/2,[e.tokenX-7,e.tokenX+7]);
+    const astBounds=bounds(this.astTiles,t=>t.group.position.x,()=>1.25,[e.astX-e.astWidth/2,e.astX+e.astWidth/2]);
+    // Enclosure geometry bounds are lazy in Three.js.
+    for(const enclosure of this.codeEnclosures)enclosure.body.geometry.computeBoundingBox();
+    const opcodeLeft=this.codeEnclosures.length?Math.min(...this.codeEnclosures.map(t=>t.group.position.x+t.body.geometry.boundingBox.min.x)):-e.width/2;
+    for(const [from,to] of [[sourceBounds[1],tokenBounds[0]],[tokenBounds[1],astBounds[0]],[astBounds[1],opcodeLeft]]){
+      const arrow=pipelineChevrons(from,to);this.world.add(arrow);this.pipelineArrows.push(arrow);
+    }
     this.constructionFlights=new THREE.Group();this.world.add(this.constructionFlights);this.lastConstruction=null;
     this.ghosts=new THREE.Group();this.world.add(this.ghosts);this.host.dataset.ghostCount='0';
     this.host.dataset.parseTokens=String(tokens.length);this.host.dataset.astNodes=String(ast.length);
