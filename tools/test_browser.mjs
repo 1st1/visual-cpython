@@ -61,11 +61,12 @@ try {
   await page.locator('#toggle-editor').click();
   await page.locator('#map .node').first().click();
   await page.locator('#toggle-editor').click();
-  assert.match(await page.locator('#block-detail').textContent(), /RESUME/);
+  assert.equal(await page.locator('#block-detail').count(),0);
+  assert.equal(await page.locator('#map .selected').count(),1);
   assert.equal(await page.locator('#inspector-panel').isVisible(),true);
-  await page.locator('#visit-block').click();
+  await page.locator('#next').click();
   await page.locator('#toggle-inspector').click();
-  assert.equal(await page.locator('#map .selected').getAttribute('id'), await page.locator('#map .executing').getAttribute('id'));
+  assert.equal(await page.locator('#map .selected').count(),0,'Stepping restores execution following');
   await page.screenshot({ path: 'artifacts/workbench-desktop.png', fullPage: true });
   await end();
   assert.equal(await page.locator('#stdout').textContent(), '5\n');

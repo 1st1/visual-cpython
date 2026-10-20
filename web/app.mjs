@@ -1,3 +1,4 @@
+import {sourceVisits,nextSourceVisit} from './source-navigation.mjs';
 import {paintPython} from './python-syntax.mjs';
 import { extractGraph, projectReplay } from './graph.mjs';
 import { ParsingReplay } from './parsing.mjs';
@@ -50,8 +51,7 @@ function startOperation(mode) {
   layoutWorker?.terminate();clearTimeout(layoutTimer);layoutWorker=null;
   if(mode==='compile'){
     lastLayout=null;graph=null;mapStates=[];selectedBlock=null;recording=null;
-    $('block-select').replaceChildren(new Option('Select a building or block…',''));
-    $('map').replaceChildren();$('block-detail').textContent='';
+    $('map').replaceChildren();
     factory?.load(null,null,[],source,null,true);
   } else {
     recording={...recording,events:[],stdout:'',status:'compiled'};delete recording.error;
@@ -94,7 +94,13 @@ function startOperation(mode) {
   };
   worker.postMessage({source,mode});
 }
-function move(value) { index = Math.max(0, Math.min(recording.events.length, value)); render(); }
+function seekSourceLine(line){
+  if(operation||!recording?.events.length)return;
+  const target=nextSourceVisit(sourceVisits(recording.events),line,index);
+  if(target===undefined)return;
+  stopPlayback();selectedBlock=null;move(target);
+}
+function move(value) { selectedBlock=null; index = Math.max(0, Math.min(recording.events.length, value)); render(); }
 function resetProgram(){
   stopPlayback();stopWorker();runAfterLayout=false;
   layoutWorker?.terminate();layoutWorker=null;clearTimeout(layoutTimer);clearTimeout(previewTimer);
@@ -103,7 +109,6 @@ function resetProgram(){
   recording=null;graph=null;lastLayout=null;mapStates=[];selectedBlock=null;index=0;parsingMode=false;
   setParsingUI(false);
   $('map').replaceChildren();$('map-status').textContent='Compile a program to build its map.';
-  $('block-select').replaceChildren(new Option('Select a building or block…',''));
   $('message').textContent='';$('state').textContent='Ready';$('provenance').textContent='';$('skip-animation').hidden=true;
   if(factory){factory.liveCaptureUntil=0;factory.parsingPlaying=false;factory.load(null,null,[],$('source').value);}
   render();
@@ -154,8 +159,14 @@ function render() {
   }
   const code = recording.codes.find(c => c.id === event.code);
   $('event').textContent = index === count ? `Capture ${recording.status}` : `${event.kind} · ${code.name} · ${event.frame} · line ${event.line} · offset ${event.offset}`;
+  const visitedLines=sourceVisits(recording.events);
   $('source-view').replaceChildren(...recording.source.split('\n').map((line, i) => {
-    const span = document.createElement('span'); span.className = 'source-line' + (i + 1 === event.line ? ' active' : ''); paintPython(span,`${String(i + 1).padStart(2)}  ${line}`); return span;
+    const button=document.createElement('button');button.type='button';button.dataset.line=String(i+1);
+    button.className='source-line'+(i+1===event.line?' active':'');
+    button.disabled=Boolean(operation)||!visitedLines.has(i+1);
+    button.title=button.disabled?'No recorded execution for this line':'Jump to next recorded visit (wraps to first)';
+    button.setAttribute('aria-label',`Line ${i+1}: ${line}`);
+    button.onclick=()=>seekSourceLine(i+1);paintPython(button,`${String(i+1).padStart(2)}  ${line}`);return button;
   }));
   $('instructions').replaceChildren(...code.instructions.map(ins => {
     const div = document.createElement('div'); div.className = 'instruction' + (ins.offset === event.offset ? ' active' : '');
@@ -196,8 +207,6 @@ function buildMap(relayout=false,executed=false) {
       if((relayout||executed)&&!parsingMode) factory?.finishConstruction();
       if(relayout&&parsingMode) factory?.view('iso');
       $('factory').dataset.layoutAspect=String(data.layout.placement.targetAspect);
-      $('block-select').replaceChildren(new Option('Select a building or block…',''), ...graph.blocks.map(b=>new Option(`${b.id} · ${b.instructions.at(-1).opname}`,b.id)));
-      $('block-select').value=selectedBlock || '';
       for (const block of graph.blocks) {
         const node = document.getElementById(block.id);
         node.setAttribute('tabindex', '0'); node.setAttribute('role', 'button');
@@ -222,12 +231,6 @@ function setZoom() {
 $('zoom-in').onclick = () => { if(viewMode==='3d') return factory?.zoom(1.25); zoom = Math.min(4, zoom * 1.25); setZoom(); };
 $('zoom-out').onclick = () => { if(viewMode==='3d') return factory?.zoom(.8); zoom = Math.max(0.5, zoom / 1.25); setZoom(); };
 $('zoom-fit').onclick = () => { if(viewMode==='3d') return factory?.view('iso'); zoom = 1; setZoom(); };
-$('visit-block').onclick = () => {
-  if (!selectedBlock) return;
-  const visits = mapStates.flatMap((state, i) => state.block === selectedBlock && recording.events[i].kind === 'opcode' ? [i] : []);
-  const target = visits.find(i => i > index) ?? visits[0];
-  if (target !== undefined) { stopPlayback(); move(target); }
-};
 function renderMapState() {
   const state = mapStates[Math.min(index, mapStates.length - 1)];
   if(!parsingMode) factory?.setState(state,recording?.events[Math.min(index,mapStates.length-1)],selectedBlock,index===mapStates.length);
@@ -238,23 +241,19 @@ function renderMapState() {
   }
   $('frames').textContent = state ? state.frames.map(f => `${recording.codes.find(c => c.id === f.code).name} [${f.id}]`).join(' → ') + ` · ${index === mapStates.length ? recording.status : state.kind}` : '';
   const selected = graph?.blocks.find(b => b.id === selectedBlock);
-  $('visit-block').disabled = !selected || !mapStates.some((s, i) => s.block === selected.id && recording.events[i].kind === 'opcode');
   if (selected) {
     document.getElementById(selected.id)?.classList.add('selected');
-    $('block-detail').textContent = `${selected.id}\n` + selected.instructions.map(i => `${instructionText(i)} · line ${i.line ?? '—'}`).join('\n');
-  } else $('block-detail').textContent='';
+  }
 }
 
-function selectBlock(id) { if(id){$('inspector-panel').hidden=false;$('toggle-inspector').setAttribute('aria-expanded','true');} selectedBlock=id; $('block-select').value=id; renderMapState(); }
+function selectBlock(id) { if(id){$('inspector-panel').hidden=false;$('toggle-inspector').setAttribute('aria-expanded','true');} selectedBlock=id; renderMapState(); }
 function changeView(mode) {
   if(mode==='map'&&parsingMode) showExecution();
   viewMode=mode; $('factory').hidden=mode!=='3d'; $('map').hidden=mode!=='map'; $('scene-hint').hidden=mode!=='3d';
-  for(const id of ['camera-iso','camera-top','focus-block']) $(id).disabled=mode!=='3d';
+  for(const id of ['camera-iso','camera-top']) $(id).disabled=mode!=='3d';
   if(mode==='3d') factory?.resize();
 }
 $('camera-iso').onclick=()=>factory?.view('iso'); $('camera-top').onclick=()=>factory?.view('top');
-$('focus-block').onclick=()=>factory?.focus(selectedBlock || mapStates[index]?.block);
-$('block-select').onchange=()=>selectBlock($('block-select').value);
 function seekInstruction(blockId,offset) {
   const block=graph.blocks.find(b=>b.id===blockId);
   const visits=recording.events.filter(e=>e.kind==='opcode'&&e.code===block.code&&e.offset===offset);
@@ -268,7 +267,7 @@ for(const name of ['editor','inspector']) $('toggle-'+name).onclick=()=>{
   const panel=$(name+'-panel'); panel.hidden=!panel.hidden;
   $('toggle-'+name).setAttribute('aria-expanded',String(!panel.hidden));
 };
-try { factory=new Factory($('factory'),selectBlock,seekInstruction); parsingReplay=new ParsingReplay(factory); previewSource(); factory.view('iso'); }
+try { factory=new Factory($('factory'),selectBlock,seekInstruction,seekSourceLine); parsingReplay=new ParsingReplay(factory); previewSource(); factory.view('iso'); }
 catch(error) { $('scene-hint').textContent=`3D unavailable: ${error.message}. The schematic is available.`; changeView('map'); $('message').textContent='3D graphics unavailable; using the schematic.'; }
 window.addEventListener('pagehide',event=>{ if(!event.persisted) factory?.dispose(); });
 

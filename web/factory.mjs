@@ -72,7 +72,7 @@ function sourceTile(parent,width,depth,line,tokens) {
 }
 
 export class Factory {
-  constructor(host, onSelect, onInstruction) {
+  constructor(host, onSelect, onInstruction, onSourceLine) {
     this.host=host; this.onSelect=onSelect; this.nodes=new Map(); this.edges=new Map(); this.pickables=[];
     this.reduced=matchMedia('(prefers-reduced-motion: reduce)');
     this.scene=new THREE.Scene(); this.scene.background=null;
@@ -86,9 +86,8 @@ export class Factory {
     host.append(this.renderer.domElement);
     this.onInstruction=onInstruction;
     this.opcodePanel=document.createElement('section'); this.opcodePanel.className='opcode-panel';
-    this.opcodePanel.innerHTML='<div class="opcode-heading"><strong>Opcodes</strong><button type="button">Follow execution</button></div><div class="opcode-caption"></div><div class="opcode-list"></div>';
+    this.opcodePanel.innerHTML='<div class="opcode-heading"><strong>Opcodes</strong></div><div class="opcode-caption"></div><div class="opcode-list"></div>';
     document.getElementById('opcode-inspector').append(this.opcodePanel);
-    this.opcodePanel.querySelector('button').onclick=()=>this.onSelect('');
     this.camera=new THREE.PerspectiveCamera(38,1,.1,2000);
     this.controls=new OrbitControls(this.camera,this.renderer.domElement);
     this.controls.mouseButtons.MIDDLE=THREE.MOUSE.PAN;
@@ -136,6 +135,7 @@ export class Factory {
         for(let parent=object;parent;parent=parent.parent)if(!parent.visible)return false;
         return true;
       }),false)[0];
+      if(hit?.object.userData.sourceLine!==undefined){onSourceLine?.(hit.object.userData.sourceLine);return;}
       if(hit) { this.onSelect(hit.object.userData.block); if(hit.object.userData.offset!==undefined) this.onInstruction(hit.object.userData.block,hit.object.userData.offset); }
     });
     this.resizeObserver=new ResizeObserver(()=>this.resize()); this.resizeObserver.observe(host);
@@ -258,6 +258,7 @@ export class Factory {
     this.sourceLines.forEach((text,i)=>{
       const group=new THREE.Group(); group.position.set(this.sourceOrigin.x-sourceWidth/2+.6+this.sourceTileWidth/2+Math.floor(i/rows)*this.sourceColumnPitch,0,-sourceDepth/2+1.2+(i%rows)*1.15);this.world.add(group);
       const body=box(group,0,.18,0,this.sourceTileWidth,.26,1.025,0x24203c);
+      body.userData.sourceLine=i+1;this.pickables.push(body);
       const paint=sourceTile(group,this.sourceTileWidth-.1,1.0125,i+1,this.sourceSyntax[i]);paint(false);
       this.sourceTiles.push({group,body,paint,line:i+1});
     });
