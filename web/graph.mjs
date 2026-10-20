@@ -71,7 +71,7 @@ export function projectReplay(recording, graph) {
   return states;
 }
 
-export function toDot(graph, {direction = 'TB', compact = false} = {}) {
+export function toDot(graph, {direction = 'TB', compact = false, tileAspect = 1} = {}) {
   const q = JSON.stringify;
   const lines = ['digraph program {', `graph [bgcolor="transparent", rankdir=${direction}, splines=ortho, nodesep=${compact ? .45 : .55}, ranksep=${compact ? .55 : .7}, pad=0.25];`,
     `node [shape=box, fixedsize=true, width=${compact ? 3 : 3.5}, height=${compact ? 1 : .9}, style="rounded,filled", fillcolor="#192522", color="#526c61", fontcolor="#dce5e5", fontname="monospace", fontsize=11, margin="0.18,0.13"];`,
@@ -82,7 +82,7 @@ export function toDot(graph, {direction = 'TB', compact = false} = {}) {
       const first = block.instructions[0], last = block.instructions.at(-1);
       const operation = compact && last.opname.length > 25 ? last.opname.match(/.{1,22}/g).join('\n') : last.opname;
       const label = `${block.id} · L${first.line ?? '?'}\n${first.offset}–${last.offset} · ${block.instructions.length} instructions\n${operation}`;
-      const grid=instructionGrid(block.instructions,compact);
+      const grid=instructionGrid(block.instructions,compact,tileAspect);
       lines.push(`${q(block.id)} [id=${q(block.id)}, width=${grid.width*60/72}, height=${grid.height*60/72}, label=${q(label)}];`);
     }
     lines.push('}');

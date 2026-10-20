@@ -66,15 +66,16 @@ for (const [name, source, output] of cases) {
       const portrait=chooseLayout(viz,graph,.55),wide=chooseLayout(viz,graph,2.4);
       assert.equal(portrait.layout.placement.targetAspect,.55);
       assert.equal(wide.layout.placement.targetAspect,2.4);
-      assert.notEqual(portrait.score,wide.score,'Window aspect changes full-pipeline fit scoring');
+      assert.notEqual(portrait.score,wide.score,'Window aspect changes opcode-area fit scoring');
       for(const chosen of [portrait,wide]) assert.ok(chosen.layout.placement.candidates.every(c=>chosen.score<=c.score));
-      const selected=winner.layout.placement.candidates.find(c=>c.options.direction===winner.options.direction&&c.options.compact===winner.options.compact);
-      assert.ok(selected.projectedAspect>1.5,'BFS fits a landscape scene including source and runtime areas');
+      const selected=winner.layout.placement.candidates.find(c=>c.options.direction===winner.options.direction&&c.options.compact===winner.options.compact&&c.options.tileAspect===winner.options.tileAspect);
+      assert.ok(selected.projectedAspect>1,'BFS opcode area favors landscape framing');
+      assert.ok(portrait.layout.bounds.width/portrait.layout.bounds.height < wide.layout.bounds.width/wide.layout.bounds.height,'Portrait and wide viewports produce correspondingly shaped opcode areas');
     }
     const layout = viz.renderJSON(winner.dot);
     const geometry = normalizeLayout(layout, graph, viz.graphvizVersion);
     for (const block of graph.blocks) {
-      const grid=instructionGrid(block.instructions,winner.options.compact);
+      const grid=instructionGrid(block.instructions,winner.options.compact,winner.options.tileAspect);
       const placed=geometry.nodes.find(n=>n.id===block.id);
       assert.equal(grid.tiles.length,block.instructions.length);
       for(const tile of grid.tiles) {

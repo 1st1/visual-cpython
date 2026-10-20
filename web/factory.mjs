@@ -274,7 +274,7 @@ export class Factory {
       const tray=box(group,0,.19,0,placed.width,.20,placed.height,0x18233d);
       tray.userData.block=block.id; this.pickables.push(tray);
       label(group,0,.3,-placed.height/2+.24,Math.min(placed.width-.2,4),.35,[block.id]);
-      const grid=instructionGrid(block.instructions,layout.placement?.selected.compact ?? true);
+      const grid=instructionGrid(block.instructions,layout.placement?.selected.compact ?? true,layout.placement?.selected.tileAspect ?? 1);
       const tiles=[],arrows=[];
       for(const entry of grid.tiles) {
         const tileGroup=new THREE.Group(); tileGroup.position.set(entry.x,0,entry.y);group.add(tileGroup);

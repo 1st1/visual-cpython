@@ -29,11 +29,12 @@ export function sourceFootprint(layout,lineCount=1,pipeline={}) {
     minX:sourceX-sourceWidth/2-1,minZ,maxZ};
 }
 
-export function layoutScore(layout,lineCount=1,targetAspect=1.8,pipeline={}) {
-  const f=sourceFootprint(layout,lineCount,pipeline), w=f.stackX+2.6-f.minX,d=Math.max(f.maxZ,5.7)-Math.min(f.minZ,-6.8);
-  // Match the landscape camera: its ground-plane direction is (.35, 1).
-  const projectedWidth=.944*w+.330*d;
-  const projectedHeight=.238*w+.680*d+3.8;
+export function layoutScore(layout,targetAspect=1.8) {
+  // Optimize the opcode neighborhood independently of the earlier pipeline lanes.
+  // Account for the default camera's downward tilt when fitting its screen bounds.
+  const w=layout.bounds.width+1.6,d=layout.bounds.height+1.6;
+  const projectedWidth=w;
+  const projectedHeight=d*1.1/Math.hypot(1.1,1)+1.6;
   const routeLength=layout.edges.reduce((sum,e)=>sum+e.points.slice(1).reduce((s,p,i)=>s+Math.hypot(p[0]-e.points[i][0],p[1]-e.points[i][1]),0),0);
   targetAspect=Number.isFinite(targetAspect)&&targetAspect>0?targetAspect:1.8;
   const viewportArea=Math.max(projectedHeight,projectedWidth/targetAspect)**2*targetAspect;
@@ -43,13 +44,14 @@ export function layoutScore(layout,lineCount=1,targetAspect=1.8,pipeline={}) {
 
 export function chooseLayout(viz, graph, targetAspect=1.8) {
   targetAspect=Number.isFinite(targetAspect)&&targetAspect>0?targetAspect:1.8;
-  const variants=[{direction:'TB',compact:false},{direction:'TB',compact:true},{direction:'LR',compact:true}];
+  const variants=[{direction:'TB',compact:false,tileAspect:1},
+    ...['TB','LR'].flatMap(direction=>[.5,1,2,4].map(tileAspect=>({direction,compact:true,tileAspect})))];
   const candidates=variants.map(options=>{
     const dot=toDot(graph,options);
     const layout=normalizeLayout(viz.renderJSON(dot),graph,viz.graphvizVersion);
-    return {dot,layout,options,...layoutScore(layout,graph.sourceLineCount,targetAspect,graph.pipeline)};
+    return {dot,layout,options,...layoutScore(layout,targetAspect)};
   });
   const winner=candidates.reduce((a,b)=>b.score<a.score?b:a);
-  winner.layout.placement={version:3,targetAspect,selected:winner.options,candidates:candidates.map(({options,score,area,routeLength,projectedAspect})=>({options,score,area,routeLength,projectedAspect}))};
+  winner.layout.placement={version:4,targetAspect,selected:winner.options,candidates:candidates.map(({options,score,area,routeLength,projectedAspect})=>({options,score,area,routeLength,projectedAspect}))};
   return winner;
 }

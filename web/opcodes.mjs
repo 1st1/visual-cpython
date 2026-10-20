@@ -3,9 +3,9 @@ export function instructionText(instruction) {
   return `${instruction.offset}  ${instruction.opname}${argument ? '  ' + argument : ''}`;
 }
 
-export function instructionGrid(instructions, compact = true) {
+export function instructionGrid(instructions, compact = true, aspect = 1) {
   const tileWidth=compact?3.2:3.5, tileDepth=1.05, gap=.32, padding=.32, header=.5;
-  const columns=Math.max(1,Math.ceil(Math.sqrt(instructions.length*tileDepth/tileWidth)));
+  const columns=Math.max(1,Math.ceil(Math.sqrt(instructions.length*tileDepth/tileWidth*aspect)));
   const rows=Math.ceil(instructions.length/columns);
   const width=columns*tileWidth+(columns-1)*gap+padding*2;
   const height=rows*tileDepth+(rows-1)*gap+padding*2+header;
