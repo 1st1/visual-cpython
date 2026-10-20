@@ -186,6 +186,7 @@ export class Factory {
       host.dataset.opcodeTrail=String(this.opcodeTrail.mesh.visible);
       if(this.stackGroup)this.stackGroup.visible=this.stackHasOperands&&this.host.dataset.phase==='replay'&&!this.starfield.capturing;
       this.updateLaneActivity(now);
+      this.updatePipelineArrows();
       this.renderer.render(this.scene,this.camera);
       this.minimap?.draw();
       host.dataset.textAtlas=JSON.stringify(textAtlasStats());
@@ -247,7 +248,6 @@ export class Factory {
     });
     this.stackGroup.visible=false;this.stackHasOperands=false;
     this.sourceTiles=[];this.sourceHighlight=null;
-    box(this.world,this.sourceOrigin.x,.08,0,sourceWidth,.15,sourceDepth,0x1a2630);
     this.sourceLines.forEach((text,i)=>{
       const group=new THREE.Group(); group.position.set(this.sourceOrigin.x-sourceWidth/2+.6+4.1+Math.floor(i/rows)*8.7,0,-sourceDepth/2+1.2+(i%rows)*1.15);this.world.add(group);
       const body=box(group,0,.18,0,8.2,.26,1.025,0x293947);
@@ -258,7 +258,7 @@ export class Factory {
     this.host.dataset.activeSource='';
     this.codeEnclosures=[];
     for(const enclosure of layout?.enclosures || []) {
-      const body=box(this.world,enclosure.x,.085,enclosure.y,enclosure.width,.15,enclosure.height,0x18233b);
+      const body=box(this.world,enclosure.x,.085,enclosure.y,enclosure.width,.15,enclosure.height,0x17191f);
       this.codeEnclosures.push({code:enclosure.id,body});
     }
     for(const route of layout?.edges || []) {
@@ -271,7 +271,7 @@ export class Factory {
     for(const placed of layout?.nodes || []) {
       const block=graph.blocks.find(b=>b.id===placed.id);
       const group=new THREE.Group(); group.position.set(placed.x,0,placed.y); this.world.add(group);
-      const tray=box(group,0,.19,0,placed.width,.20,placed.height,0x18233d);
+      const tray=box(group,0,.19,0,placed.width,.20,placed.height,0x302c2a);
       tray.userData.block=block.id; this.pickables.push(tray);
       label(group,0,.3,-placed.height/2+.24,Math.min(placed.width-.2,4),.35,[block.id]);
       const grid=instructionGrid(block.instructions,layout.placement?.selected.compact ?? true,layout.placement?.selected.tileAspect ?? 1);
@@ -349,7 +349,7 @@ export class Factory {
     for(const [id,node] of this.nodes) {
       const active=id===state?.block, chosen=id===selected;
       const color=active?(state.kind==='exception'||state.kind==='unwind'?colors.error:colors.active):chosen?colors.selected:colors.rim;
-      node.body.material.color.setHex(chosen?0x3c3825:active?0x50301e:0x18233d);
+      node.body.material.color.setHex(chosen?0x3c3825:active?0x50301e:0x302c2a);
       node.body.children[0].material.color.setHex(color);
       for(const tile of node.tiles) {
         const executing=active&&event?.kind==='opcode'&&!terminal&&tile.instruction.offset===event.offset;
@@ -420,10 +420,10 @@ export class Factory {
   buildFrontEnd(tokens,ast) {
     const e=this.extent;
     this.parseTokens=[];this.astTiles=[];this.astGroup=new THREE.Group();this.world.add(this.astGroup);
-    box(this.world,e.tokenX,.08,0,14,.15,e.tokenDepth,0x1b2930);
-    box(this.world,e.astX,.08,0,e.astWidth,.15,e.astDepth,0x282132);
+    this.pipelineArrows=[];
     for(const [from,to] of [[e.sourceX+e.sourceWidth/2,e.tokenX-7],[e.tokenX+7,e.astX-e.astWidth/2],[e.astX+e.astWidth/2,e.serviceX-2]]) {
-      this.world.add(new THREE.ArrowHelper(new THREE.Vector3(1,0,0),new THREE.Vector3(from,.35,0),Math.max(.2,to-from),0x89adbd,.5,.35));
+      const arrow=new THREE.ArrowHelper(new THREE.Vector3(1,0,0),new THREE.Vector3(from,.35,0),Math.max(.2,to-from),0x89adbd,.5,.35);
+      arrow.visible=false;this.world.add(arrow);this.pipelineArrows.push(arrow);
     }
     tokens.forEach((event,i)=>{
       const group=new THREE.Group();group.position.set(e.tokenX+(i%4-1.5)*3.4,0,-e.tokenDepth/2+1+Math.floor(i/4)*1.2);this.world.add(group);
@@ -482,6 +482,16 @@ export class Factory {
     group.userData.born=performance.now();group.userData.event=seq;
     this.host.dataset.ghostCount=String(this.ghosts.children.length);this.host.dataset.ghostEvent=String(seq);
     return group.position.clone();
+  }
+  updatePipelineArrows() {
+    const visible=[
+      this.sourceTiles?.some(tile=>tile.group.visible),
+      this.parseTokens?.some(tile=>tile.group.visible),
+      this.astGroup?.visible&&this.astTiles?.some(tile=>tile.group.visible),
+      [...this.nodes.values()].some(node=>node.group.visible&&node.tiles.some(tile=>tile.group.visible)),
+    ];
+    for(const [i,arrow] of (this.pipelineArrows || []).entries()) arrow.visible=Boolean(visible[i]&&visible[i+1]);
+    this.host.dataset.pipelineArrows=String((this.pipelineArrows || []).filter(arrow=>arrow.visible).length);
   }
   highlightArtifacts(line) {
     let tokenCount=0,astCount=0;
