@@ -165,3 +165,8 @@ button[aria-pressed=true]{background:#30206a;color:#65d4df;border-color:#7960aa}
 .playback-run-slot:has(#cancel:not([hidden])) #play{visibility:hidden}
 .playback-controls #capture-progress{min-width:0}
 #capture-progress-label{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+
+.playback-run-slot #play:disabled{pointer-events:none}
+#compile-hint{position:absolute;right:0;top:calc(100% + 8px);padding:8px 10px;border:1px solid #b2c9ff40;border-radius:5px;background:#101322ed;color:#edf0f5;font-size:11px;white-space:nowrap;pointer-events:none;opacity:0;transition:opacity .3s ease}
+#compile-hint.visible{opacity:1}
+@media(prefers-reduced-motion:reduce){#compile-hint{transition:none}}

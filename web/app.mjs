@@ -52,7 +52,21 @@ function stopWorker(endFlight=true) {
 function fail(message) { stopWorker();runAfterLayout=false;$('state').textContent='Stopped';$('message').textContent=message;render(); }
 $('cancel').onclick=()=>fail('Execution stopped. Run again to start a fresh interpreter.');
 $('skip-animation').onclick=()=>{factory?.finishConstruction();$('skip-animation').hidden=true;};
-$('run').onclick=()=>startOperation('compile');
+let compileHintTimer,compileHintHideTimer;
+function hideCompileHint(){
+  clearTimeout(compileHintTimer);clearTimeout(compileHintHideTimer);
+  $('compile-hint').hidden=true;$('compile-hint').classList.remove('visible');
+}
+document.querySelector('.playback-run-slot').addEventListener('click',()=>{
+  if(!$('play').disabled||operation||layoutWorker)return;
+  hideCompileHint();
+  $('compile-hint').hidden=false;$('compile-hint').classList.add('visible');
+  compileHintTimer=setTimeout(()=>{
+    $('compile-hint').classList.remove('visible');
+    compileHintHideTimer=setTimeout(hideCompileHint,300);
+  },2200);
+});
+$('run').onclick=()=>{hideCompileHint();startOperation('compile');};
 function startOperation(mode) {
   const source=mode==='compile'?$('source').value:recording?.source;
   if(mode==='run'&&(!recording||source!==$('source').value))return;
