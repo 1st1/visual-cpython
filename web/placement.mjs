@@ -9,7 +9,8 @@ export function factoryFootprint(layout) {
 
 export function sourceFootprint(layout,lineCount=1,pipeline={}) {
   const f=factoryFootprint(layout),rows=Math.min(24,Math.max(1,lineCount)),columns=Math.ceil(Math.max(1,lineCount)/rows);
-  const sourceWidth=columns*8.7+.6,sourceDepth=rows*1.15+1.6;
+  const sourceTileWidth=pipeline.sourceTileWidth ?? 8.2,sourceColumnPitch=sourceTileWidth+.5;
+  const sourceWidth=columns*sourceColumnPitch+.6,sourceDepth=rows*1.15+1.6;
   const tokenDepth=Math.max(4,Math.ceil((pipeline.tokenCount || 0)/4)*1.2+2);
   const astDepth=pipeline.astDepth || 4,astWidth=pipeline.astWidth || 8;
   const astX=f.minX-2-astWidth/2,tokenX=astX-astWidth/2-9,sourceX=tokenX-9-sourceWidth/2;
@@ -25,7 +26,7 @@ export function sourceFootprint(layout,lineCount=1,pipeline={}) {
   ].map((lane,i)=>({...lane,
     x:lane.x+(i===0?-.1:i===3?.1:0),
     width:lane.width+1.6+(i===0||i===3?.2:0),minZ,maxZ}));
-  return {...f,rows,columns,sourceWidth,sourceDepth,sourceX,tokenX,astX,tokenDepth,astDepth,astWidth,lanes,
+  return {...f,rows,columns,sourceTileWidth,sourceColumnPitch,sourceWidth,sourceDepth,sourceX,tokenX,astX,tokenDepth,astDepth,astWidth,lanes,
     minX:sourceX-sourceWidth/2-1,minZ,maxZ};
 }
 

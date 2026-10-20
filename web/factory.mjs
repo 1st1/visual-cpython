@@ -1,7 +1,8 @@
+import {pipelineChevrons} from './pipeline-chevrons.mjs';
 import {createGrid} from './grid.mjs';
 import {OpcodeTrail} from './opcode-trail.mjs';
 import {connector} from './connector.mjs';
-import {surfaceText,textAtlasStats,disposeTextAtlas} from './text-atlas.mjs';
+import {surfaceText,measureSurfaceText,textAtlasStats,disposeTextAtlas} from './text-atlas.mjs';
 import {Starfield} from './starfield.mjs';
 import {syntaxLines,syntaxColors} from './python-syntax.mjs';
 import {Minimap} from './minimap.mjs';
@@ -13,6 +14,7 @@ import { factoryFootprint, sourceFootprint } from './placement.mjs';
 import { stackView } from './stack.mjs';
 import { instructionText, instructionGrid } from './opcodes.mjs';
 
+const SOURCE_FONT_SIZE=1.0125*.28;
 const colors = { base: 0x141124, block: 0x24203c, rim: 0x649cae, active: 0xc92359, selected: 0xe7cf89, error: 0xff926b };
 function release(group) {
   group.traverse(o => {
@@ -47,20 +49,20 @@ function label(parent,x,y,z,width,depth,lines,accent='#65d4df',front=false) {
   };
   paint(lines);return paint;
 }
-function opcodeTile(parent,width,depth,y,instruction) {
-  const update=surfaceText(parent,0,y,0,width,depth,{background:'#30206a'});let previous;
+function opcodeTile(parent,width,depth,y,instruction,background='#30206a') {
+  const update=surfaceText(parent,0,y,0,width,depth,{background});let previous;
   return active=>{
     if(previous===active)return;previous=active;
     const argument=instruction.argrepr || (instruction.arg===null?'':String(instruction.arg));
     const lines=[`@${instruction.offset}`,...instruction.opname.match(/.{1,22}/g),...(argument?[argument]:[])];
-    update(lines.map((text,i)=>({text,color:active?'#fff0f6':i===0?'#9c8fc5':'#65d4df'})),active?'#c92359':'#30206a');
+    update(lines.map((text,i)=>({text,color:active?'#fff0f6':i===0?'#9c8fc5':'#65d4df'})),active?'#c92359':background);
   };
 }
 function sourceTile(parent,width,depth,line,tokens) {
   const update=surfaceText(parent,0,.32,0,width,depth,{background:'#30206a'});let previous;
   return active=>{
     if(previous===active)return;previous=active;
-    update([{size:depth*.22,runs:[{text:String(line).padStart(3)+'  ',color:'#8296b9'},...(tokens || []).map(t=>({text:t.text,color:syntaxColors[t.kind]}))]}],active?'#572042':'#30206a');
+    update([{size:SOURCE_FONT_SIZE,runs:[{text:String(line).padStart(3)+'  ',color:'#8296b9'},...(tokens || []).map(t=>({text:t.text,color:syntaxColors[t.kind]}))]}],active?'#572042':'#30206a');
   };
 }
 
@@ -186,7 +188,7 @@ export class Factory {
       host.dataset.opcodeTrail=String(this.opcodeTrail.mesh.visible);
       if(this.stackGroup)this.stackGroup.visible=this.stackHasOperands&&this.host.dataset.phase==='replay'&&!this.starfield.capturing;
       this.updateLaneActivity(now);
-      this.updatePipelineArrows();
+      this.updatePipelineArrows(now);
       this.renderer.render(this.scene,this.camera);
       this.minimap?.draw();
       host.dataset.textAtlas=JSON.stringify(textAtlasStats());
@@ -215,13 +217,16 @@ export class Factory {
     this.artifactFrames=parsing?parsingFrames(parsing).frames.filter(f=>f.event.kind===2||f.event.kind===3):[];
     const tokens=parsing?.events.filter(e=>e.kind===2) || [],ast=parsing?.ast || [];
     this.astLayout=astTreeLayout(ast);
-    const sourceBounds=sourceFootprint(layout,this.sourceLines.length,{tokenCount:tokens.length,astWidth:this.astLayout.width,astDepth:this.astLayout.depth});
+    this.sourceTileWidth=Math.max(...this.sourceLines.map((line,i)=>measureSurfaceText(String(i+1).padStart(3)+'  '+line+'     ',SOURCE_FONT_SIZE)))+.26;
+    this.sourceColumnPitch=this.sourceTileWidth+.5;
+    const sourceBounds=sourceFootprint(layout,this.sourceLines.length,{sourceTileWidth:this.sourceTileWidth,tokenCount:tokens.length,astWidth:this.astLayout.width,astDepth:this.astLayout.depth});
     const {rows,sourceWidth,sourceDepth}=sourceBounds;
     this.sourceOrigin=new THREE.Vector3(sourceBounds.sourceX,0,0);
     this.extent=sourceBounds;
     const e=this.extent, width=e.maxX-e.minX, depth=e.maxZ-e.minZ;
     const deck=box(this.world,(e.minX+e.maxX)/2,-.22,(e.minZ+e.maxZ)/2,width,.42,depth,0x141124);
-    deck.castShadow=false;deck.material.transparent=true;deck.material.opacity=.7;deck.material.depthWrite=false;
+    deck.castShadow=false;deck.receiveShadow=false;deck.material.dispose();
+    deck.material=new THREE.MeshBasicMaterial({color:0x000000,transparent:true,opacity:.2,depthWrite:false});
     deck.renderOrder=-2;
     const span=Math.max(width,depth),center=new THREE.Vector3((e.minX+e.maxX)/2,0,(e.minZ+e.maxZ)/2);
     this.lightSpan=span;this.sun.target.position.copy(center);
@@ -231,7 +236,7 @@ export class Factory {
     this.gridUniforms=grid.uniforms;this.world.add(grid.mesh);
     this.serviceX=footprint.serviceX;
     this.lanes=sourceBounds.lanes.map(({x,width:laneWidth,title})=>{
-      const paint=surfaceText(this.world,x,.08,e.minZ+1,Math.max(8,laneWidth),.7);
+      const paint=surfaceText(this.world,x,.08,e.minZ+1,Math.max(10,laneWidth),.9);
       return {paint,title,fade:0};
     });
     this.activeStage=null;this.displayStage=null;this.replayStage=layout?0:1;this.setActiveStage(this.replayStage);
@@ -249,9 +254,9 @@ export class Factory {
     this.stackGroup.visible=false;this.stackHasOperands=false;
     this.sourceTiles=[];this.sourceHighlight=null;
     this.sourceLines.forEach((text,i)=>{
-      const group=new THREE.Group(); group.position.set(this.sourceOrigin.x-sourceWidth/2+.6+4.1+Math.floor(i/rows)*8.7,0,-sourceDepth/2+1.2+(i%rows)*1.15);this.world.add(group);
-      const body=box(group,0,.18,0,8.2,.26,1.025,0x24203c);
-      const paint=sourceTile(group,8.1,1.0125,i+1,this.sourceSyntax[i]);paint(false);
+      const group=new THREE.Group(); group.position.set(this.sourceOrigin.x-sourceWidth/2+.6+this.sourceTileWidth/2+Math.floor(i/rows)*this.sourceColumnPitch,0,-sourceDepth/2+1.2+(i%rows)*1.15);this.world.add(group);
+      const body=box(group,0,.18,0,this.sourceTileWidth,.26,1.025,0x24203c);
+      const paint=sourceTile(group,this.sourceTileWidth-.1,1.0125,i+1,this.sourceSyntax[i]);paint(false);
       this.sourceTiles.push({group,body,paint,line:i+1});
     });
     this.host.dataset.sourceTiles=String(this.sourceTiles.length);
@@ -259,6 +264,8 @@ export class Factory {
     this.codeEnclosures=[];
     for(const enclosure of layout?.enclosures || []) {
       const body=box(this.world,enclosure.x,.085,enclosure.y,enclosure.width,.15,enclosure.height,0x141124);
+      body.material.transparent=true;body.material.opacity=.35;body.material.depthWrite=false;
+      body.castShadow=false;body.renderOrder=-.8;
       this.codeEnclosures.push({code:enclosure.id,body});
     }
     for(const route of layout?.edges || []) {
@@ -272,6 +279,8 @@ export class Factory {
       const block=graph.blocks.find(b=>b.id===placed.id);
       const group=new THREE.Group(); group.position.set(placed.x,0,placed.y); this.world.add(group);
       const tray=box(group,0,.19,0,placed.width,.20,placed.height,0x24203c);
+      tray.material.transparent=true;tray.material.opacity=.55;tray.material.depthWrite=false;
+      tray.castShadow=false;tray.renderOrder=-.6;
       tray.userData.block=block.id; this.pickables.push(tray);
       label(group,0,.3,-placed.height/2+.24,Math.min(placed.width-.2,4),.35,[block.id]);
       const grid=instructionGrid(block.instructions,layout.placement?.selected.compact ?? true,layout.placement?.selected.tileAspect ?? 1);
@@ -422,13 +431,13 @@ export class Factory {
     this.parseTokens=[];this.astTiles=[];this.astGroup=new THREE.Group();this.world.add(this.astGroup);
     this.pipelineArrows=[];
     for(const [from,to] of [[e.sourceX+e.sourceWidth/2,e.tokenX-7],[e.tokenX+7,e.astX-e.astWidth/2],[e.astX+e.astWidth/2,e.serviceX-2]]) {
-      const arrow=new THREE.ArrowHelper(new THREE.Vector3(1,0,0),new THREE.Vector3(from,.35,0),Math.max(.2,to-from),0x649cae,.5,.35);
+      const arrow=pipelineChevrons(from,to);
       arrow.visible=false;this.world.add(arrow);this.pipelineArrows.push(arrow);
     }
     tokens.forEach((event,i)=>{
       const group=new THREE.Group();group.position.set(e.tokenX+(i%4-1.5)*3.4,0,-e.tokenDepth/2+1+Math.floor(i/4)*1.2);this.world.add(group);
-      const body=box(group,0,.3,0,3.15,.45,1,0x24203c);
-      const paint=opcodeTile(group,3.05,.9,.54,{offset:event.cursor,opname:event.token,argrepr:event.text,arg:null});paint(false);
+      const body=box(group,0,.3,0,3.15,.45,1,0x18152c);
+      const paint=opcodeTile(group,3.05,.9,.54,{offset:event.cursor,opname:event.token,argrepr:event.text,arg:null},'#24203f');paint(false);
       this.parseTokens.push({group,body,paint,event});
     });
     const positions=new Map();this.astEdges=[];
@@ -437,8 +446,8 @@ export class Factory {
       const tree=treePositions.get(node.id);
       const pos=new THREE.Vector3(e.astX+tree.x,.4,tree.z);positions.set(node.id,pos);
       const group=new THREE.Group();group.position.copy(pos);this.astGroup.add(group);
-      const body=box(group,0,0,0,2.5,.4,1.2,0x24203c);
-      const paint=opcodeTile(group,2.4,1.1,.22,{offset:node.id,opname:node.kind,argrepr:[node.label,node.operator].filter(Boolean).join(' · '),arg:null});paint(false);
+      const body=box(group,0,0,0,2.5,.4,1.2,0x18152c);
+      const paint=opcodeTile(group,2.4,1.1,.22,{offset:node.id,opname:node.kind,argrepr:[node.label,node.operator].filter(Boolean).join(' · '),arg:null},'#24203f');paint(false);
       this.astTiles.push({node,group,body,paint});
       if(node.parent!==null) {
         const parent=positions.get(node.parent).clone(),end=pos.clone();parent.y=end.y=.22;
@@ -476,21 +485,24 @@ export class Factory {
     if(counterpart) group.position.copy(counterpart.group.position).add(new THREE.Vector3(0,.45,0));
     else group.position.set(this.extent.astX-this.extent.astWidth/2+1.6+(seq%2)*3,.7,-this.extent.astDepth/2+1+(seq%3)*1.6);
     this.ghosts.add(group);
-    box(group,0,0,0,2.5,.4,1.2,0x24203c);
-    opcodeTile(group,2.4,1.1,.22,{offset:seq,opname:event.text,argrepr:'temporary',arg:null})(false);
+    box(group,0,0,0,2.5,.4,1.2,0x18152c);
+    opcodeTile(group,2.4,1.1,.22,{offset:seq,opname:event.text,argrepr:'temporary',arg:null},'#24203f')(false);
     group.traverse(o=>{if(o.material){o.material.transparent=true;o.material.depthWrite=false;o.userData.ghostOpacity=o.isLineSegments ? .55 : o.material.isShaderMaterial ? .6 : .25;o.material.opacity=o.userData.ghostOpacity;}});
     group.userData.born=performance.now();group.userData.event=seq;
     this.host.dataset.ghostCount=String(this.ghosts.children.length);this.host.dataset.ghostEvent=String(seq);
     return group.position.clone();
   }
-  updatePipelineArrows() {
+  updatePipelineArrows(now) {
     const visible=[
       this.sourceTiles?.some(tile=>tile.group.visible),
       this.parseTokens?.some(tile=>tile.group.visible),
       this.astGroup?.visible&&this.astTiles?.some(tile=>tile.group.visible),
       [...this.nodes.values()].some(node=>node.group.visible&&node.tiles.some(tile=>tile.group.visible)),
     ];
-    for(const [i,arrow] of (this.pipelineArrows || []).entries()) arrow.visible=Boolean(visible[i]&&visible[i+1]);
+    for(const [i,arrow] of (this.pipelineArrows || []).entries()) {
+      arrow.visible=Boolean(visible[i]&&visible[i+1]);
+      arrow.material.uniforms.time.value=this.reduced.matches?0:now*.001;
+    }
     this.host.dataset.pipelineArrows=String((this.pipelineArrows || []).filter(arrow=>arrow.visible).length);
   }
   highlightArtifacts(line) {
@@ -517,7 +529,7 @@ export class Factory {
     for(const [i,tile] of this.parseTokens.entries()) {
       tile.group.visible=final||i<(frame?.tokenCount || 0);
       const active=!final&&(spanTokens.size?spanTokens.has(tile.event):tile.event.cursor===frame?.cursor)&&tile.group.visible;
-      tile.paint(active);tile.body.material.color.setHex(active?0x8a204d:0x24203c);
+      tile.paint(active);tile.body.material.color.setHex(active?0x8a204d:0x18152c);
     }
     const visible=new Set();
     for(const tile of this.astTiles) {
@@ -582,7 +594,7 @@ export class Factory {
     };
     const selected=[...this.instructionTiles.values()].find(t=>t.position===target);
     const tokens=this.parseTokens.filter(t=>t.event.line===line&&t.group.visible);
-    if(linkPhase==='parsing'&&source&&target) for(const token of tokens) connect(source.group.position.clone().add(new THREE.Vector3(4.1,.5,0)),token.group.position.clone().add(new THREE.Vector3(0,.7,0)),0x56c6d5,'sourceToken');
+    if(linkPhase==='parsing'&&source&&target) for(const token of tokens) connect(source.group.position.clone().add(new THREE.Vector3(this.sourceTileWidth/2,.5,0)),token.group.position.clone().add(new THREE.Vector3(0,.7,0)),0x56c6d5,'sourceToken');
     if(linkPhase==='opcodes'&&selected) {
       const assignments=[];
       for(const tile of this.instructionTiles.values()) if(tile.group.visible&&tile.code===selected.code&&tile.instruction.line===line) {
@@ -640,7 +652,7 @@ export class Factory {
     this.camera.position.copy(target).add(new THREE.Vector3(0,30,.001));this.controls.target.copy(target);
     const aspect=this.host.clientWidth/Math.max(1,this.host.clientHeight);
     const rows=Math.min(24,this.sourceLines.length),columns=Math.ceil(this.sourceLines.length/rows);
-    this.viewSize=Math.max(rows*1.15+3,(columns*8.7+3)/aspect);this.camera.zoom=1;
+    this.viewSize=Math.max(rows*1.15+3,(columns*this.sourceColumnPitch+3)/aspect);this.camera.zoom=1;
     this.updateProjection();
     this.camera.updateProjectionMatrix();this.controls.update();
   }

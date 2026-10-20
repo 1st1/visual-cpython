@@ -73,6 +73,10 @@ function material(texture) {
   });
 }
 
+export function measureSurfaceText(text,size) {
+  return Array.from(text).reduce((width,char)=>width+glyph(char).advance*size,0);
+}
+
 // Rows share a baseline grid; each row can supply syntax-colored runs.
 export function surfaceText(parent,x,y,z,width,height,{front=false,background=null}={}) {
   const group=new THREE.Group();group.position.set(x,y,z);group.rotation.x=front?0:-Math.PI/2;parent.add(group);
