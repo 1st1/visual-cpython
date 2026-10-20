@@ -37,6 +37,9 @@ try {
   await page.goto(process.env.FACTORY_URL || 'http://127.0.0.1:8000');
   await page.waitForFunction(()=>document.querySelector('#factory').dataset.rendered==='true');
   assert.equal(await page.locator('#factory > canvas').count(),1);
+  assert.equal(await page.locator('header, .camera-controls, #view-map, #finish-build, #show-opcodes, #focus-source, #focus-stack').count(),0);
+  assert.equal(await page.locator('#run').textContent(),'Compile');
+  assert.equal(await page.locator('.minimap #camera-iso, .minimap #camera-top, .minimap #zoom-fit').count(),3);
   assert.equal(await page.locator('#factory').getAttribute('data-blocks'),'0');
   const viewport=await page.locator('#factory').boundingBox();
   assert.equal(viewport.width,1600);assert.equal(viewport.height,1100);
@@ -112,7 +115,7 @@ try {
   assert.ok(Number(await page.locator('#factory').getAttribute('data-revealed-enclosures'))>0);
   const compilationLinks=JSON.parse(await page.locator('#factory').getAttribute('data-pipeline-links'));
   assert.equal(compilationLinks.sourceToken,0);assert.equal(compilationLinks.tokenAst,0);
-  await page.locator('#finish-build').click();
+  await page.waitForFunction(()=>document.querySelector('#factory').dataset.phase==='replay',null,{timeout:60000});
   assert.equal(await page.locator('#factory').getAttribute('data-revealed-blocks'),await page.locator('#factory').getAttribute('data-blocks'));
   assert.equal(await page.locator('#factory').getAttribute('data-revealed-edges'),await page.locator('#factory').getAttribute('data-edges'));
   assert.equal(await page.locator('#factory').getAttribute('data-revealed-enclosures'),await page.locator('#factory').getAttribute('data-enclosures'));
@@ -143,7 +146,6 @@ try {
   const opcode=await page.locator('.opcode-list .current').getAttribute('data-offset');
   assert.equal(await page.locator('#factory').getAttribute('data-active-opcode'),`c0:${opcode}`);
   assert.deepEqual(beforeStack.slots.map(s=>s.text.split(' · ')[0]),['int 2','int 3']);
-  await page.locator('#focus-stack').click();
   await page.screenshot({path:'artifacts/factory-stack.png',fullPage:true});
   await page.locator('#next').click();
   assert.match(await page.locator('.opcode-list .current').textContent(),/STORE_NAME\s+c/);
@@ -181,7 +183,7 @@ try {
   assert.equal(overflow.slots.at(-1).index,overflow.total-1);
   await capture('def accumulate(n):\n total=0\n for i in range(n):\n  total=total+i\n return total\nprint(accumulate(4))');
   assert.ok(Number(await page.locator('#factory').getAttribute('data-blocks'))>5);
-  await page.locator('#finish-build').click();
+  await page.waitForFunction(()=>document.querySelector('#factory').dataset.phase==='replay',null,{timeout:60000});
   assert.equal(await page.locator('#factory').getAttribute('data-revealed-opcodes'),await page.locator('#factory').getAttribute('data-opcode-tiles'));
   const blocks=await page.locator('#factory').getAttribute('data-blocks');
   const initial=await page.locator('#factory').getAttribute('data-active-block');
@@ -210,9 +212,7 @@ try {
   const canvas=await page.locator('#factory > canvas').boundingBox();
   await page.mouse.move(canvas.x+canvas.width*.5,canvas.y+canvas.height*.5);
   await page.mouse.down(); await page.mouse.move(canvas.x+canvas.width*.65,canvas.y+canvas.height*.55,{steps:8}); await page.mouse.up();
-  await page.locator('#view-map').click();
   assert.equal(await page.locator('#map .node').count(),Number(blocks));
-  await page.locator('#view-3d').click();
   assert.equal(await page.locator('#factory').getAttribute('data-blocks'),blocks);
   await page.locator('#seek').focus(); await page.locator('#seek').press('End');
   assert.equal(await page.locator('#stdout').textContent(),'6\n');
@@ -258,8 +258,8 @@ const fallback=await chromium.launch({channel:'chrome',headless:true,chromiumSan
 try {
   const page=await fallback.newPage();
   await page.goto(process.env.FACTORY_URL || 'http://127.0.0.1:8000');
-  await page.waitForFunction(()=>document.querySelector('#view-3d').disabled);
-  assert.equal(await page.locator('#view-map').getAttribute('aria-pressed'),'true');
+  await page.waitForFunction(()=>document.querySelector('#factory').hidden);
+  assert.equal(await page.locator('#map').isVisible(),true);
   await page.locator('#source').fill('print(7)'); await page.locator('#run').click();
   await page.waitForFunction(()=>/Graphviz/.test(document.querySelector('#map-status').textContent),null,{timeout:60000});
   assert.ok(await page.locator('#map .node').count()>0);

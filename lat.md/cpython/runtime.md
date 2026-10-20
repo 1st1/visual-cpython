@@ -83,7 +83,7 @@ With browser WebAssembly JSPI support, CPython completes asynchronously: the wor
 
 [web/app.mjs](../../web/app.mjs) applies separate runtime-loading and execution deadlines and terminates discarded workers. Play, step, rewind, and seek select recorded snapshots rather than re-executing Python. Output at each event reflects captured output at that time; the terminal position shows final output/status. A wall-clock timeout discards the unfinished capture.
 
-The Emscripten link configuration sets a maximum linear-memory size; JavaScript, fetched assets, and browser overhead are additional. [web/index.html](../../web/index.html) exposes the current capture limits and the instrumentation caveat. [web/style.css](../../web/style.css) provides a responsive diagnostic layout; the first factory renderer is described in [[scene]].
+The Emscripten link configuration sets a maximum linear-memory size; JavaScript, fetched assets, and browser overhead are additional. [web/index.html](../../web/index.html) presents a Compile action for recording execution, with status and errors in the source panel. The explanatory tracing and scope text is omitted from the interface; runtime limits remain enforced. [web/style.css](../../web/style.css) provides a responsive diagnostic layout; the first factory renderer is described in [[scene]].
 
 ## Validation
 

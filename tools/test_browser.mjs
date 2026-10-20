@@ -2,7 +2,7 @@ import { chromium } from 'playwright';
 import assert from 'node:assert/strict';
 import { mkdir } from 'node:fs/promises';
 
-const browser = await chromium.launch({ channel: 'chrome', headless: true, chromiumSandbox: true });
+const browser = await chromium.launch({ channel: 'chrome', headless: true, chromiumSandbox: true, args: ['--disable-webgl'] });
 const page = await browser.newPage({ viewport: { width: 1440, height: 1000 } });
 const errors = [];
 page.on('pageerror', error => errors.push(error.message));
@@ -26,7 +26,7 @@ async function end() {
 
 try {
   await page.goto(base);
-  await page.locator('#view-map').click();
+  await page.waitForFunction(()=>document.querySelector('#factory').hidden);
   await capture('a=2\nb=3\nc=a+b\nprint(c)');
   let foundAddition = false;
   for (let i = 0; i < 30; i++) {

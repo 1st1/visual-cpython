@@ -5,7 +5,6 @@ const manifest=JSON.parse(await readFile('web/public/runtime/runtime.json','utf8
 const browser=await chromium.launch({channel:'chrome',headless:true,chromiumSandbox:true});
 try {
   const page=await browser.newPage({viewport:{width:1500,height:1000}}),errors=[];
-  let captureWorker;page.on('worker',worker=>{if(!worker.url().includes('layout-worker'))captureWorker=worker.url();});
   const assets=[];page.on('request',r=>{const url=new URL(r.url());if(/\/runtime\/(python\.mjs|python\.wasm|python3\.16\.zip|capture\.py)$/.test(url.pathname))assets.push(url);});
   page.on('pageerror',e=>errors.push(e.message));
   await page.goto(process.env.FACTORY_URL || 'http://127.0.0.1:8000');
@@ -13,62 +12,25 @@ try {
     await page.locator('#source').fill(source);await page.locator('#run').click();
     await page.waitForFunction(()=>!document.querySelector('#run').disabled,null,{timeout:60000});
     await page.waitForFunction(()=>/Graphviz|No compiled/.test(document.querySelector('#map-status').textContent));
-    await page.locator('#view-parsing').click();
   }
   await capture('def f(x):\n    return x+1\nprint(f(3))');
   assert.equal(new Set(assets.map(u=>u.pathname)).size,4);
-  for(const url of assets) assert.equal(url.searchParams.get('build'),manifest.version,'All runtime assets use the current bundle version');
-  assert.equal(await page.locator('#factory').getAttribute('data-phase'),'parsing');
-  assert.equal(await page.locator('#factory').getAttribute('data-visible-tokens'),'0');
-  assert.equal(await page.locator('#factory').getAttribute('data-ast-visible'),'false');
+  for(const url of assets)assert.equal(url.searchParams.get('build'),manifest.version,'All runtime assets use the current bundle version');
+  assert.equal(await page.locator('#view-parsing, #view-execution').count(),0,'Parsing flows automatically without mode switches');
   assert.ok(Number(await page.locator('#factory').getAttribute('data-parse-tokens'))>10);
-  await page.locator('#parse-seek').evaluate(e=>e.value='100');await page.locator('#parse-seek').dispatchEvent('input');
-  assert.ok(Number(await page.locator('#factory').getAttribute('data-visible-tokens'))>0);
-  assert.ok(JSON.parse(await page.locator('#factory').getAttribute('data-pipeline-links')).sourceToken>0,'Parsing retains source-to-token links');
-  await page.locator('#parse-detail').check();
-  const cursor=await page.locator('#factory').getAttribute('data-parse-cursor');
-  await page.locator('#parse-next').click();await page.locator('#parse-back').click();
-  assert.equal(await page.locator('#factory').getAttribute('data-parse-cursor'),cursor);
-  let found=false;
-  const max=Number(await page.locator('#parse-seek').getAttribute('max'));
-  // Find a retained construction with a token span through the same capture served to Chrome.
-  const trace=await page.evaluate(async(workerUrl)=>await new Promise((resolve,reject)=>{
-    const worker=new Worker(workerUrl,{type:'module'});
-    worker.onmessage=({data})=>{if(data.type==='result'){worker.terminate();resolve(data.trace);}if(data.type==='error'){worker.terminate();reject(data.message);}};
-    worker.postMessage({source:document.querySelector('#source').value});
-  }),captureWorker);
-  const construction=trace.parsing.events.findIndex(e=>e.kind===3&&e.retained&&e.text==='BinOp');
-  assert.ok(construction>0&&construction<max);
-  await page.locator('#parse-seek').evaluate((e,value)=>e.value=value,construction);
-  await page.locator('#parse-seek').dispatchEvent('input');
-  assert.ok(Number(await page.locator('#factory').getAttribute('data-visible-ast'))>0);
-  assert.ok(Number(await page.locator('#factory').getAttribute('data-construction-tokens'))>0);
-  await page.screenshot({path:'artifacts/parsing-construction.png'});
-  const temporary=trace.parsing.events.findIndex(e=>e.kind===3&&!e.retained);
-  assert.ok(temporary>=0);
-  await page.locator('#parse-seek').evaluate((e,value)=>e.value=value,temporary);
-  await page.locator('#parse-seek').dispatchEvent('input');
-  assert.equal(await page.locator('#factory').getAttribute('data-ghost-event'),String(temporary));
-  assert.ok(Number(await page.locator('#factory').getAttribute('data-ghost-count'))>0);
-  await page.screenshot({path:'artifacts/parsing-ghost.png'});
-  await page.locator('#parse-end').click();
+  assert.ok(Number(await page.locator('#factory').getAttribute('data-ast-nodes'))>10);
+  await page.waitForFunction(()=>document.querySelector('#factory').dataset.phase==='replay',null,{timeout:60000});
   assert.equal(await page.locator('#factory').getAttribute('data-ast-visible'),'true');
   assert.equal(await page.locator('#factory').getAttribute('data-ghost-count'),'0');
-  assert.ok(Number(await page.locator('#factory').getAttribute('data-ast-nodes'))>10);
-  await page.locator('#toggle-editor').click();
   await page.screenshot({path:'artifacts/parsing-ast.png'});
   const pipeline=await page.locator('#factory').getAttribute('data-pipeline');
-  await page.locator('#view-execution').click();
-  assert.equal(await page.locator('#factory').getAttribute('data-pipeline'),pipeline,'Parsing and execution share geometry');
   await page.locator('#seek').focus();await page.locator('#seek').press('End');
+  assert.equal(await page.locator('#factory').getAttribute('data-pipeline'),pipeline,'Replay retains compilation geometry');
   assert.equal(await page.locator('#stdout').textContent(),'4\n');
-  await page.locator('#toggle-editor').click();
   await capture('x = (');
-  await page.locator('#parse-end').click();
   assert.equal(await page.locator('#factory').getAttribute('data-ast-nodes'),'0');
-  assert.match(await page.locator('#parse-status').textContent(),/Parse failed/);
-  await page.locator('#view-execution').click();
   assert.equal(await page.locator('#factory').getAttribute('data-blocks'),'0');
+  assert.equal(await page.locator('#state').textContent(),'error');
   assert.deepEqual(errors,[]);
-  console.log('PASS actual tokenizer/PEG replay, rewind, AST result, execution switching, syntax failure');
+  console.log('PASS versioned runtime assets, automatic tokenizer/AST construction, execution replay, syntax failure');
 } finally {await browser.close();}

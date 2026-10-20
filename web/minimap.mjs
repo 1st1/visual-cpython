@@ -7,6 +7,7 @@ export class Minimap {
     this.panel.innerHTML='<div class="minimap-heading"><button aria-label="Pan left">←</button><span>PIPELINE · drag to pan</span><button aria-label="Pan right">→</button></div><canvas width="560" height="200" tabindex="0" role="img" aria-label="Pipeline minimap. Click or drag to pan. Left and right arrow keys pan the camera."></canvas>';
     host.append(this.panel);this.canvas=this.panel.querySelector('canvas');
     const buttons=this.panel.querySelectorAll('button');buttons[0].onclick=()=>this.pan(-1);buttons[1].onclick=()=>this.pan(1);
+    this.panel.append(document.getElementById('minimap-tools'));
     this.canvas.onkeydown=e=>{if(['ArrowLeft','ArrowRight'].includes(e.key)){e.preventDefault();this.pan(e.key==='ArrowLeft'?-1:1);}};
     const move=e=>{
       const r=this.canvas.getBoundingClientRect(),bounds=factory.extent;

@@ -4,7 +4,7 @@ import {readFile} from 'node:fs/promises';
 
 const browser=await chromium.launch({channel:'chrome',headless:true,chromiumSandbox:true});
 try {
-  const page=await browser.newPage({viewport:{width:1920,height:1080},deviceScaleFactor:2});
+  const page=await browser.newPage({viewport:{width:1920,height:1080},deviceScaleFactor:2,reducedMotion:'reduce'});
   await page.goto(process.env.FACTORY_URL || 'http://127.0.0.1:8000');
   await page.waitForFunction(()=>document.querySelector('#factory').dataset.rendered==='true');
   const source=await readFile(new URL('../web/programs/shortest_path.py',import.meta.url),'utf8');
@@ -14,7 +14,6 @@ try {
     await page.locator('#run').click();
     await page.waitForFunction(()=>!document.querySelector('#run').disabled,null,{timeout:60000});
     await page.waitForFunction(()=>/Graphviz/.test(document.querySelector('#map-status').textContent),null,{timeout:20000});
-    await page.locator('#finish-build').click();
     await page.evaluate(()=>new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r))));
     samples.push(await page.evaluate(()=>{
       const f=document.querySelector('#factory'),canvas=f.querySelector(':scope > canvas'),stars=f.querySelectorAll('.starfield canvas');

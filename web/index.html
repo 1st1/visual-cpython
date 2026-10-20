@@ -5,7 +5,7 @@
 <title>CPython Factory · Capture workbench</title>
 <link rel="stylesheet" href="style.css">
 <body>
-<header><span class="dot"></span><strong>CPYTHON FACTORY</strong><span class="muted">INTERPRETER WORLD / 03</span><button id="toggle-editor" aria-expanded="true">Source</button><button id="toggle-inspector" aria-expanded="false">Inspector</button><span id="state" role="status">Ready</span></header>
+
 <main>
   <section class="editor panel" id="editor-panel">
     <div class="title"><h1>Start with a program.</h1><span class="badge">3.16 · WASM</span></div>
@@ -13,15 +13,17 @@
     <label for="example">Example</label><select id="example"><option value="accumulate">Accumulator</option><option value="shortest">Shortest path · breadth-first search</option><option value="asyncio">Asyncio · odd and even tasks</option><option value="branch">Branches and calls</option><option value="alias">Shared objects</option><option value="error">Runtime error</option><option value="loop">Execution limit</option></select>
     <label for="source">Python source · up to 200 Python tokens</label>
     <div class="source-editor"><pre id="source-highlight" aria-hidden="true"></pre><textarea wrap="off" id="source" spellcheck="false" aria-label="Python source" maxlength="16384"></textarea></div>
-    <div class="buttons"><button id="run" class="primary">Run &amp; capture</button><button id="cancel" disabled>Stop capture</button></div>
-    <p class="note">Instrumented opcode tracing. Stack values are observed before each instruction. Specialization is affected; this is not a performance trace.</p>
+    <div class="buttons"><button id="run" class="primary">Compile</button><button id="cancel" disabled>Stop capture</button></div>
+    <span id="state" role="status">Ready</span>
     <div id="message" role="alert"></div>
-    <details><summary>Scope and limits</summary><p>Functions, loops, branches, basic lists/dictionaries, arithmetic, and selected builtins. Async functions, await, and asyncio imports support run, sleep, gather, create_task, wait_for, current_task, get_running_loop, Task, Future, and CancelledError. Public attributes are supported; other imports and private attributes are rejected. Browser asyncio supports cooperative tasks and timers, not socket or thread I/O. Capture: 2,000 events, 4 KiB output, 4,096 retained object identities, 256 activations, 5 seconds of execution, and 256 MiB maximum WASM memory. Host/browser overhead is additional.</p></details>
   </section>
   <section class="map-panel panel">
     <div class="title map-title"><h2>The program factory</h2><span class="badge">CPYTHON · NO JIT</span></div>
     <p class="note">Enclosures are code objects. Trays group basic blocks. Each small box is one opcode; arrows inside a tray show instruction order. Gold: taken branch · green: continuation/jump · dashed violet: observed Python call.</p>
-    <div class="buttons camera-controls"><button id="view-3d" aria-pressed="true">3D factory</button><button id="view-map" aria-pressed="false">Schematic</button><button id="view-parsing" disabled>Parsing</button><button id="view-execution" aria-pressed="true">Execution</button><button id="camera-iso">Iso</button><button id="camera-top">Top</button><button id="focus-source">Source quadrant</button><button id="focus-stack">Stack</button><button id="zoom-out" aria-label="Zoom out">−</button><button id="zoom-fit">Fit</button><button id="zoom-in" aria-label="Zoom in">+</button><button id="finish-build">Skip reveal</button><button id="show-opcodes" aria-pressed="true">Opcodes</button></div>
+    <nav id="minimap-tools" aria-label="Scene controls">
+      <div class="minimap-tools-row"><button id="camera-iso">Iso</button><button id="camera-top">Top</button><button id="zoom-out" aria-label="Zoom out">−</button><button id="zoom-fit">Fit</button><button id="zoom-in" aria-label="Zoom in">+</button></div>
+      <div class="minimap-tools-row"><button id="toggle-editor" aria-expanded="true">Source</button><button id="toggle-inspector" aria-expanded="false">Inspector</button></div>
+    </nav>
     <div id="map-status" class="note" role="status">Run a program to build its map.</div>
     <div class="transport"><div class="buttons"><button id="first" disabled>Reset</button><button id="back" disabled>← Back</button><button id="play" disabled>Play</button><button id="next" disabled>Step →</button></div>
     <input id="seek" type="range" min="0" max="0" value="0" disabled aria-label="Execution event">

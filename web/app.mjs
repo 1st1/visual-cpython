@@ -38,7 +38,7 @@ $('cancel').onclick = () => fail('Capture cancelled. Run again to start a fresh 
 $('run').onclick = () => {
   parsingReplay?.stop();
   if(parsingReplay){parsingReplay.recording=null;parsingReplay.frames=[];parsingReplay.tokens=[];}
-  parsingMode=false;setParsingUI(false);$('view-parsing').disabled=true;lastLayout=null;
+  parsingMode=false;setParsingUI(false);lastLayout=null;
   layoutWorker?.terminate(); clearTimeout(layoutTimer); graph = null; mapStates = []; selectedBlock = null;
   $('block-select').replaceChildren(new Option('Select a building or block…',''));
   $('map').replaceChildren(); $('map-status').textContent = 'Waiting for capture'; $('block-detail').textContent = '';
@@ -63,7 +63,6 @@ $('run').onclick = () => {
       $('message').textContent = recording.error || '';
       $('provenance').textContent = `CPython ${recording.provenance.python.split(' ')[0]} · ${recording.provenance.revision.slice(0, 8)}`;
       if(!recording.codes.length) factory?.load(null,null,[],recording.source,recording.parsing,true);
-      $('view-parsing').disabled=!factory||!recording.parsing;
       render();
       buildMap();
     } else if (data.type === 'error') fail(data.message);
@@ -204,20 +203,11 @@ function selectBlock(id) { selectedBlock=id; $('block-select').value=id; renderM
 function changeView(mode) {
   if(mode==='map'&&parsingMode) showExecution();
   viewMode=mode; $('factory').hidden=mode!=='3d'; $('map').hidden=mode!=='map'; $('scene-hint').hidden=mode!=='3d';
-  $('view-3d').setAttribute('aria-pressed',String(mode==='3d')); $('view-map').setAttribute('aria-pressed',String(mode==='map'));
-  for(const id of ['camera-iso','camera-top','finish-build','focus-block','focus-stack','focus-source','show-opcodes']) $(id).disabled=mode!=='3d';
+  for(const id of ['camera-iso','camera-top','focus-block']) $(id).disabled=mode!=='3d';
   if(mode==='3d') factory?.resize();
 }
-$('view-3d').onclick=()=>changeView('3d'); $('view-map').onclick=()=>changeView('map');
 $('camera-iso').onclick=()=>factory?.view('iso'); $('camera-top').onclick=()=>factory?.view('top');
-$('finish-build').onclick=()=>factory?.finishConstruction();
 $('focus-block').onclick=()=>factory?.focus(selectedBlock || mapStates[index]?.block);
-$('focus-source').onclick=()=>factory?.focusSource();
-$('focus-stack').onclick=()=>factory?.focusStack();
-$('show-opcodes').onclick=()=>{
-  const show=$('show-opcodes').getAttribute('aria-pressed')!=='true';
-  $('show-opcodes').setAttribute('aria-pressed',String(show)); factory?.showOpcodes(show);
-};
 $('block-select').onchange=()=>selectBlock($('block-select').value);
 function seekInstruction(blockId,offset) {
   const block=graph.blocks.find(b=>b.id===blockId);
@@ -233,7 +223,7 @@ for(const name of ['editor','inspector']) $('toggle-'+name).onclick=()=>{
   $('toggle-'+name).setAttribute('aria-expanded',String(!panel.hidden));
 };
 try { factory=new Factory($('factory'),selectBlock,seekInstruction); parsingReplay=new ParsingReplay(factory); previewSource(); factory.view('iso'); }
-catch(error) { $('scene-hint').textContent=`3D unavailable: ${error.message}. The schematic is available.`; changeView('map'); $('view-3d').disabled=true; $('message').textContent='3D graphics unavailable; using the schematic.'; }
+catch(error) { $('scene-hint').textContent=`3D unavailable: ${error.message}. The schematic is available.`; changeView('map'); $('message').textContent='3D graphics unavailable; using the schematic.'; }
 window.addEventListener('pagehide',event=>{ if(!event.persisted) factory?.dispose(); });
 
 window.addEventListener('resize',()=>{
@@ -247,21 +237,15 @@ window.addEventListener('resize',()=>{
 function setParsingUI(active) {
   $('parse-panel').hidden=!active;
   $('map-status').hidden=active;$('scene-hint').hidden=active||viewMode!=='3d';
-  for(const id of ['finish-build','show-opcodes']) $(id).disabled=active||viewMode!=='3d';
   document.querySelector('.transport').hidden=active;
-  $('view-parsing').setAttribute('aria-pressed',String(active));
-  $('view-execution').setAttribute('aria-pressed',String(!active));
-  factory?.showOpcodes(!active&&$('show-opcodes').getAttribute('aria-pressed')==='true');
+  factory?.showOpcodes(!active);
 }
 function showExecution() {
   parsingReplay?.stop();parsingMode=false;setParsingUI(false);
   if(!recording) factory?.load(null,null,[],$('source').value,null,true);
   factory?.finishConstruction();renderMapState();
 }
-$('view-execution').onclick=showExecution;
-$('view-parsing').onclick=()=>{
-  stopPlayback();changeView('3d');parsingMode=true;setParsingUI(true);parsingReplay.load(recording);
-};
+
 
 $('source').addEventListener('scroll',()=>{ $('source-highlight').scrollTop=$('source').scrollTop; $('source-highlight').scrollLeft=$('source').scrollLeft; });
 paintPython($('source-highlight'),$('source').value+'\n');

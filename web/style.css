@@ -56,3 +56,13 @@ button[aria-pressed=true]{background:#8ebeff20;color:#d0eaff;border-color:#b0dff
 button[aria-pressed=true]{background:#30206a;color:#65d4df;border-color:#7960aa}
 .opcode-list button.current{background:#572042;border-color:#c92359;color:#fff0f6}
 .opcode-heading,#parse-status,.minimap-heading{color:#65d4df}
+
+/* Scene controls live with the minimap, leaving the world unobstructed. */
+#minimap-tools{display:flex;flex-direction:column;gap:6px;margin-top:8px}
+.minimap-tools-row{display:flex;gap:5px}
+.minimap-tools-row button{flex:1;padding:6px 8px;font-size:11px}
+.map-panel>#minimap-tools{position:absolute;right:18px;bottom:18px;z-index:6}
+.editor,.replay,.opcode-panel{top:18px}
+.editor{bottom:auto;max-height:calc(100dvh - 150px)}
+#state{display:block;margin-top:8px;font-size:11px;color:var(--muted)}
+@media(max-width:900px){.editor,.replay,.opcode-panel{top:8px}.minimap-tools-row button{padding:5px 3px;font-size:10px}}
