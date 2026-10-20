@@ -11,6 +11,7 @@
     "test:factory": "node tools/test_factory.mjs",
     "test:graph": "node tools/test_graph.mjs",
     "test:browser": "node tools/test_browser.mjs",
+    "test:live": "node --experimental-wasm-jspi tools/test_live_runtime.mjs && node tools/test_live_execution.mjs",
     "test:wasm": "node tools/test_wasm.mjs",
     "test:parsing": "node tools/test_parsing.mjs"
   },

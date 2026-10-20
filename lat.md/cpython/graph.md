@@ -20,7 +20,7 @@ Every captured event has a deterministic map selection and frame chain. Runtime 
 
 [web/graph.mjs](../../web/graph.mjs) tracks the previous opcode separately for each activation, so a callee cannot be mistaken for the caller's next basic block. It matches observed block transitions to static edges and records diagnostics for unmatched transitions. Return and unwind retain the terminating frame in that event's display; subsequent events select the surviving caller.
 
-The bounded recording already contains state snapshots at every event. The map projection also stores one selection per event; seek and rewind index these arrays instead of running code or rebuilding layout. This is the current small-recording strategy, not the planned periodic-snapshot reducer. Static branch edges describe possibilities; dashed call edges describe calls observed anywhere in the completed recording, not predictions available before execution.
+[web/graph.mjs](../../web/graph.mjs) incrementally tracks live activations and previous opcodes independently of the retained history window. Completed frames leave the projector after their final snapshot. The UI stores bounded event/state arrays; seeking never runs Python. [web/graph.mjs](../../web/graph.mjs) uses the same projector for complete native recordings. Observed calls add graph connections as they occur; geometry stays fixed during live stepping and picks up newly observed connections on a later layout.
 
 ## Layout and interaction
 

@@ -17,11 +17,8 @@ async function capture(source, status = 'completed') {
   if(await page.locator('#state').textContent()==='compiled'){
     await page.waitForFunction(()=>!document.querySelector('#play').disabled);
     await page.locator('#play').click();
-    await page.waitForFunction(()=>!document.querySelector('#run').disabled,null,{timeout:60000});
-    if(status!=='Stopped'){
-      await page.waitForFunction(()=>document.querySelector('#play').getAttribute('aria-label')==='Pause',null,{timeout:60000});
-      await page.locator('#play').click();await page.locator('#seek').fill('0');await page.locator('#seek').dispatchEvent('input');
-    }
+    await page.waitForFunction(()=>['completed','error'].includes(document.querySelector('#state').textContent),null,{timeout:60000});
+    await page.locator('#seek').fill('0');await page.locator('#seek').dispatchEvent('input');
   }
   assert.equal(await page.locator('#state').textContent(), status, await page.locator('#message').textContent());
   if (status !== 'Stopped') {
@@ -35,6 +32,7 @@ async function end() {
 }
 
 try {
+  await page.addInitScript(()=>{const original=window.setTimeout;window.setTimeout=(fn,ms,...args)=>original(fn,ms===100?0:ms,...args);});
   await page.goto(base);
   await page.waitForFunction(()=>document.querySelector('#factory').hidden);
   await capture('a=2\nb=3\nc=a+b\nprint(c)');
@@ -89,18 +87,11 @@ try {
   assert.equal(await page.locator('#next').isDisabled(), true);
   console.log('PASS functions, branches, aliases, runtime and syntax errors');
 
-  await capture('while True:\n    pass', 'limited');
-  assert.match(await page.locator('#message').textContent(), /event budget/);
-  await capture('print(min(range(1000000000)))', 'Stopped');
-  assert.match(await page.locator('#message').textContent(), /5 seconds/);
-  await capture('print(7)');
-  await end();
-  assert.equal(await page.locator('#stdout').textContent(), '7\n');
-  console.log('PASS event budget, hard worker timeout, fresh interpreter recovery');
-
+  await capture('print(7)');await end();
   await page.locator('#play').click();
-  await page.locator('#cancel').click();
-  assert.match(await page.locator('#message').textContent(), /stopped/);
+  await page.locator('#run').click();
+  await page.waitForFunction(()=>!document.querySelector('#play').disabled);
+  assert.equal(await page.locator('#message').textContent(),'');
   await page.setViewportSize({ width: 390, height: 844 });
   await capture('print(42)');
   await end();

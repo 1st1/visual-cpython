@@ -64,14 +64,29 @@ class CaptureLimit(BaseException):
 
 
 class Output(io.StringIO):
+    def __init__(self, live=False):
+        super().__init__()
+        self.live = live
+
     def write(self, value):
+        if self.live:
+            text = (self.getvalue() + value)[-4096:]
+            self.seek(0)
+            self.truncate()
+            super().write(text)
+            return len(value)
         if self.tell() + len(value) > 4096:
             raise CaptureLimit("output limit exceeded")
         return super().write(value)
 
 
 class Observer:
-    def __init__(self, limit, progress=False):
+    def __init__(self, limit, progress=False, live=False):
+        self.live = live
+        self.sequence = 0
+        self.object_sequence = 0
+        self.frame_sequence = 0
+        self.control = open("/dev/factory-control", "rb", buffering=0) if live else None
         self.progress = progress
         self.last_progress = -1.0
         self.limit = limit
@@ -81,14 +96,18 @@ class Observer:
         self.pending_exceptions = set()
         self.codes = {}
         self.artifacts = []
-        self.output = Output()
+        self.output = Output(live)
 
     def value(self, obj, depth=0, seen=frozenset()):
         address = id(obj)
         if address not in self.objects:
             if len(self.objects) >= 4096:
-                raise CaptureLimit("object identity budget exceeded")
-            self.objects[address] = (f"o{len(self.objects)}", obj)
+                if self.live:
+                    del self.objects[next(iter(self.objects))]
+                else:
+                    raise CaptureLimit("object identity budget exceeded")
+            self.objects[address] = (f"o{self.object_sequence}", obj)
+            self.object_sequence += 1
         identity = self.objects[address][0]
         kind = type(obj)
         result = {"id": identity, "type": kind.__name__}
@@ -166,13 +185,14 @@ class Observer:
             if not resumed and len(self.frames) >= 256:
                 raise CaptureLimit("activation budget exceeded")
             if not resumed:
-                self.frames[frame] = f"f{len(self.frames)}"
+                self.frames[frame] = f"f{self.frame_sequence}"
+                self.frame_sequence += 1
         if event not in ("call", "opcode", "return", "exception"):
             return self.trace
-        if len(self.events) >= self.limit:
+        if not self.live and len(self.events) >= self.limit:
             raise CaptureLimit("event budget exceeded")
         from _factory_probe import snapshot
-        record = {"seq": len(self.events), "kind": event, "frame": self.frames[frame],
+        record = {"seq": self.sequence, "kind": event, "frame": self.frames[frame],
                   "parent": self.frames.get(frame.f_back), "code": self.codes[frame.f_code],
                   "offset": frame.f_lasti, "line": frame.f_lineno,
                   "locals": {name: self.value(value) for name, value in frame.f_locals.items() if name != "__builtins__"},
@@ -196,14 +216,24 @@ class Observer:
         elif event == "exception":
             self.pending_exceptions.add(frame)
             record["exception"] = arg[0].__name__
-        self.events.append(record)
+        self.sequence += 1
+        if self.live:
+            # The asynchronous device read suspends the actual evaluator here.
+            print("@factory-event:" + json.dumps(record), file=sys.__stderr__, flush=True)
+            if record["kind"] == "opcode":
+                if self.control.read(1) != b"s":
+                    raise CaptureLimit("Execution stopped")
+            if record["kind"] in ("return", "unwind"):
+                self.frames.pop(frame, None)
+        else:
+            self.events.append(record)
         return self.trace
 
 
-def capture(source, max_events=2000, progress=False, compile_only=False):
+def capture(source, max_events=2000, progress=False, compile_only=False, live=False):
     if not 1 <= max_events <= 10000:
         raise ValueError("max_events must be between 1 and 10000")
-    observer = Observer(max_events, progress)
+    observer = Observer(max_events, progress, live)
     result = {"schema": 2, "source": source, "events": observer.events, "codes": observer.artifacts,
               "provenance": {"python": sys.version, "revision": "036d309cf542986a39eeba5ca805b2ec7619731d",
                              "mode": "opcode-tracing", "specialization": "perturbed", "stack": "observed-pre-instruction"}}
@@ -289,4 +319,4 @@ def capture(source, max_events=2000, progress=False, compile_only=False):
 
 if __name__ == "__main__":
     source = Path(sys.argv[1]).read_text() if len(sys.argv) > 1 else sys.stdin.read(16385)
-    print(json.dumps(capture(source, progress="--progress" in sys.argv[2:], compile_only="--compile-only" in sys.argv[2:]), ensure_ascii=True))
+    print(json.dumps(capture(source, progress="--progress" in sys.argv[2:], compile_only="--compile-only" in sys.argv[2:], live="--live" in sys.argv[2:]), ensure_ascii=True))

@@ -13,11 +13,12 @@ const browser=await chromium.launch({channel:'chrome',headless:true,chromiumSand
 try{
  const page=await browser.newPage({viewport:{width:1600,height:1000},reducedMotion:'reduce'}),errors=[];
  page.on('pageerror',e=>errors.push(e.message));
+ await page.addInitScript(()=>{const original=window.setTimeout;window.setTimeout=(fn,ms,...args)=>original(fn,ms===100?0:ms,...args);});
  await page.goto(process.env.FACTORY_URL||'http://127.0.0.1:8000');
  if(await page.locator('#editor-panel').isHidden()) await page.locator('#toggle-editor').click();
  await page.locator('#source').fill('total=0\nfor i in range(3):\n total+=i\n\nprint(total)');await page.locator('#run').click();
  await page.waitForFunction(()=>!document.querySelector('#play').disabled,null,{timeout:60000});
- await page.locator('#play').click();await page.waitForFunction(()=>document.querySelector('#play').getAttribute('aria-label')==='Pause',null,{timeout:60000});await page.locator('#play').click();
+ await page.locator('#play').click();await page.waitForFunction(()=>document.querySelector('#state').textContent==='completed',null,{timeout:60000});
  await page.locator('#seek').fill('0');await page.locator('#seek').dispatchEvent('input');
  if(await page.locator('#editor-panel').isVisible())await page.locator('#close-editor').click();
  await page.locator('#toggle-inspector').click();

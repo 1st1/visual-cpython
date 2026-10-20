@@ -1,6 +1,13 @@
-// Each capture gets a new worker and a new interpreter instance.
+// A fresh interpreter runs until an opcode waits for one UI-issued permit.
+let advance;
+let started=false;
 self.onmessage = async ({ data }) => {
+  if(data.type==='advance'){const release=advance;advance=null;release?.();return;}
+  if(started)return;
+  started=true;
   try {
+    if(data.mode==='run'&&!WebAssembly.Suspending)
+      throw new Error('Live stepping requires a browser with WebAssembly JSPI support.');
     const manifest = await fetch(`${import.meta.env.BASE_URL}runtime/runtime.json`, { cache: 'no-store' }).then(check).then(r => r.json());
     if (!/^[a-f0-9]{64}$/.test(manifest.version)) throw new Error('Invalid runtime manifest. Run tools/package_web.py again.');
     const asset = name => new URL(`${import.meta.env.BASE_URL}runtime/${name}?build=${manifest.version}`, self.location.origin).href;
@@ -18,9 +25,10 @@ self.onmessage = async ({ data }) => {
       onExit: code => finish(code),
       print: text => lines.push(text),
       printErr: text => {
-        const match=/^@factory-line:(\d+)$/.exec(text);
-        if(match) self.postMessage({type:"line",line:Number(match[1])});
-        else errors.push(text);
+        if(text.startsWith('@factory-event:')){
+          self.postMessage({type:'event',event:JSON.parse(text.slice(15))});return;
+        }
+        errors.push(text);
       },
       stdin: () => null,
       preRun(module) {
@@ -28,13 +36,25 @@ self.onmessage = async ({ data }) => {
         module.FS.writeFile("/lib/python316.zip", new Uint8Array(stdlib));
         module.FS.writeFile("/capture.py", capture);
         module.FS.writeFile("/program.py", data.source);
+        if(data.mode==='run'){
+          const device=module.FS.makedev(64,0);
+          module.FS.registerDevice(device,{
+            open(stream){stream.seekable=false;},
+            async readAsync(stream,buffer,offset){
+              await new Promise(resolve=>{advance=resolve;});
+              buffer[offset]=115;return 1;
+            },
+          });
+          module.FS.mkdev('/dev/factory-control',0o600,device);
+        }
       },
     });
     self.postMessage({ type: "running" });
     // CPython wraps main with WebAssembly.promising on JSPI-capable browsers.
     // callMain then returns undefined; onExit carries the actual completion.
-    const args=["-I", "/capture.py", "/program.py", "--progress"];
+    const args=["-I", "/capture.py", "/program.py"];
     if(data.mode==="compile")args.push("--compile-only");
+    else args.push("--live");
     const immediate = runtime.callMain(args);
     const exitCode = Number.isInteger(immediate) ? immediate : await exited;
     if (exitCode !== 0) throw new Error(`CPython exited ${exitCode}: ${errors.join("\n")}`);

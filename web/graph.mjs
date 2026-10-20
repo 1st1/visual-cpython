@@ -50,8 +50,13 @@ export function extractGraph(recording) {
 
 // Each entry is an immutable selection state; seeking never runs user code.
 export function projectReplay(recording, graph) {
-  const frames = new Map(), previous = new Map(), states = [];
-  for (const event of recording.events) {
+  const project=createReplayProjector(recording,graph);
+  return recording.events.map(project);
+}
+
+export function createReplayProjector(recording, graph) {
+  const frames = new Map(), previous = new Map();
+  return event => {
     const block = graph.locations[`${event.code}:${event.offset}`] || graph.codes.find(c => c.id === event.code)?.blocks[0];
     let edge = null;
     if (event.kind === 'call' || event.kind === 'resume') {
@@ -76,10 +81,11 @@ export function projectReplay(recording, graph) {
     }
     const chain = [];
     for (let frame = frames.get(event.frame); frame; frame = frames.get(frame.parent)) chain.unshift({ ...frame });
-    states.push({ block, edge, frames: chain, kind: event.kind });
-    if (event.kind === 'return' || event.kind === 'unwind') previous.delete(event.frame);
-  }
-  return states;
+    if (event.kind === 'return' || event.kind === 'unwind') {
+      previous.delete(event.frame);frames.delete(event.frame);
+    }
+    return { block, edge, frames: chain, kind: event.kind };
+  };
 }
 
 export function toDot(graph, {direction = 'TB', compact = false, tileAspect = 1} = {}) {

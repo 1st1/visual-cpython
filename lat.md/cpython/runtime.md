@@ -1,6 +1,6 @@
 # Capture runtime
 
-The implementation combines a revision-pinned CPython observation module, bounded Python capture driver, and browser workbench with a generated program map and first 3D factory scene.
+The implementation combines a revision-pinned CPython observation module, live opcode stepping, bounded inspection history, and a browser workbench with a generated program map and 3D scene.
 
 Build recipes and commands are in [README.md](../../README.md). [[tools/build_native.py#build]] exports the pinned revision from the ignored reference checkout and adds [[runtime/probe.c]] as a static module in a disposable build. [[tools/build_wasm.py#build]] prepares a separate Emscripten build; [[tools/package_web.py#package]] stages generated browser assets.
 
@@ -53,7 +53,7 @@ The native probe reads synchronized operand-stack entries during opcode tracing.
 
 [[runtime/probe.c#snapshot]] checks the frame and debug synchronization state and returns bottom-to-top entries. Its internal API is pinned to the source revision in [runtime/revision.txt](../../runtime/revision.txt). The generated evaluator synchronizes the stack before invoking instruction instrumentation; this is the basis for reading it from the callback, not permission to inspect an arbitrary running frame.
 
-[[runtime/capture.py#Observer#trace]] sets opcode tracing on each target-frame event, retaining line callbacks to enable instruction instrumentation in this revision. The recording omits line events themselves. With the browser’s progress flag, line callbacks emit a flushed private stderr message at most 30 times per second. The worker forwards these separately from program output; the current capture generation highlights the corresponding source tile immediately. Fast programs may finish before a browser repaint, and this live display samples activity rather than replaying every line. Each opcode snapshot describes state before that instruction executes. Call, return, exception, and unwind events carry locals and output but do not claim an opcode stack snapshot.
+[[runtime/capture.py#Observer#trace]] sets opcode tracing on each target-frame event, retaining line callbacks to enable instruction instrumentation in this revision. The recording omits line events themselves. Browser execution emits each observed event immediately and suspends at opcode boundaries until the UI grants a permit. Each opcode snapshot describes state before that instruction executes. Call, return, exception, and unwind events carry locals and output but do not claim an opcode stack snapshot.
 
 This is explicitly an instrumented observation mode. Opcode tracing pauses/adapts specialization behavior, so these captures cannot demonstrate undisturbed adaptive specialization or performance. A different hook strategy remains necessary for that later claim. The milestone is real observed state, not a complete implementation of the planned capture backend.
 
@@ -63,7 +63,7 @@ Capture records distinct activations, reusable code identities, source positions
 
 [[runtime/capture.py#Observer#value]] preserves alias identity using a bounded strong-reference registry. Exact builtin containers receive shallow, cycle-aware previews; arbitrary repr methods are not invoked. Retention changes object lifetime and is limited to a single recording. This is not a faithful reference-count/GC trace.
 
-[[runtime/capture.py#capture]] accepts a small syntax/builtin surface and checks source bytes and Python lexical tokens before execution. It enforces event, object-identity, activation, and output limits. Async functions, await, public attributes, and asyncio imports are accepted. Other imports, private attributes, classes, generators, and exception-handling syntax remain rejected. The source-size cap is independent of runtime cost.
+[[runtime/capture.py#capture]] accepts a small syntax/builtin surface and checks source bytes and Python lexical tokens before execution. The native capture utility enforces event, object-identity, activation, and output limits. Browser live mode has no total event limit: completed frames are released, object identities use a bounded registry with monotonic IDs, and output retains its latest 4,096 characters. Evicted objects may receive new IDs if observed again; IDs are never reassigned to unrelated objects. Active/suspended activations remain capped at 256. Async functions, await, public attributes, and asyncio imports are accepted. Other imports, private attributes, classes, generators, and exception-handling syntax remain rejected. The source-size cap is independent of runtime cost.
 
 [[runtime/capture.py#import_module]] exposes selected real asyncio APIs: run, sleep, gather, create_task, wait_for, current_task, get_running_loop, Task, Future, and CancelledError. On Emscripten, run uses a selector-loop subclass without the socketpair wakeup mechanism; the single worker supports cooperative tasks and timers, not socket or thread I/O. Native runs use the standard loop. Library frames remain opaque; user coroutine opcodes are observed normally.
 
@@ -73,17 +73,19 @@ Recordings distinguish completed, error, and limited outcomes. Exceptions follow
 
 ## Browser workbench
 
-The workbench separates compilation from execution, with source/instruction selection, locals, stack, output, and forward/backward trace playback. It consumes complete recordings and drives the generated map described in [[graph]].
+The workbench compiles without executing, then advances the real interpreter at opcode boundaries. Source, instructions, locals, stack, and output follow live execution or retained history in [[graph]].
 
-[web/worker.mjs](../../web/worker.mjs) loads the generated Emscripten runtime, standard-library archive, and capture driver. Each Compile or Run operation gets a new worker and interpreter. The worker writes source into its virtual filesystem, executes capture, and sends a serializable recording to the UI. The hosting server serves static files only.
+[web/worker.mjs](../../web/worker.mjs) loads the generated Emscripten runtime, standard-library archive, and capture driver. Each Compile or Run operation gets a new worker and interpreter. The worker writes source into its virtual filesystem. Compile returns artifacts; Run streams serializable events while the interpreter is still executing. The hosting server serves static files only.
 
 [[tools/package_web.py#package]] publishes a content-hashed runtime manifest after staging the committed runtime, WASM binary, standard library, and capture driver. The worker fetches this manifest without caching and uses its build identifier on all four asset URLs, including Emscripten’s WASM lookup. Rebuilt parser probes therefore cannot silently reuse the previous build’s cached binary.
 
-With browser WebAssembly JSPI support, CPython completes asynchronously: the worker waits for the runtime exit callback before parsing captured output. Synchronous runtimes use the immediate exit code. The pinned build enables dynamic linking because CPython's JSPI initialization requires Emscripten's symbol resolver.
+Live Run requires WebAssembly JSPI. [web/worker.mjs](../../web/worker.mjs) registers an asynchronous Emscripten filesystem device. [[runtime/capture.py#Observer#trace]] emits the pre-instruction snapshot, then reads one byte from that device. The read suspends the real WASM stack; one UI permit completes it and allows execution to reach the next opcode. Unsupported browsers receive a capability message instead of silently capturing a complete trace. Compile and native capture retain their synchronous compatibility.
 
-[web/app.mjs](../../web/app.mjs) applies separate runtime-loading and execution deadlines and terminates discarded workers. Compile calls [[runtime/capture.py#capture]] in compile-only mode: validation, parser/AST observation, bytecode compilation, and recursive code-object decoding run without executing the submitted program. Run starts real trace capture of the compiled source in a fresh interpreter, then automatically plays recorded snapshots. Pause/Resume, step, rewind, and seek operate on those snapshots. Edited source must be compiled again before Run is enabled. A new Run discards the preceding trace before capturing a fresh one. Changing examples or closing changed source cancels capture/layout/playback, releases recorded events and parser replay references, clears output and inspection state, and restores the source-only deck with the selected or edited text. There is no standalone Reset button; step controls and the seek slider navigate only the current trace. Output at each event reflects captured output at that time; the terminal position shows final output/status. A wall-clock timeout discards the unfinished capture.
+[web/app.mjs](../../web/app.mjs) starts a fresh interpreter for each Run. Run grants one permit every 100 ms after the next snapshot arrives; Pause cancels future permits, and Step grants one permit at the live frontier. There is at most one permit in flight. Opaque builtin calls can finish before the next opcode pause, and asyncio timers use real wall time, including pauses. Recompiling or changing the program terminates the worker even during an opaque call. Loading and compilation retain deadlines; live execution has no five-second or total-event deadline.
 
-The Emscripten link configuration sets a maximum linear-memory size; JavaScript, fetched assets, and browser overhead are additional. [web/index.html](../../web/index.html) presents Compile in the top-left toolbar and Run as an icon in the top-right execution controls. Persistent completion status is hidden; errors remain visible. Capture shows an indeterminate progress bar and elapsed execution time because total work is unknown, with Stop available only during Run. Skip animation appears only while compilation artifacts are being revealed. The explanatory tracing and scope text is omitted from the interface; runtime limits remain enforced. [web/style.css](../../web/style.css) provides a responsive diagnostic layout; the first factory renderer is described in [[scene]].
+[web/app.mjs](../../web/app.mjs) retains the latest 2,000 events and their projected states, discarding older entries. Back, the slider, and source/opcode visits inspect that window without undoing Python state. Run from history returns to the live frontier. After completion, history can be replayed; Run at the end starts a fresh interpreter. Edited source must be compiled again. Changing examples, recompiling, or closing changed source terminates execution and clears the preceding session. No trace persists between runs.
+
+[web/index.html](../../web/index.html) keeps Compile in the top-left toolbar and execution controls at top right. Run/Pause remains available during execution. The first control is Reset with a stop icon: it discards the interpreter, history, and output while preserving compiled artifacts and scene geometry, without a message. Reset is always visible, becomes enabled only after Pause, and disables after reset or resume. Recompiling or changing the program also discards the worker. Starting Run does not flash a loading label or capture progress track. The slider shows retained history rather than predicted completion. Errors remain visible; ordinary completion status stays hidden. The Emscripten linear-memory cap remains 256 MiB, excluding browser overhead and user-visible history.
 
 ## Validation
 
@@ -93,10 +95,18 @@ Native semantic tests check observed values and identity, not merely event prese
 
 Build success, semantic test execution, and browser UI verification must be reported separately. The current scripts provide those checks without declaring that later graph extraction, routing, or native-JIT work is complete.
 
-[tools/test_browser.mjs](../../tools/test_browser.mjs) uses Playwright with installed headless Chrome against the static workbench. It verifies actual operand values, backward replay, output, calls, aliases, errors, event limits, hard worker timeout and recovery, cancellation, and mobile overflow. Screenshots are saved in ignored artifacts for visual inspection.
+[tools/test_browser.mjs](../../tools/test_browser.mjs) uses Playwright with installed headless Chrome against the static workbench. It verifies actual operand values, backward replay, output, calls, aliases, errors, cancellation, and mobile overflow. Screenshots are saved in ignored artifacts for visual inspection.
 
 ## Compile and run separation checks
 
-Compilation must produce inspectable artifacts without executing user statements; execution capture starts only from Run.
+Compilation must produce inspectable artifacts without executing user statements; live execution starts only from Run.
 
-[[tests/test_capture.py#CaptureTests#test_compile_only_does_not_execute]] checks empty events/output, nested code artifacts, infinite-loop safety, syntax errors, and ordinary execution. [tools/test_compile_flow.mjs](../../tools/test_compile_flow.mjs) verifies these boundaries in WASM, conditional Skip/Stop controls, visible capture progress, automatic replay, the edited-source guard, and full reset both after and during execution (including rejection of late worker results).
+[[tests/test_capture.py#CaptureTests#test_compile_only_does_not_execute]] checks empty events/output, nested code artifacts, infinite-loop safety, syntax errors, and ordinary execution. [tools/test_compile_flow.mjs](../../tools/test_compile_flow.mjs) verifies compile-only behavior, stale-source guards, syntax errors, and resets during live execution.
+
+## Live execution checks
+
+Live controls must suspend the evaluator, advance real opcodes, survive history rollover, and release discarded sessions.
+
+[tools/test_live_execution.mjs](../../tools/test_live_execution.mjs) runs beyond the former event budget, checks bounded history, pause stability, real opcode steps, backward inspection, resume, cancellation, fresh runs, asyncio, exceptions, and silent run reset that preserves compilation. It accelerates only the UI permit delay; the actual WASM suspension protocol remains unchanged.
+
+[tools/test_live_runtime.mjs](../../tools/test_live_runtime.mjs) streams more than 85,000 events across 4,500 calls using the packaged WASM runtime. It checks identity eviction, completed-frame release, rolling output, monotonic sequences, and an empty runtime event array. Node requires its experimental WASM JSPI flag.

@@ -188,7 +188,7 @@ export class Factory {
         if(complete) this.finishConstruction();
       }
       if(this.pulse && this.pulsePath) {
-        const t=Math.min(1,(now-this.pulseStart)/450);
+        const t=Math.max(0,Math.min(1,(now-this.pulseStart)/450));
         this.pulse.visible=!this.reduced.matches && t<1;
         this.pulse.position.copy(this.pulsePath.getPointAt(t));
       }
@@ -396,8 +396,8 @@ export class Factory {
     this.currentOpcode=event?.kind==='opcode'?`${event.code}:${event.offset}`:null;
     this.host.dataset.activeOpcode=event?.kind==='opcode'&&!terminal?`${event.code}:${event.offset}`:'';
     this.updateOpcodePanel(selected || state?.block || this.graph?.blocks[0]?.id,event,terminal,Boolean(selected));
-    if(terminal||!event||event.seq<this.lastSeq){this.opcodeTrail.clear();this.previousOpcodeTile=null;}
-    if(event?.seq!==this.lastSeq) {
+    if(terminal||!event||(event.position??event.seq)<this.lastSeq){this.opcodeTrail.clear();this.previousOpcodeTile=null;}
+    if((event?.position??event?.seq)!==this.lastSeq) {
       const nextTile=!terminal&&event?.kind==='opcode'?this.instructionTiles.get(`${event.code}:${event.offset}`):null;
       if(nextTile){
         if(this.previousOpcodeTile&&this.previousOpcodeTile!==nextTile&&!this.reduced.matches)
@@ -405,7 +405,7 @@ export class Factory {
         this.previousOpcodeTile=nextTile;
       }
       if(this.lastSeq!==null) this.finishConstruction();
-      this.lastSeq=event?.seq;
+      this.lastSeq=event?.position??event?.seq;
       this.pulsePath=this.edges.get(state?.edge)?.path || null;
       this.pulseStart=performance.now(); this.pulse.visible=false;
     }

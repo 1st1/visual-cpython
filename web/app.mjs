@@ -1,6 +1,6 @@
 import {sourceVisits,nextSourceVisit} from './source-navigation.mjs';
 import {paintPython} from './python-syntax.mjs';
-import { extractGraph, projectReplay } from './graph.mjs';
+import { extractGraph, projectReplay, createReplayProjector } from './graph.mjs';
 import { ParsingReplay } from './parsing.mjs';
 import { Factory } from './factory.mjs';
 const $ = id => document.getElementById(id);
@@ -15,7 +15,10 @@ let worker, timer, playback, recording, index = 0, generation = 0;
 let layoutWorker, layoutTimer, graph, mapStates = [], selectedBlock, zoom = 1;
 let parsingReplay, parsingMode=false, lastLayout;
 let factory, viewMode = '3d', layoutAspect, resizeTimer;
-let operation=null,progressTick,operationStarted=0,runAfterLayout=false;
+let resetAllowed=false;
+let livePlaying=false,liveWaiting=false,liveTimer,projectLive;
+const HISTORY_LIMIT=2000;
+let operation=null,runAfterLayout=false;
 const windowAspect=()=>window.innerWidth/Math.max(1,window.innerHeight);
 $('source').value = examples.accumulate;
 let exampleRequest=0;
@@ -32,7 +35,7 @@ $('example').onchange = async () => {
     if(!response.ok) throw new Error('Could not load program example.');
     const source=await response.text(); if(request===exampleRequest) { applyExample(source); }
   } catch(error) { if(request===exampleRequest) $('message').textContent=error.message; }
-  finally { if(request===exampleRequest) $('run').disabled=Boolean(worker); }
+  finally { if(request===exampleRequest) $('run').disabled=operation==='compile'; }
 };
 
 function setPlaybackLabel(label) {
@@ -43,14 +46,14 @@ function setPlaybackLabel(label) {
     ?'<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 4v16M16 4v16"/></svg>'
     :'<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m8 4 12 8-12 8Z"/></svg>';
 }
-function stopPlayback() { factory?.starfield?.setPlaying(false); clearInterval(playback); playback = null; setPlaybackLabel(recording?.events.length&&index<recording.events.length?'Resume':'Run'); }
+function stopPlayback() { livePlaying=false;clearTimeout(liveTimer); factory?.starfield?.setPlaying(false); clearInterval(playback); playback = null; setPlaybackLabel(recording?.events.length&&index<recording.events.length?'Resume':'Run'); }
 function stopWorker(endFlight=true) {
   if(endFlight)factory?.starfield?.setCapturing(false);
-  generation++;clearTimeout(timer);clearInterval(progressTick);worker?.terminate();worker=null;operation=null;
-  $('run').disabled=false;$('run').textContent='Compile';$('cancel').hidden=true;$('capture-progress').hidden=true;
+  resetAllowed=false;liveWaiting=false;projectLive=null;clearTimeout(liveTimer);livePlaying=false;
+  generation++;clearTimeout(timer);worker?.terminate();worker=null;operation=null;
+  $('run').disabled=false;$('run').textContent='Compile';
 }
-function fail(message) { stopWorker();runAfterLayout=false;$('state').textContent='Stopped';$('message').textContent=message;render(); }
-$('cancel').onclick=()=>fail('Execution stopped. Run again to start a fresh interpreter.');
+function fail(message) { stopPlayback();stopWorker();runAfterLayout=false;$('state').textContent='Stopped';$('message').textContent=message;render(); }
 $('skip-animation').onclick=()=>{factory?.finishConstruction();$('skip-animation').hidden=true;};
 let compileHintTimer,compileHintHideTimer;
 function hideCompileHint(){
@@ -84,12 +87,10 @@ function startOperation(mode) {
     if(factory){factory.instructionVisits.clear();factory.panelBlock=null;factory.opcodeTrail.clear();factory.previousOpcodeTile=null;}
     factory?.finishConstruction();
   }
-  operation=mode;operationStarted=performance.now();
-  $('message').textContent='';$('map-status').textContent=mode==='compile'?'Compiling…':'Capturing execution…';
-  $('run').disabled=true;$('run').textContent=mode==='compile'?'Compiling…':'Compile';
-  $('cancel').hidden=mode!=='run';$('cancel').disabled=false;
-  $('capture-progress').hidden=mode!=='run';
-  $('capture-progress-label').textContent='Preparing runtime…';
+  operation=mode;
+  if(mode==='run'){projectLive=createReplayProjector(recording,graph);livePlaying=true;}
+  $('message').textContent='';if(mode==='compile')$('map-status').textContent='Compiling…';
+  $('run').disabled=mode==='compile';$('run').textContent=mode==='compile'?'Compiling…':'Compile';
   $('state').textContent='Loading WASM';
   factory?.starfield?.setCapturing(true);
   render();
@@ -100,16 +101,22 @@ function startOperation(mode) {
   worker.onmessage=({data})=>{
     if(generation!==runGeneration)return;
     if(data.type==='running'){
-      clearTimeout(timer);$('state').textContent=mode==='compile'?'Compiling':'Capturing';
-      if(mode==='run'){
-        operationStarted=performance.now();
-        const update=()=>{$('capture-progress-label').textContent=`Capturing execution · ${((performance.now()-operationStarted)/1000).toFixed(1)}s`;};
-        update();progressTick=setInterval(update,100);
+      clearTimeout(timer);$('state').textContent=mode==='compile'?'Compiling':'running';
+      if(mode==='compile')timer=setTimeout(()=>fail('Compilation exceeded 15 seconds.'),15000);
+      else {
+        factory?.starfield?.setCapturing(false);factory?.starfield?.setPlaying(livePlaying);
+        render();
       }
-      timer=setTimeout(()=>fail(mode==='run'?'Execution stopped after 5 seconds. The worker has been discarded.':'Compilation exceeded 15 seconds.'),mode==='run'?5000:15000);
-    }else if(data.type==='line'){
-      if(factory){factory.liveCaptureUntil=performance.now()+150;factory.highlightSource(data.line,null);}
+    }else if(data.type==='event'){
+      appendLiveEvent(data.event);
     }else if(data.type==='result'){
+      if(mode==='run'){
+        recording.stdout=data.trace.stdout;recording.status=data.trace.status;
+        recording.error=data.trace.error;
+        stopPlayback();stopWorker();index=recording.events.length;
+        $('state').textContent=recording.status;$('message').textContent=recording.error||'';
+        render();return;
+      }
       stopWorker(false);recording=data.trace;index=0;runAfterLayout=mode==='run'&&recording.events.length>0;
       $('state').textContent=recording.status;$('message').textContent=recording.error||'';
       $('provenance').textContent=`CPython ${recording.provenance.python.split(' ')[0]} · ${recording.provenance.revision.slice(0,8)}`;
@@ -119,8 +126,36 @@ function startOperation(mode) {
   };
   worker.postMessage({source,mode});
 }
+function scheduleLive(){
+  clearTimeout(liveTimer);
+  if(livePlaying&&liveWaiting)liveTimer=setTimeout(advanceLive,100);
+}
+function advanceLive(){
+  if(!worker||!liveWaiting)return;
+  liveWaiting=false;worker.postMessage({type:'advance'});render();
+}
+function appendLiveEvent(event){
+  const follow=livePlaying||index>=recording.events.length-1;
+  event.position=event.seq;
+  const state=projectLive(event);
+  recording.events.push(event);mapStates.push(state);
+  if(recording.events.length>HISTORY_LIMIT){recording.events.shift();mapStates.shift();index=Math.max(0,index-1);}
+  // UI positions are local to the retained window; runtime sequence stays monotonic.
+  for(let i=0;i<recording.events.length;i++)recording.events[i].seq=i;
+  recording.stdout=event.stdout;
+  if(factory){
+    factory.instructionVisits.clear();factory.panelBlock=null;
+    for(const e of recording.events)if(e.kind==='opcode'){
+      const key=`${e.code}:${e.offset}`;
+      factory.instructionVisits.set(key,(factory.instructionVisits.get(key)||0)+1);
+    }
+  }
+  if(follow)index=recording.events.length-1;
+  liveWaiting=event.kind==='opcode';
+  render();scheduleLive();
+}
 function seekSourceLine(line){
-  if(operation||!recording?.events.length)return;
+  if(operation==='compile'||!recording?.events.length)return;
   const target=nextSourceVisit(sourceVisits(recording.events),line,index);
   if(target===undefined)return;
   stopPlayback();selectedBlock=null;move(target);
@@ -139,16 +174,33 @@ function resetProgram(){
   if(factory){factory.liveCaptureUntil=0;factory.parsingPlaying=false;factory.load(null,null,[],$('source').value);}
   render();
 }
+function resetRun(){
+  hideCompileHint();stopPlayback();stopWorker();
+  recording={...recording,events:[],stdout:'',status:'compiled'};delete recording.error;
+  mapStates=[];selectedBlock=null;index=0;
+  if(factory){factory.instructionVisits.clear();factory.panelBlock=null;factory.opcodeTrail.clear();factory.previousOpcodeTile=null;}
+  $('message').textContent='';$('state').textContent='compiled';render();
+}
+$('reset').onclick=resetRun;
 $('back').onclick = () => { stopPlayback(); move(index - 1); };
-$('next').onclick = () => { stopPlayback(); move(index + 1); };
+$('next').onclick = () => {
+  stopPlayback();
+  if(operation==='run'&&index>=recording.events.length-1)advanceLive();
+  else move(index+1);
+};
 $('seek').oninput = () => { stopPlayback(); move(Number($('seek').value)); };
 function startReplay() {
+  resetAllowed=false;
   if(!recording?.events.length)return;
   setPlaybackLabel('Pause');factory?.starfield?.setPlaying(true);
   playback=setInterval(()=>{move(index+1);if(index===recording.events.length)stopPlayback();},250);
 }
 $('play').onclick=()=>{
-  if(playback)return stopPlayback();
+  if(livePlaying||playback){stopPlayback();resetAllowed=true;render();return;}
+  if(operation==='run'){
+    resetAllowed=false;livePlaying=true;index=Math.max(0,recording.events.length-1);
+    factory?.starfield?.setPlaying(true);scheduleLive();render();return;
+  }
   if(recording?.events.length&&index<recording.events.length)return startReplay();
   startOperation('run');
 };
@@ -165,14 +217,15 @@ function rows(target, items) {
   target.replaceChildren(...items.map(text => { const div = document.createElement('div'); div.className = 'value'; div.textContent = text; return div; }));
 }
 function render() {
+  $('reset').disabled=!resetAllowed||livePlaying||Boolean(playback)||operation==='compile';
   renderMapState();
   const count = recording?.events.length || 0;
   for (const id of ['back', 'next', 'play', 'seek']) $(id).disabled = !count;
-  $('play').disabled=Boolean(operation||layoutWorker)||!recording?.codes.length||recording.source!==$('source').value;
-  setPlaybackLabel(operation==='run'?'Running…':playback?'Pause':count&&index<count?'Resume':'Run');
-  for(const id of ['back','next','seek'])if(operation)$(id).disabled=true;
-  $('back').disabled = Boolean(operation) || !count || index === 0; $('next').disabled = Boolean(operation) || !count || index === count;
-  $('seek').max = count; $('seek').value = index;
+  $('play').disabled=Boolean(operation==='compile'||layoutWorker)||!recording?.codes.length||recording.source!==$('source').value;
+  setPlaybackLabel(livePlaying||playback?'Pause':operation==='run'?'Run':count&&index<count?'Resume':'Run');
+  for(const id of ['back','next','seek'])if(operation==='compile')$(id).disabled=true;
+  $('back').disabled = operation==='compile' || !count || index === 0; $('next').disabled = operation==='compile' || (operation==='run'?(!liveWaiting&&index>=count-1):!count || index === count);
+  $('seek').max = operation==='run'?Math.max(0,count-1):count; $('seek').value = index;
   $('seek').style.setProperty('--seek-progress',`${count?index/count*100:0}%`);
   $('counter').textContent = count ? `${Math.min(index + 1, count)} / ${count}${index === count ? ' · end' : ''}` : 'No recording';
   const event = recording?.events[Math.min(index, count - 1)];
@@ -183,12 +236,12 @@ function render() {
     return;
   }
   const code = recording.codes.find(c => c.id === event.code);
-  $('event').textContent = index === count ? `Capture ${recording.status}` : `${event.kind} · ${code.name} · ${event.frame} · line ${event.line} · offset ${event.offset}`;
+  $('event').textContent = index === count ? `Execution ${recording.status}` : `${event.kind} · ${code.name} · ${event.frame} · line ${event.line} · offset ${event.offset}`;
   const visitedLines=sourceVisits(recording.events);
   $('source-view').replaceChildren(...recording.source.split('\n').map((line, i) => {
     const button=document.createElement('button');button.type='button';button.dataset.line=String(i+1);
     button.className='source-line'+(i+1===event.line?' active':'');
-    button.disabled=Boolean(operation)||!visitedLines.has(i+1);
+    button.disabled=operation==='compile'||!visitedLines.has(i+1);
     button.title=button.disabled?'No recorded execution for this line':'Jump to next recorded visit (wraps to first)';
     button.setAttribute('aria-label',`Line ${i+1}: ${line}`);
     button.onclick=()=>seekSourceLine(i+1);paintPython(button,`${String(i+1).padStart(2)}  ${line}`);return button;
@@ -202,8 +255,10 @@ function buildMap(relayout=false,executed=false) {
   layoutWorker?.terminate(); clearTimeout(layoutTimer);
   const targetAspect=windowAspect(); layoutAspect=targetAspect;
   try {
-    graph = extractGraph(recording);
-    mapStates = projectReplay(recording, graph);
+    if(!(relayout&&operation==='run')){
+      graph = extractGraph(recording);
+      mapStates = projectReplay(recording, graph);
+    }
     if (!graph.blocks.length) { factory?.starfield?.setCapturing(false); $('map-status').textContent = 'No compiled program'; return; }
     $('map-status').textContent = 'Laying out program…';$('play').disabled=true;
     const current = graph;
@@ -281,7 +336,7 @@ function seekInstruction(blockId,offset) {
 }
 function previewSource() { paintPython($('source-highlight'),$('source').value+'\n'); if(!recording&&!worker) factory?.load(null,null,[],$('source').value,null,true); }
 let previewTimer;
-$('source').addEventListener('input',()=>{ ++exampleRequest;$('example').value='custom';$('run').disabled=Boolean(worker); paintPython($('source-highlight'),$('source').value+'\n'); if(recording)render(); clearTimeout(previewTimer); previewTimer=setTimeout(previewSource,180); });
+$('source').addEventListener('input',()=>{ ++exampleRequest;$('example').value='custom';$('run').disabled=operation==='compile'; paintPython($('source-highlight'),$('source').value+'\n'); if(recording)render(); clearTimeout(previewTimer); previewTimer=setTimeout(previewSource,180); });
 function setEditorOpen(open) {
   if(!open&&!$('editor-panel').hidden&&$('source').value!==appliedSource){
     resetProgram();previewSource();

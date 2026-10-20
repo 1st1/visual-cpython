@@ -39,10 +39,11 @@ async function capture(source,execute=true) {
 }
 async function runCapture(){
   await page.locator('#play').click();
-  await page.waitForFunction(()=>document.querySelector('#play').getAttribute('aria-label')==='Pause',null,{timeout:60000});
-  await page.locator('#play').click();await page.locator('#seek').fill('0');await page.locator('#seek').dispatchEvent('input');
+  await page.waitForFunction(()=>document.querySelector('#state').textContent==='completed',null,{timeout:60000});
+  await page.locator('#seek').fill('0');await page.locator('#seek').dispatchEvent('input');
 }
 try {
+ await page.addInitScript(()=>{const original=window.setTimeout;window.setTimeout=(fn,ms,...args)=>original(fn,ms===100?0:ms,...args);});
   await page.goto(process.env.FACTORY_URL || 'http://127.0.0.1:8000');
   await page.waitForFunction(()=>document.querySelector('#factory').dataset.rendered==='true');
   assert.equal(await page.locator('#factory > canvas').count(),1);

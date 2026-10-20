@@ -7,6 +7,7 @@ try {
   const page=await browser.newPage({viewport:{width:1500,height:1000}}),errors=[];
   const assets=[];page.on('request',r=>{const url=new URL(r.url());if(/\/runtime\/(python\.mjs|python\.wasm|python3\.16\.zip|capture\.py)$/.test(url.pathname))assets.push(url);});
   page.on('pageerror',e=>errors.push(e.message));
+ await page.addInitScript(()=>{const original=window.setTimeout;window.setTimeout=(fn,ms,...args)=>original(fn,ms===100?0:ms,...args);});
   await page.goto(process.env.FACTORY_URL || 'http://127.0.0.1:8000');
   async function capture(source) {
     if(await page.locator('#editor-panel').isHidden()) await page.locator('#toggle-editor').click();
@@ -25,8 +26,7 @@ try {
   assert.equal(await page.locator('#factory').getAttribute('data-ghost-count'),'0');
   await page.screenshot({path:'artifacts/parsing-ast.png'});
   await page.locator('#play').click();
-  await page.waitForFunction(()=>document.querySelector('#play').getAttribute('aria-label')==='Pause',null,{timeout:60000});
-  await page.locator('#play').click();
+  await page.waitForFunction(()=>document.querySelector('#state').textContent==='completed',null,{timeout:60000});
   const pipeline=await page.locator('#factory').getAttribute('data-pipeline');
   await page.locator('#seek').focus();await page.locator('#seek').press('End');
   assert.equal(await page.locator('#factory').getAttribute('data-pipeline'),pipeline,'Replay retains compilation geometry');
