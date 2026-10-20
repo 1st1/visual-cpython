@@ -73,6 +73,7 @@ try {
   assert.equal(await page.locator('#editor-panel').isHidden(),true);
   const minimap=page.locator('.minimap canvas');
   const sceneCanvas=page.locator('#factory > canvas');
+  assert.equal(await page.getByRole('button',{name:'Auto navigation',exact:true}).getAttribute('aria-pressed'),'true');
   const originalZoom=await page.locator('#factory').getAttribute('data-zoom');
   const beforeScroll=await minimap.getAttribute('data-target');
   await sceneCanvas.dispatchEvent('wheel',{deltaX:80,deltaY:50,deltaMode:0,bubbles:true,cancelable:true});
@@ -95,6 +96,17 @@ try {
   assert.equal(await page.evaluate(()=>scrollX===0&&scrollY===0&&document.documentElement.scrollWidth<=innerWidth),true);
   await page.locator('#camera-iso').click();
   await page.locator('#toggle-editor').click();
+  await page.getByRole('button',{name:'Mouse navigation',exact:true}).click();
+  assert.equal(await page.evaluate(()=>localStorage.getItem('factory-navigation-mode')),'mouse');
+  await page.waitForTimeout(1200); // Let prior trackpad pan damping settle before measuring mouse input.
+  const mouseTarget=JSON.parse(await minimap.getAttribute('data-target'));
+  const mouseZoom=await page.locator('#factory').getAttribute('data-zoom');
+  await sceneCanvas.dispatchEvent('wheel',{deltaY:-3,deltaMode:1,bubbles:true,cancelable:true});
+  await page.waitForFunction(value=>Number(document.querySelector('#factory').dataset.zoom)>Number(value),mouseZoom);
+  const mouseTargetAfter=JSON.parse(await minimap.getAttribute('data-target'));
+  assert.ok(Math.hypot(...mouseTargetAfter.map((value,i)=>value-mouseTarget[i]))<.001,'Mouse wheel zooms without panning');
+  await page.getByRole('button',{name:'Trackpad navigation',exact:true}).click();
+  await page.locator('#camera-iso').click();
   const beforePan=JSON.parse(await minimap.getAttribute('data-target'));
   await page.getByRole('button',{name:'Pan right',exact:true}).click();
   const afterPan=JSON.parse(await minimap.getAttribute('data-target'));

@@ -1,3 +1,4 @@
+import { NavigationGesture } from './navigation.mjs';
 import {codeObjectTitle} from './graph.mjs';
 import {BackgroundBlur} from './background-blur.mjs';
 import {frostSurface} from './frosted-surface.mjs';
@@ -91,14 +92,23 @@ export class Factory {
     this.camera=new THREE.PerspectiveCamera(38,1,.1,2000);
     this.controls=new OrbitControls(this.camera,this.renderer.domElement);
     this.controls.mouseButtons.MIDDLE=THREE.MOUSE.PAN;
+    this.navigationGesture=new NavigationGesture();
+    let navigationMode;
+    try { navigationMode=localStorage.getItem('factory-navigation-mode'); } catch {}
+    this.setNavigationMode(navigationMode);
     this.wheelPan=event=>{
       event.preventDefault();event.stopImmediatePropagation();
       if(!this.controls.enabled) return;
+      const device=this.navigationGesture.device(event,this.navigationMode,performance.now());
       if(event.ctrlKey) {
         if(!this.safariGesture) this.zoom(Math.exp(-Math.max(-100,Math.min(100,event.deltaY))*.01));
         return;
       }
       const unit=event.deltaMode===1?16:event.deltaMode===2?this.host.clientHeight:1;
+      if(device==='mouse') {
+        this.zoom(Math.exp(-Math.max(-100,Math.min(100,event.deltaY*unit))*.002));
+        return;
+      }
       const dx=event.shiftKey&&!event.deltaX?event.deltaY:event.deltaX;
       const dy=event.shiftKey&&!event.deltaX?0:event.deltaY;
       this.controls.pan(-dx*unit,-dy*unit);
@@ -721,6 +731,18 @@ export class Factory {
     const size={width:tile.width,depth:tile.height};
     const span=Math.max(size.depth+1.2,(size.width+1.4)/aspect);
     this.viewSize=span;this.camera.zoom=1;this.updateProjection(); this.controls.update();
+  }
+  setNavigationMode(mode) {
+    this.navigationMode=['mouse','trackpad'].includes(mode)?mode:'auto';
+    this.navigationGesture.reset();
+    this.host.dataset.navigationMode=this.navigationMode;
+    this.navigationHint=this.navigationMode==='mouse'
+      ?'Drag to orbit · Right/middle-drag to pan · Wheel to zoom'
+      :this.navigationMode==='trackpad'?'Drag to orbit · Two-finger scroll to pan · Pinch to zoom'
+      :'Wheel to zoom · Two-finger scroll to pan · Pinch to zoom';
+    document.getElementById('scene-hint').textContent=this.navigationHint;
+    this.renderer.domElement.setAttribute('aria-label',`Interactive CPython factory. ${this.navigationHint}. Click a tile to select it.`);
+    try { localStorage.setItem('factory-navigation-mode',this.navigationMode); } catch {}
   }
   dispose() { this.backgroundBlur.dispose();this.opcodeTrail.dispose(); this.starfield?.dispose(); for(const [name,handler] of [['gesturestart',this.gestureStart],['gesturechange',this.gestureChange],['gestureend',this.gestureEnd]]) this.renderer.domElement.removeEventListener(name,handler,true); this.renderer.domElement.removeEventListener('wheel',this.wheelPan,true); this.minimap?.dispose(); this.resizeObserver.disconnect(); this.renderer.setAnimationLoop(null); this.controls.dispose(); release(this.world); disposeTextAtlas();this.sun.shadow.dispose();this.renderer.dispose(); this.renderer.domElement.remove(); this.opcodePanel.remove(); }
 }

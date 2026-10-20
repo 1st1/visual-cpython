@@ -8,6 +8,24 @@ export class Minimap {
     host.append(this.panel);this.canvas=this.panel.querySelector('canvas');
     const buttons=this.panel.querySelectorAll('button');buttons[0].onclick=()=>this.pan(-1);buttons[1].onclick=()=>this.pan(1);
     this.panel.append(document.getElementById('minimap-tools'));
+    const navigation=this.navigation=document.createElement('div');navigation.className='navigation-selector';
+    navigation.setAttribute('role','group');navigation.setAttribute('aria-label','Navigation device');
+    const mouse='<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="6" y="2" width="12" height="20" rx="6"/><path d="M12 3v6M6 10h12"/></svg>';
+    const trackpad='<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="2" y="4" width="20" height="16" rx="3"/><path d="M3 16h18M12 16v3"/></svg>';
+    for(const [mode,content,title] of [
+      ['auto','Auto','Auto: infer mouse or trackpad from scrolling'],
+      ['mouse',mouse,'Mouse: drag to orbit, right/middle-drag to pan, wheel to zoom'],
+      ['trackpad',trackpad,'Trackpad: drag to orbit, two-finger scroll to pan, pinch to zoom']
+    ]) {
+      const button=document.createElement('button');button.type='button';button.innerHTML=content;
+      button.setAttribute('aria-label',mode==='auto'?'Auto navigation':mode==='mouse'?'Mouse navigation':'Trackpad navigation');
+      button.title=title;button.dataset.mode=mode;
+      button.onclick=()=>{factory.setNavigationMode(mode);update();};navigation.append(button);
+    }
+    const update=()=>navigation.querySelectorAll('button').forEach(button=>button.setAttribute('aria-pressed',String(button.dataset.mode===factory.navigationMode)));
+    const navigationControls=this.navigationControls=document.createElement('div');navigationControls.className='navigation-controls';
+    update();navigationControls.append(navigation,document.getElementById('scene-hint'));host.append(navigationControls);
+
     this.canvas.onkeydown=e=>{if(['ArrowLeft','ArrowRight'].includes(e.key)){e.preventDefault();this.pan(e.key==='ArrowLeft'?-1:1);}};
     const move=e=>{
       const r=this.canvas.getBoundingClientRect(),bounds=factory.extent;
@@ -44,5 +62,5 @@ export class Minimap {
     ctx.fillStyle='#d6edff';ctx.beginPath();ctx.arc(x(f.controls.target.x),z(f.controls.target.z),4,0,Math.PI*2);ctx.fill();
     this.canvas.dataset.target=JSON.stringify([f.controls.target.x,f.controls.target.z]);
   }
-  dispose(){this.panel.remove();}
+  dispose(){this.panel.remove();this.navigationControls.remove();}
 }

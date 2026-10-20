@@ -274,7 +274,7 @@ window.addEventListener('resize',()=>{
 
 function setParsingUI(active) {
   $('parse-panel').hidden=!active;
-  $('map-status').hidden=active;$('scene-hint').hidden=active||viewMode!=='3d';
+  $('map-status').hidden=active;
   document.querySelector('.transport').hidden=active;
   factory?.showOpcodes(!active);
 }

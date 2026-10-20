@@ -82,3 +82,15 @@ button[aria-pressed=true]{background:#30206a;color:#65d4df;border-color:#7960aa}
 #source-view .source-line.active{background:#7e9ccc16}
 #source-view .source-line:not(:disabled):hover{background:#7899cc24;border-color:#b4c9fa30}
 #source-view .source-line:disabled{opacity:.6;cursor:default}
+
+.navigation-controls{position:absolute;left:18px;bottom:18px;z-index:7;display:flex;align-items:center;gap:12px;max-width:calc(50% - 300px)}
+.navigation-controls #scene-hint{position:static;display:block;margin:0;font-size:10px;line-height:1.5;min-width:0}
+.navigation-selector{flex-shrink:0;display:flex;overflow:hidden;border:1px solid #b2c9ff50;border-radius:7px;background:#101322b8}
+.navigation-selector button{display:flex;align-items:center;justify-content:center;min-width:42px;height:34px;padding:6px 10px;border:0;border-right:1px solid #b2c9ff30;border-radius:0;background:transparent;color:#a9a5bd;font-size:11px}
+.navigation-selector button:last-child{border-right:0}
+.navigation-selector button[aria-pressed="true"]{color:#65d4df;background:#65d4df12;box-shadow:inset 0 0 0 1px #65d4df70}
+.navigation-selector button:hover{color:#edf0f5;background:#ffffff0a}
+.navigation-selector button:focus-visible{outline-offset:-3px}
+.navigation-selector svg{width:19px;height:19px;fill:none;stroke:currentColor;stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round}
+@media(max-width:1100px){.navigation-controls{bottom:110px;max-width:calc(100% - 320px)}}
+@media(max-width:900px){.navigation-controls{left:8px;max-width:calc(100% - 204px);align-items:flex-start;flex-direction:column;gap:6px}}

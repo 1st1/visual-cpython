@@ -29,7 +29,7 @@
     <div id="capture-progress" hidden role="status"><span id="capture-progress-label">Preparing runtime…</span><progress aria-label="Execution capture progress"></progress></div>
     <input id="seek" type="range" min="0" max="0" value="0" disabled aria-label="Execution event">
     </div><div id="factory" class="factory"></div>
-    <div id="scene-hint" class="note">Drag to orbit · scroll or right-drag to pan · pinch to zoom. Parser/compiler are explanatory landmarks; the reveal stages completed bytecode.</div>
+    <div id="scene-hint" class="note"></div>
     <section id="parse-panel" hidden><strong>PEG parser · observed checkpoints</strong><div id="parse-status"></div><pre id="parse-attempts"></pre><p id="parse-budget" class="note"></p><div class="buttons"><button id="parse-back">←</button><button id="parse-play">Play parsing</button><button id="parse-next">→</button><button id="parse-end">AST result</button></div><label><input id="parse-detail" type="checkbox"> Step every checkpoint (including generated helper rules)</label><input id="parse-seek" type="range" min="0" value="0" aria-label="Parsing checkpoint"></section>
     <div id="map" class="map" hidden></div>
   </section>
