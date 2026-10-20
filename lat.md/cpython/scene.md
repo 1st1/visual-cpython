@@ -60,7 +60,9 @@ The inspector anchors program output at its bottom in a bounded scroll region. L
 
 ## Camera and selection
 
-A 38° perspective camera supports isometric and top presets, orbit, pan, zoom, fit, and focus. Trackpad scrolling pans; pinch gestures zoom.
+A 38° perspective camera supports angled and top presets, orbit, pan, zoom, fit, and focus. The default angled view faces the pipeline straight on, with level left-to-right lanes and a downward tilt. Trackpad scrolling pans; pinch gestures zoom.
+
+The default angled preset uses 1.25× zoom over the fitted bounds and a small ground-plane pan to place the map lower in the viewport. The top preset remains centered at fit scale.
 
 Capture, including final layout replacement and failure results, preserves viewing orientation, zoom relative to map fit, and pan normalized to map size. Camera distance scales by the ratio of new to old perspective-fit bounds and the target moves with the map center, without animation. Source edits also preserve navigation after the initial fit; explicit camera presets and viewport relayout can refit the map. Chrome checks compare orientation, normalized pan, and relative framing across recapture.
 
@@ -138,7 +140,7 @@ Backing planes and glyphs use successively stronger constant and slope depth bia
 
 A brief fiery orange trail connects the previous and current opcode tiles during forward replay, retracting toward the newly active instruction without covering either endpoint label.
 
-[web/opcode-trail.mjs](../../web/opcode-trail.mjs) implements a world-space shader inspired by [cursor_blaze](https://github.com/0xhckr/ghostty-shaders/blob/main/cursor_blaze.glsl), using original GLSL with a pale-hot core, orange/red edges, subtle moving flame tongues, and a half-second retracting fade. The ribbon spans each tile’s footprint perpendicular to travel and interpolates between the two endpoint widths. One reused plane and material require no texture or framebuffer allocations. It shows observed execution-cursor movement, not an additional control-flow edge.
+[web/opcode-trail.mjs](../../web/opcode-trail.mjs) implements a world-space shader inspired by [cursor_blaze](https://github.com/0xhckr/ghostty-shaders/blob/main/cursor_blaze.glsl), using original GLSL with an amber-orange core, orange/red edges, subtle moving flame tongues, and a half-second retracting fade. The ribbon spans each tile’s footprint perpendicular to travel and interpolates between the two endpoint widths. One reused plane and material require no texture or framebuffer allocations. It shows observed execution-cursor movement, not an additional control-flow edge.
 
 [web/factory.mjs](../../web/factory.mjs) triggers it only when the recorded event changes to a different opcode. Selection updates do not restart it. Reset, backward seeking, parsing, recapture, terminal events, and reduced motion clear or suppress the effect; teardown disposes its resources. [tools/test_opcode_trail.mjs](../../tools/test_opcode_trail.mjs) verifies orientation in every direction, expiry, reduced motion, and disposal. Headless Chrome scene checks verify the effect starts on a replay step and expires afterward.
 

@@ -13,7 +13,7 @@ import { factoryFootprint, sourceFootprint } from './placement.mjs';
 import { stackView } from './stack.mjs';
 import { instructionText, instructionGrid } from './opcodes.mjs';
 
-const colors = { base: 0x151a30, block: 0x25304a, rim: 0x687fa8, active: 0xff8a24, selected: 0xe7cf89, error: 0xff926b };
+const colors = { base: 0x151a30, block: 0x25304a, rim: 0x687fa8, active: 0xd98a46, selected: 0xe7cf89, error: 0xff926b };
 function release(group) {
   group.traverse(o => {
     o.geometry?.dispose();
@@ -53,7 +53,7 @@ function opcodeTile(parent,width,depth,y,instruction) {
     if(previous===active)return;previous=active;
     const argument=instruction.argrepr || (instruction.arg===null?'':String(instruction.arg));
     const lines=[`@${instruction.offset}`,...instruction.opname.match(/.{1,22}/g),...(argument?[argument]:[])];
-    update(lines.map((text,i)=>({text,color:active?'#291207':i===0?'#a2b8db':'#f0f7f1'})),active?'#ff8a24':'#11192c');
+    update(lines.map((text,i)=>({text,color:active?'#291207':i===0?'#a2b8db':'#f0f7f1'})),active?'#d98a46':'#11192c');
   };
 }
 function sourceTile(parent,width,depth,line,tokens) {
@@ -652,10 +652,16 @@ export class Factory {
   view(mode) {
     const e=this.extent, center=new THREE.Vector3((e.minX+e.maxX)/2,0,(e.minZ+e.maxZ)/2);
     const span=Math.max(e.maxX-e.minX,e.maxZ-e.minZ);
-    this.camera.position.copy(center).add(mode==='top'?new THREE.Vector3(0,span*2,.001):new THREE.Vector3(span*.35,span*1.1,span));
+    this.camera.position.copy(center).add(mode==='top'?new THREE.Vector3(0,span*2,.001):new THREE.Vector3(0,span*1.1,span));
     this.controls.target.copy(center); this.camera.zoom=1;
     this.camera.lookAt(center); this.controls.update();
     this.viewSize=this.projectedSize();
+    if(mode!=='top') {
+      this.camera.zoom=1.25;
+      const pan=new THREE.Vector3(0,0,-this.viewSize*.07);
+      this.camera.position.add(pan);
+      this.controls.target.add(pan);
+    }
     this.resize();
   }
   updateLighting() {
