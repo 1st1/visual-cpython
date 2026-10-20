@@ -44,7 +44,8 @@ try {
   assert.equal(await page.locator('#source-highlight').textContent(),await page.locator('#source').inputValue()+'\n');
   assert.ok(await page.locator('#source-highlight .syntax-keyword').count()>0);
   assert.ok(await page.locator('#source-highlight .syntax-number').count()>0);
-  assert.equal(await page.locator('.starfield canvas').count(),1);
+  assert.equal(await page.locator('.starfield canvas').count(),0);
+  assert.equal(await page.locator('.starfield').getAttribute('data-renderer'),'webgl');
   assert.equal(await page.locator('.starfield').getAttribute('data-star-count'),'36000');
   const starTime=Number(await page.locator('.starfield').getAttribute('data-time'));
   await page.waitForFunction(t=>Number(document.querySelector('.starfield').dataset.time)>t,starTime);

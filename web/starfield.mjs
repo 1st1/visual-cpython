@@ -1,132 +1,130 @@
+import * as THREE from 'three';
 import {nebulaTexture} from './nebula.mjs';
-// A sampled Gaussian gives subpixel stars a stable footprint across Canvas backends.
-function starSprite(rgb) {
-  const canvas=document.createElement('canvas');canvas.width=32;canvas.height=32;
-  const ctx=canvas.getContext('2d'),pixels=ctx.createImageData(32,32);
-  for(let y=0;y<32;y++)for(let x=0;x<32;x++){
-    const r2=((x+.5-16)/5)**2+((y+.5-16)/5)**2,i=(y*32+x)*4;
-    pixels.data.set([...rgb,Math.round(255*Math.exp(-r2/2))],i);
+
+const vertexShader=`
+attribute vec4 star;
+attribute vec2 appearance;
+uniform vec2 viewport;
+uniform float time, distance, warp;
+uniform bool distant;
+varying vec2 local;
+varying float sigma, energy, tailLength, tailWidth, visibility;
+varying vec3 tint;
+void main(){
+  vec2 center;
+  vec2 direction=vec2(1.,0.);
+  tailLength=0.;tailWidth=.6;visibility=1.;
+  if(distant){
+    float scale=1.04+warp*.05;
+    center=(star.xy-.5)*viewport*scale+viewport*.5;
+    center+=vec2(sin(time*.015),cos(time*.012))*viewport*.008;
+    sigma=.65;
+    energy=appearance.x*star.w*star.w/(6.2831853*sigma*sigma);
+    tint=vec3(224.,234.,255.)/255.;
+  }else{
+    float z=.3+mod(star.z-.3-distance,3.7);
+    float focal=max(viewport.x,viewport.y)*.55;
+    center=viewport*vec2(.46,.43)+star.xy*focal/z;
+    visibility=clamp(min((z-.3)*2.,(4.-z)*2.),0.,1.);
+    float radius=min(1.8,star.w/z);
+    sigma=max(1.4,radius*.75);
+    energy=visibility*(.35+.4*(1.-z/4.))*radius*radius/(2.*sigma*sigma);
+    vec2 delta=star.xy*focal/(z+warp*warp*.55)+viewport*vec2(.46,.43)-center;
+    float length=length(delta);
+    direction=length>.00001?delta/length:vec2(1.,0.);
+    tailLength=min(180.,length)*visibility;
+    tailWidth=max(.6,radius*.85);
+    tint=appearance.y<.15?vec3(215.,189.,255.)/255.:
+      appearance.y>.75?vec3(163.,217.,255.)/255.:vec3(224.,234.,255.)/255.;
   }
-  ctx.putImageData(pixels,0,0);return canvas;
+  local=vec2(mix(-sigma*3.,tailLength+sigma*3.,uv.x),(uv.y-.5)*sigma*6.);
+  vec2 pixel=center+direction*local.x+vec2(-direction.y,direction.x)*local.y;
+  gl_Position=vec4(pixel/viewport*vec2(2.,-2.)+vec2(-1.,1.),0.,1.);
+}`;
+const fragmentShader=`
+uniform float warp;
+varying vec2 local;
+varying float sigma, energy, tailLength, tailWidth, visibility;
+varying vec3 tint;
+void main(){
+  float core=energy*exp(-dot(local,local)/(2.*sigma*sigma));
+  float aa=max(fwidth(local.y),.5);
+  float crossFade=1.-smoothstep(max(0.,tailWidth*.5-aa*.5),tailWidth*.5+aa*.5,abs(local.y));
+  float along=clamp(1.-local.x/max(tailLength,.001),0.,1.);
+  float tail=.38*visibility*along*crossFade*smoothstep(0.,1.,tailLength)*step(0.,local.x);
+  float alpha=core+tail*(1.-core);
+  if(alpha<.001)discard;
+  vec3 trailTint=mix(tint,vec3(135.,215.,255.)/255.,min(1.,warp/.22)*.65);
+  // Colors are display-referred, matching the original Canvas background.
+  gl_FragColor=vec4(mix(tint,trailTint,tail/max(alpha,.001)),alpha);
+}`;
+
+function starMesh(stars,appearance,uniforms,distant){
+  const geometry=new THREE.InstancedBufferGeometry();
+  // Screen coordinates flip Y, so reverse winding to keep the quads front-facing.
+  geometry.setIndex([0,2,1,0,3,2]);
+  geometry.setAttribute('position',new THREE.Float32BufferAttribute([-1,-1,0,1,-1,0,1,1,0,-1,1,0],3));
+  geometry.setAttribute('uv',new THREE.Float32BufferAttribute([0,0,1,0,1,1,0,1],2));
+  geometry.setAttribute('star',new THREE.InstancedBufferAttribute(new Float32Array(stars),4));
+  geometry.setAttribute('appearance',new THREE.InstancedBufferAttribute(new Float32Array(appearance),2));
+  geometry.instanceCount=stars.length/4;
+  const material=new THREE.ShaderMaterial({uniforms:{...uniforms,distant:{value:distant}},vertexShader,fragmentShader,
+    transparent:true,depthTest:false,depthWrite:false,toneMapped:false});
+  const mesh=new THREE.Mesh(geometry,material);mesh.frustumCulled=false;mesh.renderOrder=distant?1:2;return mesh;
 }
-// Decorative depth field independent of the pipeline camera and recording clock.
+
+// The existing renderer draws this camera-independent background before the factory.
 export class Starfield {
-  constructor(host) {
-    this.layer=document.createElement('div');this.layer.className='starfield';this.layer.setAttribute('aria-hidden','true');
-    this.canvas=document.createElement('canvas');this.layer.append(this.canvas);host.prepend(this.layer);
-    this.ctx=this.canvas.getContext('2d');this.last=null;this.time=0;this.distance=0;this.warp=0;this.capturing=false;this.playing=false;this.constructing=false;
+  constructor(host){
+    this.layer=document.createElement('div');this.layer.className='starfield';this.layer.setAttribute('aria-hidden','true');host.prepend(this.layer);
+    this.layer.dataset.starCount='36000';this.layer.dataset.renderer='webgl';
+    this.last=null;this.time=0;this.distance=0;this.warp=0;this.capturing=false;this.playing=false;this.constructing=false;
+    this.viewport={width:1,height:1};this.nebula=nebulaTexture();
+    this.texture=new THREE.CanvasTexture(this.nebula);this.texture.colorSpace=THREE.SRGBColorSpace;
+    this.scene=new THREE.Scene();this.camera=new THREE.Camera();
+    this.uniforms={viewport:{value:new THREE.Vector2(1,1)},time:{value:0},distance:{value:0},warp:{value:0}};
+    const material=new THREE.ShaderMaterial({uniforms:{nebula:{value:this.texture},warp:this.uniforms.warp,viewport:this.uniforms.viewport},
+      depthTest:false,depthWrite:false,toneMapped:false,
+      vertexShader:'varying vec2 texUv;void main(){texUv=uv;gl_Position=vec4(position.xy,0.,1.);}',
+      fragmentShader:`varying vec2 texUv;uniform sampler2D nebula;uniform float warp;uniform vec2 viewport;
+        void main(){
+          vec3 color=texture2D(nebula,texUv).rgb;
+          gl_FragColor=vec4(color,1.);
+          #include <colorspace_fragment>
+          float r=length((vec2(texUv.x,1.-texUv.y)-vec2(.46,.43))*viewport)/(max(viewport.x,viewport.y)*.44);
+          gl_FragColor.rgb=mix(gl_FragColor.rgb,vec3(100.,155.,255.)/255.,max(0.,1.-r)*warp*.1);
+        }`});
+    this.backdrop=new THREE.Mesh(new THREE.PlaneGeometry(2,2),material);this.backdrop.frustumCulled=false;this.scene.add(this.backdrop);
     let seed=73421;const random=()=>{seed=(seed*1664525+1013904223)>>>0;return seed/4294967296;};
-    this.nebula=nebulaTexture();
-    this.nearCanvas=document.createElement('canvas');this.nearCtx=this.nearCanvas.getContext('2d');
-    this.starSprites=[[215,189,255],[163,217,255],[224,234,255]].map(starSprite);
-    this.distant=Array.from({length:32400},()=>({x:random(),y:random(),r:.25+random()*.55,a:.08+random()**3*.6}));
-    this.layer.dataset.starCount='36000';
-    this.stars=Array.from({length:3600},()=>({x:(random()-.5)*4,y:(random()-.5)*4,z:.3+random()*3.7,r:.45+random()*.75,c:random()}));
+    const far=[],farAppearance=[],near=[],nearAppearance=[];
+    for(let i=0;i<32400;i++){far.push(random(),random(),0,.25+random()*.55);farAppearance.push(.08+random()**3*.6,0);}
+    for(let i=0;i<3600;i++){near.push((random()-.5)*4,(random()-.5)*4,.3+random()*3.7,.45+random()*.75);nearAppearance.push(1,random());}
+    this.far=starMesh(far,farAppearance,this.uniforms,true);this.near=starMesh(near,nearAppearance,this.uniforms,false);
+    this.scene.add(this.far,this.near);
   }
-  draw(now,width,height,reduced) {
-    const dpr=Math.min(devicePixelRatio,1,Math.sqrt(2000000/(width*height)));
-    const changed=this.width!==width||this.height!==height||this.dpr!==dpr;
-    if(changed){this.width=width;this.height=height;this.dpr=dpr;this.canvas.width=Math.round(width*dpr);this.canvas.height=Math.round(height*dpr);
-      this.nearCanvas.width=Math.max(1,Math.round(this.canvas.width/2));this.nearCanvas.height=Math.max(1,Math.round(this.canvas.height/2));
-      this.nearPixels=this.nearCtx.createImageData(this.nearCanvas.width,this.nearCanvas.height);
-      if(this.distantCanvas){this.distantCanvas.width=1;this.distantCanvas.height=1;}
-      this.distantCanvas=document.createElement('canvas');this.distantCanvas.width=Math.round(width*dpr);this.distantCanvas.height=Math.round(height*dpr);
-      const far=this.distantCanvas.getContext('2d');far.scale(dpr,dpr);far.fillStyle='#d7ddff';
-      // Spread the same energy over a soft footprint rather than a subpixel square.
-      const sigma=.65/dpr,size=sigma*6.4;
-      for(const star of this.distant){
-        far.globalAlpha=star.a*star.r*star.r/(2*Math.PI*sigma*sigma);
-        far.drawImage(this.starSprites[2],star.x*width-size/2,star.y*height-size/2,size,size);
-      }
-    }
+  draw(now,width,height,reduced){
+    // Preserve the existing blur resolution budget without a second display canvas.
+    const scale=Math.min(1,Math.sqrt(2000000/(width*height)));
+    this.viewport.width=Math.round(width*scale);this.viewport.height=Math.round(height*scale);
+    this.uniforms.viewport.value.set(width,height);
     const dt=this.last===null?0:Math.min(.05,(now-this.last)/1000);this.last=now;
-    if(reduced){this.warp=0;this.layer.dataset.warp='0';}
-    if(reduced&&!changed&&this.wasReduced)return;
-    this.wasReduced=reduced;
-    if(!reduced){
+    if(reduced)this.warp=0;
+    else{
       this.time+=dt;
-      const target=(this.capturing||this.playing||this.constructing) ? .22 : 0;
+      const target=(this.capturing||this.playing||this.constructing)?.22:0;
       this.warp+=(target-this.warp)*(1-Math.exp(-dt*(target?5:2.8)));
       this.distance+=dt*(.021+this.warp*this.warp*2.8);
     }
-    this.layer.dataset.warp=this.warp.toFixed(4);
-    const ctx=this.ctx;ctx.setTransform(dpr,0,0,dpr,0,0);ctx.clearRect(0,0,width,height);
-    ctx.drawImage(this.nebula,0,0,width,height);
-    // The dense far field is cached; only the nearer 3,600 stars need per-star animation.
-    const farScale=1.04+this.warp*.05;
-    const dx=Math.sin(this.time*.015)*width*.008,dy=Math.cos(this.time*.012)*height*.008;
-    ctx.drawImage(this.distantCanvas,(1-farScale)*width/2+dx,(1-farScale)*height/2+dy,width*farScale,height*farScale);
-    const focal=Math.max(width,height)*.55,cx=width*.46,cy=height*.43;
-    // Artistic forward blueshift, coupled to speed rather than a physical spectrum.
-    const shift=Math.min(1,this.warp/.22)*.65;
-    const palette=[[215,189,255],[163,217,255],[224,234,255]].map(rgb=>
-      'rgb('+rgb.map((v,i)=>Math.round(v+([135,215,255][i]-v)*shift)).join(',')+')');
-    if(this.warp>.01){
-      const glow=ctx.createRadialGradient(cx,cy,0,cx,cy,focal*.8);
-      glow.addColorStop(0,'rgba(100,155,255,'+(this.warp*.1)+')');glow.addColorStop(1,'rgba(100,155,255,0)');
-      ctx.fillStyle=glow;ctx.fillRect(0,0,width,height);
-    }
-    if(this.warp>.01){
-      // Batch faded streaks by color, width, and exposure instead of allocating
-      // and rasterizing a separate gradient stroke for every visible star.
-      const paths=Array.from({length:27},()=>new Path2D());
-      for(const star of this.stars){
-        const z=.3+((star.z-.3-this.distance)%3.7+3.7)%3.7;
-        const x=cx+star.x*focal/z,y=cy+star.y*focal/z;
-        if(x< -10||y< -10||x>width+10||y>height+10)continue;
-        const fade=Math.max(0,Math.min(1,(z-.3)*2,(4-z)*2));
-        if(fade<.05)continue;
-        const tailZ=z+this.warp*this.warp*.55;
-        const dx=star.x*focal/tailZ+cx-x,dy=star.y*focal/tailZ+cy-y;
-        const cap=Math.min(1,180/Math.max(1,Math.hypot(dx,dy)))*fade;
-        const color=star.c<.15?0:star.c>.75?1:2;
-        const widthBucket=Math.min(2,Math.floor(Math.max(.6,Math.min(1.8,star.r/z)*.85)*2)-1);
-        for(let band=0;band<3;band++){
-          const path=paths[color*9+widthBucket*3+band];
-          path.moveTo(x+dx*cap*(1-band/3),y+dy*cap*(1-band/3));
-          path.lineTo(x+dx*cap*(1-(band+1)/3),y+dy*cap*(1-(band+1)/3));
-        }
-      }
-      for(let color=0;color<3;color++)for(let width=0;width<3;width++)for(let band=0;band<3;band++){
-        ctx.strokeStyle=palette[color];ctx.lineWidth=[.6,1,1.5][width];
-        ctx.globalAlpha=[.08,.22,.38][band];ctx.stroke(paths[color*9+width*3+band]);
-      }
-    }
-    const pixels=this.nearPixels.data,pixelWidth=this.nearCanvas.width,pixelHeight=this.nearCanvas.height;
-    const pointScale=this.nearCanvas.width/width;
-    pixels.fill(0);
-    for(const star of this.stars){
-      // A crossing takes about three minutes. Depth changes create gentle radial parallax.
-      const z=.3+((star.z-.3-this.distance)%3.7+3.7)%3.7;
-      const x=cx+star.x*focal/z,y=cy+star.y*focal/z;
-      if(x< -10||y< -10||x>width+10||y>height+10)continue;
-      const fade=Math.min(1,(z-.3)*2,(4-z)*2),radius=Math.min(1.8,star.r/z);
-      // Rasterize a tiny Gaussian footprint explicitly, avoiding browser-specific
-      // antialiasing of subpixel arcs and thousands of scaled sprite draws.
-      const sigma=Math.max(.7,radius*pointScale*.75),spread=Math.ceil(sigma*3);
-      const px=x*pointScale,py=y*pointScale,variance=2*sigma*sigma;
-      const energy=Math.max(0,fade)*(.35+.4*(1-z/4))*radius*radius*pointScale*pointScale/variance;
-      const rgb=star.c<.15?[215,189,255]:star.c>.75?[163,217,255]:[224,234,255];
-      for(let iy=Math.max(0,Math.floor(py)-spread);iy<=Math.min(pixelHeight-1,Math.floor(py)+spread);iy++){
-        const alphaY=255*energy*Math.exp(-((iy+.5-py)**2)/variance);
-        for(let ix=Math.max(0,Math.floor(px)-spread);ix<=Math.min(pixelWidth-1,Math.floor(px)+spread);ix++){
-          const alpha=Math.round(alphaY*Math.exp(-((ix+.5-px)**2)/variance));
-          if(!alpha)continue;
-          const i=(iy*pixelWidth+ix)*4,previous=pixels[i+3],total=previous+alpha;
-          for(let c=0;c<3;c++)pixels[i+c]=(pixels[i+c]*previous+rgb[c]*alpha)/total;
-          pixels[i+3]=Math.min(255,total);
-        }
-      }
-    }
-    this.nearCtx.putImageData(this.nearPixels,0,0);
-    ctx.globalAlpha=1;ctx.drawImage(this.nearCanvas,0,0,width,height);
-    this.layer.dataset.time=this.time.toFixed(4);
+    this.uniforms.time.value=this.time;this.uniforms.distance.value=this.distance;this.uniforms.warp.value=this.warp;
+    this.layer.dataset.time=this.time.toFixed(4);this.layer.dataset.warp=this.warp.toFixed(4);
   }
+  render(renderer){renderer.render(this.scene,this.camera);}
   setConstructing(active){this.constructing=active;}
   setPlaying(active){this.playing=active;}
-  setCapturing(active){
-    this.capturing=active;
-  }
+  setCapturing(active){this.capturing=active;}
   pause(){this.last=null;}
-  dispose(){for(const canvas of [this.canvas,this.distantCanvas,this.nebula,this.nearCanvas,...this.starSprites])if(canvas){canvas.width=1;canvas.height=1;}this.nearPixels=null;this.layer.remove();}
+  dispose(){
+    for(const mesh of [this.backdrop,this.far,this.near]){mesh.geometry.dispose();mesh.material.dispose();}
+    this.texture.dispose();this.nebula.width=this.nebula.height=1;this.layer.remove();
+  }
 }

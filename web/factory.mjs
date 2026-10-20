@@ -196,7 +196,10 @@ export class Factory {
       if(this.stackGroup)this.stackGroup.visible=this.stackHasOperands&&this.host.dataset.phase==='replay'&&!this.starfield.capturing;
       this.updateLaneActivity(now);
       this.updatePipelineArrows(now);
-      this.renderer.render(this.scene,this.camera);
+      this.starfield.render(this.renderer);
+      this.renderer.clearDepth();
+      this.renderer.autoClear=false;
+      try {this.renderer.render(this.scene,this.camera);} finally {this.renderer.autoClear=true;}
       this.minimap?.draw();
       host.dataset.textAtlas=JSON.stringify(textAtlasStats());
       host.dataset.gpuTextures=String(this.renderer.info.memory.textures);

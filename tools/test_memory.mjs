@@ -17,8 +17,8 @@ try {
     await page.locator('#finish-build').click();
     await page.evaluate(()=>new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r))));
     samples.push(await page.evaluate(()=>{
-      const f=document.querySelector('#factory'),canvas=f.querySelector(':scope > canvas'),stars=f.querySelector('.starfield canvas');
-      return {blur:JSON.parse(f.dataset.backgroundBlur),atlas:JSON.parse(f.dataset.textAtlas),labels:Number(f.dataset.labelCanvasBytes),textures:Number(f.dataset.gpuTextures),geometries:Number(f.dataset.gpuGeometries),pixels:canvas.width*canvas.height,starPixels:stars.width*stars.height};
+      const f=document.querySelector('#factory'),canvas=f.querySelector(':scope > canvas'),stars=f.querySelectorAll('.starfield canvas');
+      return {blur:JSON.parse(f.dataset.backgroundBlur),atlas:JSON.parse(f.dataset.textAtlas),labels:Number(f.dataset.labelCanvasBytes),textures:Number(f.dataset.gpuTextures),geometries:Number(f.dataset.gpuGeometries),pixels:canvas.width*canvas.height,starCanvases:stars.length};
     }));
   }
   for(const sample of samples){
@@ -26,7 +26,7 @@ try {
     assert.ok(sample.blur.updates>0,'Shared background blur rendered');
     assert.equal(sample.blur.updates,samples[0].blur.updates,'Static nebula blur is reused across captures');
     assert.ok(sample.pixels<=8010000);
-    assert.ok(sample.starPixels<=2010000);
+    assert.equal(sample.starCanvases,0,'Stars share the scene WebGL canvas');
     assert.ok(sample.pixels>3000000,'Retina scene gets more pixels than the old blurry cap');
     assert.equal(sample.labels,0,'No per-label bitmap backing stores');
     assert.ok(sample.atlas.bytes<=4*1024*1024,'Shared glyph pages remain bounded');

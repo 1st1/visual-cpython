@@ -29,7 +29,7 @@ export class BackgroundBlur {
   }
   update(renderer,starfield) {
     renderer.getDrawingBufferSize(this.uniforms.frostViewport.value);
-    const source=starfield.nebula,viewport=starfield.canvas;
+    const source=starfield.nebula,viewport=starfield.viewport;
     const scale=Math.min(.25,512/Math.max(viewport.width,viewport.height));
     const width=Math.max(1,Math.round(viewport.width*scale)),height=Math.max(1,Math.round(viewport.height*scale));
     const resized=this.canvas.width!==width||this.canvas.height!==height;
