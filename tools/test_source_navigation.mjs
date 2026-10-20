@@ -19,6 +19,7 @@ try{
  await page.waitForFunction(()=>!document.querySelector('#play').disabled,null,{timeout:60000});
  await page.locator('#play').click();await page.waitForFunction(()=>document.querySelector('#play').textContent==='Pause',null,{timeout:60000});await page.locator('#play').click();
  await page.locator('#seek').fill('0');await page.locator('#seek').dispatchEvent('input');
+ if(await page.locator('#editor-panel').isVisible())await page.locator('#close-editor').click();
  await page.locator('#toggle-inspector').click();
  assert.equal(await page.locator('#block-select, #focus-block, #visit-block, .opcode-heading button').count(),0);
  const line=page.locator('#source-view [data-line="3"]');
@@ -28,7 +29,7 @@ try{
  assert.equal(await page.locator('#source-view [data-line="4"]').isDisabled(),true);
  await page.locator('#seek').fill(await page.locator('#seek').getAttribute('max'));await page.locator('#seek').dispatchEvent('input');
  await line.click();assert.equal(Number(await page.locator('#seek').inputValue()),first,'Past the last visit wraps to first');
- await page.locator('#toggle-inspector').click();await page.locator('#toggle-editor').click();await page.locator('#camera-top').click();
+ await page.locator('#toggle-inspector').click();await page.locator('#camera-top').click();
  await page.waitForTimeout(350);
  const pose=JSON.parse(await page.locator('#factory').getAttribute('data-camera'));
  const pipeline=JSON.parse(await page.locator('#factory').getAttribute('data-pipeline'));

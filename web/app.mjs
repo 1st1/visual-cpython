@@ -278,8 +278,13 @@ $('toggle-inspector').onclick=()=>{
   const panel=$('inspector-panel');panel.hidden=!panel.hidden;
   $('toggle-inspector').setAttribute('aria-expanded',String(!panel.hidden));
 };
+const toolbarObserver=new ResizeObserver(()=>{
+  const bottom=document.querySelector('.program-toolbar').getBoundingClientRect().bottom;
+  document.documentElement.style.setProperty('--program-toolbar-bottom',`${bottom+10}px`);
+});
+toolbarObserver.observe(document.querySelector('.program-toolbar'));
 try { factory=new Factory($('factory'),selectBlock,seekInstruction,seekSourceLine); parsingReplay=new ParsingReplay(factory); previewSource(); factory.view('iso'); }
-catch(error) { $('scene-hint').textContent=`3D unavailable: ${error.message}. The schematic is available.`; changeView('map'); $('message').textContent='3D graphics unavailable; using the schematic.'; }
+catch(error) { $('toggle-minimap').disabled=true;$('toggle-minimap').setAttribute('aria-pressed','false'); $('scene-hint').textContent=`3D unavailable: ${error.message}. The schematic is available.`; changeView('map'); $('message').textContent='3D graphics unavailable; using the schematic.'; }
 window.addEventListener('pagehide',event=>{ if(!event.persisted) factory?.dispose(); });
 
 window.addEventListener('resize',()=>{

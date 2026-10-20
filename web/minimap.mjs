@@ -3,8 +3,18 @@ import * as THREE from 'three';
 export class Minimap {
   constructor(host,factory) {
     this.factory=factory;
-    this.panel=document.createElement('div');this.panel.className='minimap';
+    this.panel=document.createElement('div');this.panel.className='minimap';this.panel.id='pipeline-minimap';
     this.panel.innerHTML='<canvas width="560" height="256" tabindex="0" role="img" aria-label="Pipeline minimap. Click or drag to pan. Left and right arrow keys pan the camera."></canvas>';
+    this.toggle=document.getElementById('toggle-minimap');
+    let savedVisibility;
+    try { savedVisibility=localStorage.getItem('factory-minimap-visible'); } catch {}
+    this.panel.hidden=savedVisibility==='false'||(savedVisibility!=='true'&&matchMedia('(max-width: 900px)').matches);
+    this.toggle.setAttribute('aria-pressed',String(!this.panel.hidden));
+    this.toggle.onclick=()=>{
+      this.panel.hidden=!this.panel.hidden;
+      this.toggle.setAttribute('aria-pressed',String(!this.panel.hidden));
+      try { localStorage.setItem('factory-minimap-visible',String(!this.panel.hidden)); } catch {}
+    };
     host.append(this.panel);this.canvas=this.panel.querySelector('canvas');
     this.panel.append(document.getElementById('minimap-tools'));
     const navigation=this.navigation=document.createElement('div');navigation.className='navigation-selector';
@@ -44,7 +54,7 @@ export class Minimap {
     const f=this.factory;this.center(f.controls.target.x+direction*f.viewSize/f.camera.zoom*.25,f.controls.target.z);
   }
   draw() {
-    const f=this.factory,e=f.extent;if(!e)return;
+    const f=this.factory,e=f.extent;if(!e||this.panel.hidden)return;
     const ctx=this.canvas.getContext('2d'),w=this.canvas.width,h=this.canvas.height;
     const x=v=>(v-e.minX)/(e.maxX-e.minX)*w,z=v=>(v-e.minZ)/(e.maxZ-e.minZ)*h;
     ctx.clearRect(0,0,w,h);ctx.fillStyle='#0c1222';ctx.fillRect(0,0,w,h);
@@ -61,5 +71,5 @@ export class Minimap {
     ctx.fillStyle='#d6edff';ctx.beginPath();ctx.arc(x(f.controls.target.x),z(f.controls.target.z),4,0,Math.PI*2);ctx.fill();
     this.canvas.dataset.target=JSON.stringify([f.controls.target.x,f.controls.target.z]);
   }
-  dispose(){this.panel.remove();this.navigationControls.remove();}
+  dispose(){this.toggle.onclick=null;this.panel.remove();this.navigationControls.remove();}
 }

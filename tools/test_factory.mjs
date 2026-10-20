@@ -30,6 +30,7 @@ async function capture(source,execute=true) {
   await page.waitForFunction(()=>/Graphviz|No compiled/.test(document.querySelector('#map-status').textContent),null,{timeout:20000});
   await page.evaluate(()=>new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r))));
   const after=JSON.parse(await page.locator('#factory').getAttribute('data-framing'));
+  if(await page.locator('#editor-panel').isVisible()) await page.locator('#close-editor').click();
   await page.locator('#camera-iso').click();
   await page.evaluate(()=>new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r))));
   const fitted=JSON.parse(await page.locator('#factory').getAttribute('data-framing'));
@@ -84,6 +85,7 @@ try {
   assert.equal(await page.locator('#factory').getAttribute('data-zoom'),originalZoom,'Ordinary trackpad scrolling pans without zooming');
   await sceneCanvas.dispatchEvent('wheel',{deltaY:-10,deltaMode:0,ctrlKey:true,bubbles:true,cancelable:true});
   await page.waitForFunction(value=>Number(document.querySelector('#factory').dataset.zoom)>Number(value),originalZoom);
+  if(await page.locator('#editor-panel').isVisible()) await page.locator('#close-editor').click();
   await page.locator('#camera-iso').click();
   await page.locator('#toggle-editor').click();
   const panelBefore=await page.locator('#editor-panel').boundingBox();
@@ -97,8 +99,8 @@ try {
   await page.waitForFunction(z=>Math.abs(Number(document.querySelector('#factory').dataset.zoom)-z*1.3)<.001,gestureZoom);
   assert.deepEqual(await page.locator('#editor-panel').boundingBox(),panelBefore,'Pinch leaves overlay geometry unchanged');
   assert.equal(await page.evaluate(()=>scrollX===0&&scrollY===0&&document.documentElement.scrollWidth<=innerWidth),true);
+  if(await page.locator('#editor-panel').isVisible()) await page.locator('#close-editor').click();
   await page.locator('#camera-iso').click();
-  await page.locator('#toggle-editor').click();
   await page.getByRole('button',{name:'Mouse navigation',exact:true}).click();
   assert.equal(await page.evaluate(()=>localStorage.getItem('factory-navigation-mode')),'mouse');
   await page.waitForTimeout(1200); // Let prior trackpad pan damping settle before measuring mouse input.
@@ -109,6 +111,7 @@ try {
   const mouseTargetAfter=JSON.parse(await minimap.getAttribute('data-target'));
   assert.ok(Math.hypot(...mouseTargetAfter.map((value,i)=>value-mouseTarget[i]))<.001,'Mouse wheel zooms without panning');
   await page.getByRole('button',{name:'Trackpad navigation',exact:true}).click();
+  if(await page.locator('#editor-panel').isVisible()) await page.locator('#close-editor').click();
   await page.locator('#camera-iso').click();
   const beforePan=JSON.parse(await minimap.getAttribute('data-target'));
   await minimap.focus();await minimap.press('ArrowRight');
@@ -118,6 +121,7 @@ try {
   assert.ok(JSON.parse(await minimap.getAttribute('data-target'))[0]<afterPan[0]);
   await minimap.click({position:{x:20,y:30}});
   assert.notDeepEqual(JSON.parse(await minimap.getAttribute('data-target')),beforePan);
+  if(await page.locator('#editor-panel').isVisible()) await page.locator('#close-editor').click();
   await page.locator('#camera-iso').click();
   await page.screenshot({path:'artifacts/factory-empty.png',fullPage:true});
   await capture('a=2\nb=3\nc=a+b\nprint(c)',false);
@@ -211,14 +215,19 @@ try {
   const initial=await page.locator('#factory').getAttribute('data-active-block');
   await page.locator('#next').click(); await page.locator('#back').click();
   assert.equal(await page.locator('#factory').getAttribute('data-active-block'),initial);
+  if(await page.locator('#editor-panel').isVisible()) await page.locator('#close-editor').click();
   await page.locator('#toggle-inspector').click();
   await page.screenshot({path:'artifacts/factory-iso.png',fullPage:true});
+  if(await page.locator('#editor-panel').isVisible()) await page.locator('#close-editor').click();
   await page.locator('#camera-top').click();
   await page.screenshot({path:'artifacts/factory-top.png',fullPage:true});
+  if(await page.locator('#editor-panel').isVisible()) await page.locator('#close-editor').click();
   await page.locator('#toggle-inspector').click();
   await page.locator('#toggle-editor').click();
   assert.equal(await page.locator('.scene-label').count(),0,'No floating labels during replay');
+  if(await page.locator('#editor-panel').isVisible()) await page.locator('#close-editor').click();
   await page.locator('#zoom-in').click();
+  if(await page.locator('#editor-panel').isVisible()) await page.locator('#close-editor').click();
   await page.locator('#camera-iso').click();
   const canvas=await page.locator('#factory > canvas').boundingBox();
   await page.mouse.move(canvas.x+canvas.width*.5,canvas.y+canvas.height*.5);
@@ -237,13 +246,16 @@ try {
   if(await page.locator('#state').textContent()==='compiled')await runCapture();
   assert.equal(await page.locator('#state').textContent(),'completed');
   assert.doesNotMatch(await page.locator('#map-status').textContent(),/warnings/);
+  if(await page.locator('#editor-panel').isVisible()) await page.locator('#close-editor').click();
   await page.locator('#toggle-inspector').click();
   const instruction=page.locator('#inspector-panel .opcode-list button:not(:disabled)').first();
   const targetOffset=await instruction.getAttribute('data-offset');
   await instruction.click();
   assert.equal(await page.locator('.opcode-list .current').getAttribute('data-offset'),targetOffset);
+  if(await page.locator('#editor-panel').isVisible()) await page.locator('#close-editor').click();
   await page.locator('#toggle-inspector').click();
   await page.screenshot({path:'artifacts/factory-opcodes.png',fullPage:true});
+  if(await page.locator('#editor-panel').isVisible()) await page.locator('#close-editor').click();
   await page.locator('#camera-iso').click();
   await page.locator('#toggle-editor').click();
   await page.screenshot({path:'artifacts/factory-landscape.png',fullPage:true});
