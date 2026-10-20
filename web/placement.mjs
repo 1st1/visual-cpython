@@ -13,8 +13,20 @@ export function sourceFootprint(layout,lineCount=1,pipeline={}) {
   const tokenDepth=Math.max(4,Math.ceil((pipeline.tokenCount || 0)/4)*1.2+2);
   const astDepth=pipeline.astDepth || 4,astWidth=pipeline.astWidth || 8;
   const astX=f.minX-2-astWidth/2,tokenX=astX-astWidth/2-9,sourceX=tokenX-9-sourceWidth/2;
-  return {...f,rows,columns,sourceWidth,sourceDepth,sourceX,tokenX,astX,tokenDepth,astDepth,astWidth,
-    minX:sourceX-sourceWidth/2-1,minZ:Math.min(f.minZ,-Math.max(sourceDepth,tokenDepth,astDepth)/2-3),maxZ:Math.max(f.maxZ,Math.max(sourceDepth,tokenDepth,astDepth)/2+1)};
+  const minZ=Math.min(f.minZ,-Math.max(sourceDepth,tokenDepth,astDepth)/2-3);
+  const maxZ=Math.max(f.maxZ,Math.max(sourceDepth,tokenDepth,astDepth)/2+1);
+  // Artifact bounds already include nodes and routed opcode connections.
+  // Add a consistent margin without consuming the gap between neighboring lanes.
+  const lanes=[
+    {x:sourceX,width:sourceWidth,title:'Stage 1: Source Code'},
+    {x:tokenX,width:14,title:'Stage 2: Tokenize'},
+    {x:astX,width:astWidth,title:'Stage 3: Parse & Compile'},
+    {x:0,width:f.width,title:'Stage 4: Run Code'},
+  ].map((lane,i)=>({...lane,
+    x:lane.x+(i===0?-.1:i===3?.1:0),
+    width:lane.width+1.6+(i===0||i===3?.2:0),minZ,maxZ}));
+  return {...f,rows,columns,sourceWidth,sourceDepth,sourceX,tokenX,astX,tokenDepth,astDepth,astWidth,lanes,
+    minX:sourceX-sourceWidth/2-1,minZ,maxZ};
 }
 
 export function layoutScore(layout,lineCount=1,targetAspect=1.8,pipeline={}) {

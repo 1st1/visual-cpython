@@ -14,6 +14,7 @@ import sys
 import tokenize
 import token
 import types
+import time
 from pathlib import Path
 
 FILENAME = "<factory-program>"
@@ -70,7 +71,9 @@ class Output(io.StringIO):
 
 
 class Observer:
-    def __init__(self, limit):
+    def __init__(self, limit, progress=False):
+        self.progress = progress
+        self.last_progress = -1.0
         self.limit = limit
         self.events = []
         self.objects = {}  # Bounded strong refs prevent object-ID reuse in a run.
@@ -149,6 +152,11 @@ class Observer:
             return None
         # At the initial call f_trace is not installed yet; setting this again
         # at the first line event enables instruction monitoring in 3.16.
+        if self.progress and event == "line":
+            now = time.monotonic()
+            if now - self.last_progress >= 1 / 30:
+                self.last_progress = now
+                print("@factory-line:" + str(frame.f_lineno), file=sys.__stderr__, flush=True)
         frame.f_trace_opcodes = True
         if event == "call":
             # This revision enables opcode instrumentation at the next legacy
@@ -192,10 +200,10 @@ class Observer:
         return self.trace
 
 
-def capture(source, max_events=2000):
+def capture(source, max_events=2000, progress=False):
     if not 1 <= max_events <= 10000:
         raise ValueError("max_events must be between 1 and 10000")
-    observer = Observer(max_events)
+    observer = Observer(max_events, progress)
     result = {"schema": 2, "source": source, "events": observer.events, "codes": observer.artifacts,
               "provenance": {"python": sys.version, "revision": "036d309cf542986a39eeba5ca805b2ec7619731d",
                              "mode": "opcode-tracing", "specialization": "perturbed", "stack": "observed-pre-instruction"}}
@@ -278,4 +286,4 @@ def capture(source, max_events=2000):
 
 if __name__ == "__main__":
     source = Path(sys.argv[1]).read_text() if len(sys.argv) > 1 else sys.stdin.read(16385)
-    print(json.dumps(capture(source), ensure_ascii=True))
+    print(json.dumps(capture(source, progress="--progress" in sys.argv[2:]), ensure_ascii=True))

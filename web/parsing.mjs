@@ -25,11 +25,12 @@ export class ParsingReplay {
     document.getElementById('parse-play').onclick=()=>{
       if(this.timer) return this.stop();
       if(this.index===this.frames.length) this.index=0;
+      this.factory.parsingPlaying=true;
       document.getElementById('parse-play').textContent='Pause parsing';
       this.timer=setInterval(()=>{this.index=this.nextIndex(1);this.render();if(this.index===this.frames.length)this.stop();},40);
     };
   }
-  stop() {clearInterval(this.timer);this.timer=null;document.getElementById('parse-play').textContent='Play parsing';}
+  stop() {this.factory.parsingPlaying=false;clearInterval(this.timer);this.timer=null;document.getElementById('parse-play').textContent='Play parsing';}
   nextIndex(delta) {
     let next=this.index+delta;
     if(!document.getElementById('parse-detail').checked) {

@@ -17,7 +17,11 @@ self.onmessage = async ({ data }) => {
       locateFile: name => asset(name),
       onExit: code => finish(code),
       print: text => lines.push(text),
-      printErr: text => errors.push(text),
+      printErr: text => {
+        const match=/^@factory-line:(\d+)$/.exec(text);
+        if(match) self.postMessage({type:"line",line:Number(match[1])});
+        else errors.push(text);
+      },
       stdin: () => null,
       preRun(module) {
         module.FS.mkdirTree("/lib/python3.16/lib-dynload");
@@ -29,7 +33,7 @@ self.onmessage = async ({ data }) => {
     self.postMessage({ type: "running" });
     // CPython wraps main with WebAssembly.promising on JSPI-capable browsers.
     // callMain then returns undefined; onExit carries the actual completion.
-    const immediate = runtime.callMain(["-I", "/capture.py", "/program.py"]);
+    const immediate = runtime.callMain(["-I", "/capture.py", "/program.py", "--progress"]);
     const exitCode = Number.isInteger(immediate) ? immediate : await exited;
     if (exitCode !== 0) throw new Error(`CPython exited ${exitCode}: ${errors.join("\n")}`);
     self.postMessage({ type: "result", trace: JSON.parse(lines.join("\n")) });

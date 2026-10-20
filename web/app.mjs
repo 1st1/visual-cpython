@@ -55,6 +55,8 @@ $('run').onclick = () => {
     if (data.type === 'running') {
       clearTimeout(timer); $('state').textContent = 'Capturing';
       timer = setTimeout(() => fail('Execution stopped after 5 seconds. The worker has been discarded.'), 5000);
+    } else if (data.type === 'line') {
+      if(factory){factory.liveCaptureUntil=performance.now()+150;factory.highlightSource(data.line,null);}
     } else if (data.type === 'result') {
       stopWorker(false); recording = data.trace; index = 0;
       $('state').textContent = recording.status;

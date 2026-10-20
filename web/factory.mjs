@@ -1,3 +1,4 @@
+import {createGrid} from './grid.mjs';
 import {OpcodeTrail} from './opcode-trail.mjs';
 import {connector} from './connector.mjs';
 import {surfaceText,textAtlasStats,disposeTextAtlas} from './text-atlas.mjs';
@@ -140,6 +141,8 @@ export class Factory {
       this.starfield.draw(now,host.clientWidth,host.clientHeight,this.reduced.matches);
       this.controls.update();
       this.updateLighting();
+      if(!this.revealStart&&this.host.dataset.phase!=='parsing')this.setActiveStage(this.starfield.capturing?1:this.replayStage);
+      this.gridUniforms.time.value=this.reduced.matches?0:now*.001;
       this.viewSize=this.camera.position.distanceTo(this.controls.target)*2*Math.tan(THREE.MathUtils.degToRad(this.camera.fov/2));
       if (this.revealStart) {
         let complete=true, latest=null;
@@ -157,7 +160,7 @@ export class Factory {
         });
         this.updateOpcodeVisibility();
         this.host.dataset.revealedOpcodes=String(this.revealTiles.filter(t=>t.group.visible).length);
-        if(latest) this.highlightSource(latest.instruction.line,latest.position,'opcodes');
+        if(latest) {this.setActiveStage(23);this.highlightSource(latest.instruction.line,latest.position,'opcodes');}
         if(complete) this.finishConstruction();
       }
       if(this.pulse && this.pulsePath) {
@@ -182,6 +185,7 @@ export class Factory {
       this.opcodeTrail.update(now,this.reduced.matches);
       host.dataset.opcodeTrail=String(this.opcodeTrail.mesh.visible);
       if(this.stackGroup)this.stackGroup.visible=this.stackHasOperands&&this.host.dataset.phase==='replay'&&!this.starfield.capturing;
+      this.updateLaneActivity(now);
       this.renderer.render(this.scene,this.camera);
       this.minimap?.draw();
       host.dataset.textAtlas=JSON.stringify(textAtlasStats());
@@ -216,29 +220,21 @@ export class Factory {
     this.extent=sourceBounds;
     const e=this.extent, width=e.maxX-e.minX, depth=e.maxZ-e.minZ;
     const deck=box(this.world,(e.minX+e.maxX)/2,-.22,(e.minZ+e.maxZ)/2,width,.42,depth,0x11182d);
-    deck.castShadow=false;deck.material.transparent=true;deck.material.opacity=.7;
+    deck.castShadow=false;deck.material.transparent=true;deck.material.opacity=.7;deck.material.depthWrite=false;
+    deck.renderOrder=-2;
     const span=Math.max(width,depth),center=new THREE.Vector3((e.minX+e.maxX)/2,0,(e.minZ+e.maxZ)/2);
     this.lightSpan=span;this.sun.target.position.copy(center);
     Object.assign(this.sun.shadow.camera,{left:-span*.8,right:span*.8,top:span*.8,bottom:-span*.8,near:.1,far:span*3});
     this.sun.shadow.camera.updateProjectionMatrix();
-    const gridPoints=[];
-    for(let x=Math.ceil(e.minX);x<=e.maxX;x++) gridPoints.push(x,.005,e.minZ,x,.005,e.maxZ);
-    for(let z=Math.ceil(e.minZ);z<=e.maxZ;z++) gridPoints.push(e.minX,.005,z,e.maxX,.005,z);
-    this.world.add(new THREE.LineSegments(new THREE.BufferGeometry().setAttribute('position',new THREE.Float32BufferAttribute(gridPoints,3)),new THREE.LineBasicMaterial({color:0x293d60})));
+    const grid=createGrid(e,sourceBounds.lanes);
+    this.gridUniforms=grid.uniforms;this.world.add(grid.mesh);
     this.serviceX=footprint.serviceX;
-    const machine=(name,sub,z,x=this.serviceX) => {
-      const group=new THREE.Group(); this.world.add(group);
-      const body=box(group,x,.56,z,3.5,1.05,1.65,0x242c45);
-      box(group,x,.12,z,3.8,.22,1.95,0x1b2521);
-      for(let i=0;i<7;i++) box(group,x-1.35+i*.21,.4,z+.84,.06,.45,.025,0x3d5247);
-      const paint=label(group,x,1.095,z,3.15,1.15,[name,sub]);
-      return {body,paint};
-    };
-    this.tokenizerDisplay=machine('TOKENIZER','source → tokens',-sourceBounds.tokenDepth/2-1.75,sourceBounds.tokenX);
-    this.parserDisplay=machine('PEG PARSER','tokens → AST',-sourceBounds.astDepth/2-1.75,sourceBounds.astX);
-    machine('COMPILER','AST → bytecode',-d/2-1.75,this.serviceX);
-    this.evaluator=machine('EVALUATOR','waiting',-d/2+1);
-    this.frameDisplay=machine('FRAMES','0 activations',-d/2+3.5);
+    this.lanes=sourceBounds.lanes.map(({x,width:laneWidth,title})=>{
+      const paint=surfaceText(this.world,x,.08,e.minZ+1,Math.max(8,laneWidth),.7);
+      return {paint,title,fade:0};
+    });
+    this.activeStage=null;this.displayStage=null;this.replayStage=layout?0:1;this.setActiveStage(this.replayStage);
+
     this.stackOrigin=new THREE.Vector3(footprint.stackX,0,footprint.stackZ);
     this.stackGroup=new THREE.Group(); this.stackGroup.position.copy(this.stackOrigin); this.world.add(this.stackGroup);
     // Flat, top-first operand column running alongside the deck edge.
@@ -320,7 +316,24 @@ export class Factory {
       this.viewSize*=ratio;this.updateProjection();this.controls.update();
     }
   }
+  setActiveStage(stage) {this.activeStage=stage;}
+  updateLaneActivity(now) {
+    const dt=Math.min(.1,Math.max(0,(now-(this.laneTick ?? now))/1000));this.laneTick=now;
+    const animating=Boolean(this.revealStart||this.parsingPlaying||this.starfield?.playing||now<(this.liveCaptureUntil || 0));
+    const stage=animating?this.activeStage:0;
+    const changed=this.displayStage!==stage;
+    this.displayStage=stage;this.host.dataset.activeStage=String(stage);
+    this.lanes.forEach((lane,i)=>{
+      const active=stage===23?(i===1||i===2):i+1===stage;
+      const target=active?1:0;
+      lane.fade=this.reduced.matches?target:lane.fade+(target-lane.fade)*(1-Math.exp(-dt/(active?.18:.3)));
+      if(Math.abs(lane.fade-target)<.001)lane.fade=target;
+      this.gridUniforms.activation.value[i]=lane.fade;
+      if(changed)lane.paint([{text:lane.title,color:active?'#bdeaff':'#7f93af',align:'center'}]);
+    });
+  }
   setState(state,event,selected,terminal=false) {
+    this.replayStage=event&&!terminal?4:0;
     if(!this.revealStart)this.host.dataset.phase=this.graph?'replay':'source';
     this.updateOpcodeVisibility();
     this.astGroup.visible=Boolean(this.astTiles.length);
@@ -350,9 +363,6 @@ export class Factory {
       for(const child of edge.line.children) child.material.color.setHex(color);
     }
     this.host.dataset.activeBlock=state?.block || ''; this.host.dataset.selectedBlock=selected || '';
-    this.evaluator.body.material.color.setHex(event?.kind==='opcode'&&!terminal?0x3c5030:0x242c45);
-    this.evaluator.paint(['EVALUATOR',terminal?'recording ended':event?`${event.kind} · @${event.offset}`:'waiting']);
-    this.frameDisplay.paint(['FRAMES',state?`${state.frames.length} active · ${event.frame}`:'0 activations']);
     const stack=stackView(event);
     this.host.dataset.stack=JSON.stringify(stack);
     this.stackHasOperands=event?.kind==='opcode'&&!terminal&&stack.slots.length>0;
@@ -440,7 +450,6 @@ export class Factory {
     });
     this.constructionFlights=new THREE.Group();this.world.add(this.constructionFlights);this.lastConstruction=null;
     this.ghosts=new THREE.Group();this.world.add(this.ghosts);this.host.dataset.ghostCount='0';
-    this.parseRulePaint=label(this.world,e.astX,.4,-e.astDepth/2-2,9,.8,['PEG → AST']);
     this.host.dataset.parseTokens=String(tokens.length);this.host.dataset.astNodes=String(ast.length);
     this.host.dataset.pipeline=JSON.stringify({source:e.sourceX,tokens:e.tokenX,ast:e.astX,opcodes:0});
     this.host.dataset.astVisible=String(ast.length>0);
@@ -480,10 +489,12 @@ export class Factory {
     for(const enclosure of this.codeEnclosures)enclosure.body.visible=false;
     this.host.dataset.revealedEnclosures='0';
     this.host.dataset.phase='parsing';
+    this.setActiveStage(23);
   }
   setParsingState(frame,final) {
     this.opcodeTrail.clear();this.previousOpcodeTile=null;
     if(!this.parseTokens) return;
+    this.setActiveStage(final?0:23);
     const spanTokens=new Set(tokensForConstruction(final?null:frame?.event,this.parseTokens.map(t=>t.event)));
     for(const [i,tile] of this.parseTokens.entries()) {
       tile.group.visible=final||i<(frame?.tokenCount || 0);
@@ -524,15 +535,12 @@ export class Factory {
         this.flightStart=performance.now();
       }
     }
-    this.parserDisplay.paint(['PEG PARSER',final?'parse finished':`token ${frame?.cursor ?? 0}`]);
-    this.frameDisplay.paint(['RULE CHECKPOINTS',`${frame?.attempts.length || 0} recent levels`]);
     this.stackGroup.visible=false;this.stackHasOperands=false;
     this.host.dataset.astVisible=String(this.astGroup.visible);
     this.host.dataset.parseCursor=String(frame?.cursor ?? 0);
     this.host.dataset.visibleTokens=String(final?this.parseTokens.length:frame?.tokenCount || 0);
     const token=this.parseTokens.find(t=>t.event.cursor===frame?.cursor);
     this.highlightSource(final?null:token?.event.line,final?null:token?.group.position,'parsing');
-    this.parseRulePaint([final?'AST · completed parse result':`PEG · token ${frame?.cursor ?? 0}`,final?'':frame?.attempts.at(-1)?.slice(0,70) || 'Tokenizer']);
   }
   highlightSource(line,target,linkPhase=null) {
     const signature=`${line}:${target?.x}:${target?.z}:${linkPhase}`;
