@@ -275,11 +275,14 @@ export class Factory {
     this.host.dataset.activeSource='';
     this.codeEnclosures=[];
     for(const enclosure of layout?.enclosures || []) {
-      const body=box(this.world,enclosure.x,.085,enclosure.y,enclosure.width,.15,enclosure.height,0x141124);
+      const group=new THREE.Group();group.position.set(enclosure.x,0,enclosure.y);this.world.add(group);
+      const body=box(group,0,.085,0,enclosure.width,.15,enclosure.height,0x141124);
       body.material.transparent=true;body.material.opacity=.35;body.material.depthWrite=false;
       body.castShadow=false;body.renderOrder=-.8;
       frostSurface(body,enclosure.width,enclosure.height,this.backgroundBlur);
-      this.codeEnclosures.push({code:enclosure.id,body});
+      const code=graph.codes.find(c=>c.id===enclosure.id);
+      label(group,0,.17,-enclosure.height/2+.35,enclosure.width-.4,.5,[codeObjectTitle(code)]);
+      this.codeEnclosures.push({code:enclosure.id,body,group});
     }
     for(const route of layout?.edges || []) {
       const color=route.kind==='call'?0x9b77c9:route.kind==='taken'?0xc276a3:0x649cae;
@@ -291,13 +294,6 @@ export class Factory {
     for(const placed of layout?.nodes || []) {
       const block=graph.blocks.find(b=>b.id===placed.id);
       const group=new THREE.Group(); group.position.set(placed.x,0,placed.y); this.world.add(group);
-      const tray=box(group,0,.19,0,placed.width,.20,placed.height,0x24203c);
-      tray.material.transparent=true;tray.material.opacity=.55;tray.material.depthWrite=false;
-      tray.castShadow=false;tray.renderOrder=-.6;
-      frostSurface(tray,placed.width,placed.height,this.backgroundBlur);
-      tray.userData.block=block.id; this.pickables.push(tray);
-      const code=graph.codes.find(c=>c.id===block.code);
-      label(group,0,.3,-placed.height/2+.37,placed.width-.2,.55,[codeObjectTitle(code),`Block @${block.instructions[0].offset}`]);
       const grid=instructionGrid(block.instructions,layout.placement?.selected.compact ?? true,layout.placement?.selected.tileAspect ?? 1);
       const tiles=[],arrows=[];
       for(const entry of grid.tiles) {
@@ -314,7 +310,7 @@ export class Factory {
         const start=new THREE.Vector3(a.x,.32,a.y).addScaledVector(direction,edge);
         const arrow=new THREE.ArrowHelper(direction,start,Math.max(.01,length-2*edge),0x649cae,.12,.1);group.add(arrow);arrows.push({arrow,from:a,to:b});
       }
-      this.nodes.set(block.id,{group,body:tray,roof:tray,height:.3,tiles,arrows});
+      this.nodes.set(block.id,{group,height:.3,tiles,arrows});
     }
     this.pulse=new THREE.Mesh(new THREE.SphereGeometry(.085,8,6),new THREE.MeshBasicMaterial({color:colors.active})); this.world.add(this.pulse); this.pulse.visible=false;
     this.host.dataset.opcodeTiles=String(this.instructionTiles.size);
@@ -372,13 +368,10 @@ export class Factory {
     if(!this.revealStart) this.highlightSource(this.replaySource,this.replayTile?.position);
     for(const [id,node] of this.nodes) {
       const active=id===state?.block, chosen=id===selected;
-      const color=active?(state.kind==='exception'||state.kind==='unwind'?colors.error:colors.active):chosen?colors.selected:colors.rim;
-      node.body.material.color.setHex(chosen?0x3e315c:active?0x482039:0x24203c);
-      node.body.children[0].material.color.setHex(color);
       for(const tile of node.tiles) {
         const executing=active&&event?.kind==='opcode'&&!terminal&&tile.instruction.offset===event.offset;
         tile.paint(executing); tile.body.material.color.setHex(executing?0x8a204d:colors.block);
-        tile.body.children[0].material.color.setHex(executing?colors.active:colors.rim);
+        tile.body.children[0].material.color.setHex(executing?colors.active:chosen?colors.selected:colors.rim);
       }
     }
     for(const [id,edge] of this.edges) {
@@ -531,7 +524,7 @@ export class Factory {
     this.finishConstruction();this.highlightArtifacts(null);
     for(const node of this.nodes.values()) node.group.visible=false;
     for(const edge of this.edges.values()) {edge.line.visible=false;edge.arrow.visible=false;}
-    for(const enclosure of this.codeEnclosures)enclosure.body.visible=false;
+    for(const enclosure of this.codeEnclosures)enclosure.group.visible=false;
     this.host.dataset.revealedEnclosures='0';
     this.host.dataset.phase='parsing';
     this.setActiveStage(23);
@@ -641,8 +634,8 @@ export class Factory {
       if(visible)connections++;
     }
     const visibleCodes=new Set([...this.instructionTiles.values()].filter(tile=>tile.group.visible).map(tile=>tile.code));
-    for(const enclosure of this.codeEnclosures)enclosure.body.visible=visibleCodes.has(enclosure.code);
-    this.host.dataset.revealedEnclosures=String(this.codeEnclosures.filter(e=>e.body.visible).length);
+    for(const enclosure of this.codeEnclosures)enclosure.group.visible=visibleCodes.has(enclosure.code);
+    this.host.dataset.revealedEnclosures=String(this.codeEnclosures.filter(e=>e.group.visible).length);
     this.host.dataset.enclosures=String(this.codeEnclosures.length);
     this.host.dataset.revealedBlocks=String(blocks);
     this.host.dataset.revealedEdges=String(connections);

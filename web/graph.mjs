@@ -4,6 +4,7 @@ import { instructionGrid } from './opcodes.mjs';
 export function codeObjectTitle(code) {
   if(code?.name==='<module>')return 'Module Code: <module>';
   if(code?.kind==='function')return `Function Code: ${code.name}`;
+  if(code?.kind==='class')return `Class Code: ${code.name}`;
   return `Code Object #${String(code?.id ?? '?').replace(/^c(?=\d+$)/,'')}`;
 }
 
@@ -28,9 +29,10 @@ export function extractGraph(recording) {
       block.instructions.push(ins);
       graph.locations[`${code.id}:${ins.offset}`] = block.id;
     }
-    const isFunction=(recording.parsing?.ast || []).some(node=>
-      ['FunctionDef','AsyncFunctionDef'].includes(node.kind)&&node.line===code.first_line&&node.label===code.name);
-    graph.codes.push({ id: code.id, name: code.name, kind:isFunction?'function':code.name==='<module>'?'module':'unknown', blocks: blocks.map(b => b.id) });
+    const definition=(recording.parsing?.ast || []).find(node=>
+      ['FunctionDef','AsyncFunctionDef','ClassDef'].includes(node.kind)&&node.line===code.first_line&&node.label===code.name);
+    const kind=code.name==='<module>'?'module':definition?.kind==='ClassDef'?'class':definition?'function':'unknown';
+    graph.codes.push({ id: code.id, name: code.name, kind, blocks: blocks.map(b => b.id) });
     graph.blocks.push(...blocks);
     for (let i = 0; i < blocks.length; i++) {
       const block = blocks[i], last = block.instructions.at(-1);
