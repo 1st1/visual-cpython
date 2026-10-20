@@ -4,9 +4,8 @@ export class Minimap {
   constructor(host,factory) {
     this.factory=factory;
     this.panel=document.createElement('div');this.panel.className='minimap';
-    this.panel.innerHTML='<div class="minimap-heading"><button aria-label="Pan left">←</button><span>PIPELINE · drag to pan</span><button aria-label="Pan right">→</button></div><canvas width="560" height="200" tabindex="0" role="img" aria-label="Pipeline minimap. Click or drag to pan. Left and right arrow keys pan the camera."></canvas>';
+    this.panel.innerHTML='<canvas width="560" height="256" tabindex="0" role="img" aria-label="Pipeline minimap. Click or drag to pan. Left and right arrow keys pan the camera."></canvas>';
     host.append(this.panel);this.canvas=this.panel.querySelector('canvas');
-    const buttons=this.panel.querySelectorAll('button');buttons[0].onclick=()=>this.pan(-1);buttons[1].onclick=()=>this.pan(1);
     this.panel.append(document.getElementById('minimap-tools'));
     const navigation=this.navigation=document.createElement('div');navigation.className='navigation-selector';
     navigation.setAttribute('role','group');navigation.setAttribute('aria-label','Navigation device');

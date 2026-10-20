@@ -7,22 +7,24 @@
 <body>
 
 <main>
-  <section class="editor panel" id="editor-panel">
-    <div class="title"><h1>Start with a program.</h1><span class="badge">3.16 · WASM</span></div>
-    <p class="muted">Real CPython, observable execution. The first building block for the factory.</p>
-    <label for="example">Example</label><select id="example"><option value="accumulate">Accumulator</option><option value="shortest">Shortest path · breadth-first search</option><option value="asyncio">Asyncio · odd and even tasks</option><option value="branch">Branches and calls</option><option value="alias">Shared objects</option><option value="error">Runtime error</option><option value="loop">Execution limit</option></select>
-    <label for="source">Python source · up to 200 Python tokens</label>
-    <div class="source-editor"><pre id="source-highlight" aria-hidden="true"></pre><textarea wrap="off" id="source" spellcheck="false" aria-label="Python source" maxlength="16384"></textarea></div>
-    <div class="buttons"><button id="run" class="primary">Compile</button><button id="skip-animation" hidden>Skip animation</button></div>
+  <div class="program-toolbar" role="group" aria-label="Program controls">
+    <select id="example" aria-label="Program example"><option value="accumulate">Accumulator</option><option value="shortest">Shortest path · breadth-first search</option><option value="asyncio">Asyncio · odd and even tasks</option><option value="branch">Branches and calls</option><option value="alias">Shared objects</option><option value="error">Runtime error</option><option value="loop">Execution limit</option><option value="custom" disabled>Custom</option></select>
+    <button id="toggle-editor" aria-expanded="false" aria-controls="editor-panel">Edit</button>
+    <button id="run" class="primary">Compile</button>
+    <button id="skip-animation" hidden>Stop animation</button>
     <span id="state" hidden>Ready</span>
     <div id="message" role="alert"></div>
+  </div>
+  <section class="editor panel" id="editor-panel" role="dialog" aria-label="Edit Python source" hidden>
+    <div class="editor-heading"><label for="source">Python source · up to 200 Python tokens</label><button id="close-editor" aria-label="Close code editor">×</button></div>
+    <div class="source-editor"><pre id="source-highlight" aria-hidden="true"></pre><textarea wrap="off" id="source" spellcheck="false" aria-label="Python source" maxlength="16384"></textarea></div>
   </section>
   <section class="map-panel panel">
     <div class="title map-title"><h2>The program factory</h2><span class="badge">CPYTHON · NO JIT</span></div>
     <p class="note">Enclosures are code objects. Trays group basic blocks. Each small box is one opcode; arrows inside a tray show instruction order. Gold: taken branch · green: continuation/jump · dashed violet: observed Python call.</p>
     <nav id="minimap-tools" aria-label="Scene controls">
-      <div class="minimap-tools-row"><button id="camera-iso">Iso</button><button id="camera-top">Top</button><button id="zoom-out" aria-label="Zoom out">−</button><button id="zoom-fit">Fit</button><button id="zoom-in" aria-label="Zoom in">+</button></div>
-      <div class="minimap-tools-row"><button id="toggle-editor" aria-expanded="true">Source</button><button id="toggle-inspector" aria-expanded="false">Inspector</button></div>
+      <div class="minimap-tools-row"><button id="camera-iso" aria-label="Isometric view" title="Isometric view"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m12 2 9 5v10l-9 5-9-5V7Z M3 7l9 5 9-5 M12 12v10"/></svg></button><button id="camera-top" aria-label="Top view" title="Top view"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="1"/><path d="M3 9h18M3 15h18M9 3v18M15 3v18"/></svg></button><button id="zoom-out" aria-label="Zoom out">−</button><button id="zoom-fit">Fit</button><button id="zoom-in" aria-label="Zoom in">+</button></div>
+      <div class="minimap-tools-row"><button id="toggle-inspector" aria-expanded="false">Inspector</button></div>
     </nav>
     <div id="map-status" class="note" role="status">Run a program to build its map.</div>
     <div class="transport"><div class="buttons"><button id="first" disabled>Reset</button><button id="back" disabled>← Back</button><button id="play" disabled>Run</button><button id="cancel" hidden>Stop</button><button id="next" disabled>Step →</button></div>

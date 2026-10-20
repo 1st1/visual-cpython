@@ -10,6 +10,7 @@ try {
   const source=await readFile(new URL('../web/programs/shortest_path.py',import.meta.url),'utf8');
   const samples=[];
   for(let run=0;run<3;run++){
+    if(await page.locator('#editor-panel').isHidden()) await page.locator('#toggle-editor').click();
     await page.locator('#source').fill(source);
     await page.locator('#run').click();
     await page.waitForFunction(()=>!document.querySelector('#run').disabled,null,{timeout:60000});

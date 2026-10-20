@@ -6,6 +6,7 @@ try{
  page.on('pageerror',e=>errors.push(e.message));
  await page.goto(process.env.FACTORY_URL||'http://127.0.0.1:8000');
  async function compile(source){
+  if(await page.locator('#editor-panel').isHidden()) await page.locator('#toggle-editor').click();
   await page.locator('#source').fill(source);await page.locator('#run').click();
   await page.waitForFunction(()=>!document.querySelector('#run').disabled,null,{timeout:60000});
   await page.waitForFunction(()=>/Graphviz|No compiled/.test(document.querySelector('#map-status').textContent));
@@ -55,6 +56,7 @@ try{
  assert.equal(await page.locator('#stdout').textContent(),'');
  assert.equal(await page.locator('#capture-progress').isVisible(),false);
  assert.equal(await page.locator('#factory').getAttribute('data-pipeline-columns'),'1');
+ if(await page.locator('#editor-panel').isHidden()) await page.locator('#toggle-editor').click();
  await page.locator('#source').fill('print(10)');assert.equal(await page.locator('#play').isDisabled(),true);
  await compile('if');assert.equal(await page.locator('#play').isDisabled(),true);
  assert.deepEqual(errors,[]);

@@ -19,15 +19,18 @@ let operation=null,progressTick,operationStarted=0,runAfterLayout=false;
 const windowAspect=()=>window.innerWidth/Math.max(1,window.innerHeight);
 $('source').value = examples.accumulate;
 let exampleRequest=0;
+let appliedSource=$('source').value;
 $('example').onchange = async () => {
   const request=++exampleRequest, name=$('example').value;
+  if(name==='custom')return;
+  const applyExample=source=>{ $('source').value=source;resetProgram();previewSource();factory?.view('iso'); };
   const file={shortest:new URL('./programs/shortest_path.py',import.meta.url),asyncio:new URL('./programs/asyncio_numbers.py',import.meta.url)}[name];
-  if(!file) { $('source').value=examples[name]; $('run').disabled=Boolean(worker); previewSource(); return; }
+  if(!file) { applyExample(examples[name]); return; }
   $('run').disabled=true;
   try {
     const response=await fetch(file);
     if(!response.ok) throw new Error('Could not load program example.');
-    const source=await response.text(); if(request===exampleRequest) { $('source').value=source; previewSource(); }
+    const source=await response.text(); if(request===exampleRequest) { applyExample(source); }
   } catch(error) { if(request===exampleRequest) $('message').textContent=error.message; }
   finally { if(request===exampleRequest) $('run').disabled=Boolean(worker); }
 };
@@ -49,6 +52,7 @@ function startOperation(mode) {
   stopPlayback();stopWorker();runAfterLayout=false;
   layoutWorker?.terminate();clearTimeout(layoutTimer);layoutWorker=null;
   if(mode==='compile'){
+    appliedSource=source;
     lastLayout=null;graph=null;mapStates=[];selectedBlock=null;recording=null;
     $('map').replaceChildren();
     factory?.load(null,null,[],source,null,true);
@@ -101,6 +105,7 @@ function seekSourceLine(line){
 }
 function move(value) { selectedBlock=null; index = Math.max(0, Math.min(recording.events.length, value)); render(); }
 function resetProgram(){
+  appliedSource=$('source').value;
   stopPlayback();stopWorker();runAfterLayout=false;
   layoutWorker?.terminate();layoutWorker=null;clearTimeout(layoutTimer);clearTimeout(previewTimer);
   parsingReplay?.stop();
@@ -255,10 +260,23 @@ function seekInstruction(blockId,offset) {
 }
 function previewSource() { paintPython($('source-highlight'),$('source').value+'\n'); if(!recording&&!worker) factory?.load(null,null,[],$('source').value,null,true); }
 let previewTimer;
-$('source').addEventListener('input',()=>{ paintPython($('source-highlight'),$('source').value+'\n'); if(recording)render(); clearTimeout(previewTimer); previewTimer=setTimeout(previewSource,180); });
-for(const name of ['editor','inspector']) $('toggle-'+name).onclick=()=>{
-  const panel=$(name+'-panel'); panel.hidden=!panel.hidden;
-  $('toggle-'+name).setAttribute('aria-expanded',String(!panel.hidden));
+$('source').addEventListener('input',()=>{ ++exampleRequest;$('example').value='custom';$('run').disabled=Boolean(worker); paintPython($('source-highlight'),$('source').value+'\n'); if(recording)render(); clearTimeout(previewTimer); previewTimer=setTimeout(previewSource,180); });
+function setEditorOpen(open) {
+  if(!open&&!$('editor-panel').hidden&&$('source').value!==appliedSource){
+    resetProgram();previewSource();
+  }
+  $('editor-panel').hidden=!open;
+  $('toggle-editor').setAttribute('aria-expanded',String(open));
+  if(open)$('source').focus();else $('toggle-editor').focus();
+}
+$('toggle-editor').onclick=()=>setEditorOpen($('editor-panel').hidden);
+$('close-editor').onclick=()=>setEditorOpen(false);
+$('editor-panel').addEventListener('keydown',event=>{
+  if(event.key==='Escape'){event.preventDefault();setEditorOpen(false);}
+});
+$('toggle-inspector').onclick=()=>{
+  const panel=$('inspector-panel');panel.hidden=!panel.hidden;
+  $('toggle-inspector').setAttribute('aria-expanded',String(!panel.hidden));
 };
 try { factory=new Factory($('factory'),selectBlock,seekInstruction,seekSourceLine); parsingReplay=new ParsingReplay(factory); previewSource(); factory.view('iso'); }
 catch(error) { $('scene-hint').textContent=`3D unavailable: ${error.message}. The schematic is available.`; changeView('map'); $('message').textContent='3D graphics unavailable; using the schematic.'; }

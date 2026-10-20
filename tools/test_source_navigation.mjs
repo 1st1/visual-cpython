@@ -14,6 +14,7 @@ try{
  const page=await browser.newPage({viewport:{width:1600,height:1000},reducedMotion:'reduce'}),errors=[];
  page.on('pageerror',e=>errors.push(e.message));
  await page.goto(process.env.FACTORY_URL||'http://127.0.0.1:8000');
+ if(await page.locator('#editor-panel').isHidden()) await page.locator('#toggle-editor').click();
  await page.locator('#source').fill('total=0\nfor i in range(3):\n total+=i\n\nprint(total)');await page.locator('#run').click();
  await page.waitForFunction(()=>!document.querySelector('#play').disabled,null,{timeout:60000});
  await page.locator('#play').click();await page.waitForFunction(()=>document.querySelector('#play').textContent==='Pause',null,{timeout:60000});await page.locator('#play').click();

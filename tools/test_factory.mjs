@@ -67,6 +67,7 @@ try {
   await page.evaluate(()=>new Promise(r=>setTimeout(r,150)));
   assert.equal(await page.locator('.starfield').getAttribute('data-time'),still);
   await page.emulateMedia({reducedMotion:'no-preference'});
+  if(await page.locator('#editor-panel').isHidden()) await page.locator('#toggle-editor').click();
   await page.locator('#source').fill('# comment\n\nx=1');
   await page.waitForFunction(()=>document.querySelector('#factory').dataset.sourceTiles==='3');
   await page.locator('#toggle-editor').click();
@@ -108,7 +109,7 @@ try {
   await page.getByRole('button',{name:'Trackpad navigation',exact:true}).click();
   await page.locator('#camera-iso').click();
   const beforePan=JSON.parse(await minimap.getAttribute('data-target'));
-  await page.getByRole('button',{name:'Pan right',exact:true}).click();
+  await minimap.focus();await minimap.press('ArrowRight');
   const afterPan=JSON.parse(await minimap.getAttribute('data-target'));
   assert.ok(afterPan[0]>beforePan[0]);
   await minimap.focus();await minimap.press('ArrowLeft');
@@ -270,6 +271,7 @@ try {
   await page.goto(process.env.FACTORY_URL || 'http://127.0.0.1:8000');
   await page.waitForFunction(()=>document.querySelector('#factory').hidden);
   assert.equal(await page.locator('#map').isVisible(),true);
+  if(await page.locator('#editor-panel').isHidden()) await page.locator('#toggle-editor').click();
   await page.locator('#source').fill('print(7)'); await page.locator('#run').click();
   await page.waitForFunction(()=>/Graphviz/.test(document.querySelector('#map-status').textContent),null,{timeout:60000});
   assert.ok(await page.locator('#map .node').count()>0);
