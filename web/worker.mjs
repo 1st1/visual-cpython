@@ -33,7 +33,9 @@ self.onmessage = async ({ data }) => {
     self.postMessage({ type: "running" });
     // CPython wraps main with WebAssembly.promising on JSPI-capable browsers.
     // callMain then returns undefined; onExit carries the actual completion.
-    const immediate = runtime.callMain(["-I", "/capture.py", "/program.py", "--progress"]);
+    const args=["-I", "/capture.py", "/program.py", "--progress"];
+    if(data.mode==="compile")args.push("--compile-only");
+    const immediate = runtime.callMain(args);
     const exitCode = Number.isInteger(immediate) ? immediate : await exited;
     if (exitCode !== 0) throw new Error(`CPython exited ${exitCode}: ${errors.join("\n")}`);
     self.postMessage({ type: "result", trace: JSON.parse(lines.join("\n")) });

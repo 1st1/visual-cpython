@@ -13,8 +13,8 @@
     <label for="example">Example</label><select id="example"><option value="accumulate">Accumulator</option><option value="shortest">Shortest path · breadth-first search</option><option value="asyncio">Asyncio · odd and even tasks</option><option value="branch">Branches and calls</option><option value="alias">Shared objects</option><option value="error">Runtime error</option><option value="loop">Execution limit</option></select>
     <label for="source">Python source · up to 200 Python tokens</label>
     <div class="source-editor"><pre id="source-highlight" aria-hidden="true"></pre><textarea wrap="off" id="source" spellcheck="false" aria-label="Python source" maxlength="16384"></textarea></div>
-    <div class="buttons"><button id="run" class="primary">Compile</button><button id="cancel" disabled>Stop capture</button></div>
-    <span id="state" role="status">Ready</span>
+    <div class="buttons"><button id="run" class="primary">Compile</button><button id="skip-animation" hidden>Skip animation</button></div>
+    <span id="state" hidden>Ready</span>
     <div id="message" role="alert"></div>
   </section>
   <section class="map-panel panel">
@@ -25,7 +25,8 @@
       <div class="minimap-tools-row"><button id="toggle-editor" aria-expanded="true">Source</button><button id="toggle-inspector" aria-expanded="false">Inspector</button></div>
     </nav>
     <div id="map-status" class="note" role="status">Run a program to build its map.</div>
-    <div class="transport"><div class="buttons"><button id="first" disabled>Reset</button><button id="back" disabled>← Back</button><button id="play" disabled>Play</button><button id="next" disabled>Step →</button></div>
+    <div class="transport"><div class="buttons"><button id="first" disabled>Reset</button><button id="back" disabled>← Back</button><button id="play" disabled>Run</button><button id="cancel" hidden>Stop</button><button id="next" disabled>Step →</button></div>
+    <div id="capture-progress" hidden role="status"><span id="capture-progress-label">Preparing runtime…</span><progress aria-label="Execution capture progress"></progress></div>
     <input id="seek" type="range" min="0" max="0" value="0" disabled aria-label="Execution event">
     </div><div id="factory" class="factory"></div>
     <div id="scene-hint" class="note">Drag to orbit · scroll or right-drag to pan · pinch to zoom. Parser/compiler are explanatory landmarks; the reveal stages completed bytecode.</div>

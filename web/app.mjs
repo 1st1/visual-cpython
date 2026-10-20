@@ -15,6 +15,7 @@ let worker, timer, playback, recording, index = 0, generation = 0;
 let layoutWorker, layoutTimer, graph, mapStates = [], selectedBlock, zoom = 1;
 let parsingReplay, parsingMode=false, lastLayout;
 let factory, viewMode = '3d', layoutAspect, resizeTimer;
+let operation=null,progressTick,operationStarted=0,runAfterLayout=false;
 const windowAspect=()=>window.innerWidth/Math.max(1,window.innerHeight);
 $('source').value = examples.accumulate;
 let exampleRequest=0;
@@ -31,55 +32,95 @@ $('example').onchange = async () => {
   finally { if(request===exampleRequest) $('run').disabled=Boolean(worker); }
 };
 
-function stopPlayback() { factory?.starfield?.setPlaying(false); clearInterval(playback); playback = null; $('play').textContent = 'Play'; }
-function stopWorker(endFlight=true) { if(endFlight) factory?.starfield?.setCapturing(false); generation++; clearTimeout(timer); worker?.terminate(); worker = null; $('run').disabled = false; $('cancel').disabled = true; }
-function fail(message) { stopWorker(); $('state').textContent = 'Stopped'; $('message').textContent = message; }
-$('cancel').onclick = () => fail('Capture cancelled. Run again to start a fresh interpreter.');
-$('run').onclick = () => {
+function stopPlayback() { factory?.starfield?.setPlaying(false); clearInterval(playback); playback = null; $('play').textContent = recording?.events.length&&index<recording.events.length?'Resume':'Run'; }
+function stopWorker(endFlight=true) {
+  if(endFlight)factory?.starfield?.setCapturing(false);
+  generation++;clearTimeout(timer);clearInterval(progressTick);worker?.terminate();worker=null;operation=null;
+  $('run').disabled=false;$('run').textContent='Compile';$('cancel').hidden=true;$('capture-progress').hidden=true;
+}
+function fail(message) { stopWorker();runAfterLayout=false;$('state').textContent='Stopped';$('message').textContent=message;render(); }
+$('cancel').onclick=()=>fail('Execution stopped. Run again to start a fresh interpreter.');
+$('skip-animation').onclick=()=>{factory?.finishConstruction();$('skip-animation').hidden=true;};
+$('run').onclick=()=>startOperation('compile');
+function startOperation(mode) {
+  const source=mode==='compile'?$('source').value:recording?.source;
+  if(mode==='run'&&(!recording||source!==$('source').value))return;
+  parsingReplay?.stop();parsingMode=false;setParsingUI(false);
+  stopPlayback();stopWorker();runAfterLayout=false;
+  layoutWorker?.terminate();clearTimeout(layoutTimer);layoutWorker=null;
+  if(mode==='compile'){
+    lastLayout=null;graph=null;mapStates=[];selectedBlock=null;recording=null;
+    $('block-select').replaceChildren(new Option('Select a building or block…',''));
+    $('map').replaceChildren();$('block-detail').textContent='';
+    factory?.load(null,null,[],source,null,true);
+  } else {
+    recording={...recording,events:[],stdout:'',status:'compiled'};delete recording.error;
+    mapStates=[];selectedBlock=null;index=0;
+    if(factory){factory.instructionVisits.clear();factory.panelBlock=null;factory.opcodeTrail.clear();factory.previousOpcodeTile=null;}
+    factory?.finishConstruction();
+  }
+  operation=mode;operationStarted=performance.now();
+  $('message').textContent='';$('map-status').textContent=mode==='compile'?'Compiling…':'Capturing execution…';
+  $('run').disabled=true;$('run').textContent=mode==='compile'?'Compiling…':'Compile';
+  $('cancel').hidden=mode!=='run';$('cancel').disabled=false;
+  $('capture-progress').hidden=mode!=='run';
+  $('capture-progress-label').textContent='Preparing runtime…';
+  $('state').textContent='Loading WASM';
+  factory?.starfield?.setCapturing(true);
+  render();
+  worker=new Worker(new URL('./worker.mjs',import.meta.url),{type:'module'});
+  const runGeneration=generation;
+  timer=setTimeout(()=>fail('Runtime loading exceeded 60 seconds.'),60000);
+  worker.onerror=e=>{if(generation===runGeneration)fail(e.message);};
+  worker.onmessage=({data})=>{
+    if(generation!==runGeneration)return;
+    if(data.type==='running'){
+      clearTimeout(timer);$('state').textContent=mode==='compile'?'Compiling':'Capturing';
+      if(mode==='run'){
+        operationStarted=performance.now();
+        const update=()=>{$('capture-progress-label').textContent=`Capturing execution · ${((performance.now()-operationStarted)/1000).toFixed(1)}s`;};
+        update();progressTick=setInterval(update,100);
+      }
+      timer=setTimeout(()=>fail(mode==='run'?'Execution stopped after 5 seconds. The worker has been discarded.':'Compilation exceeded 15 seconds.'),mode==='run'?5000:15000);
+    }else if(data.type==='line'){
+      if(factory){factory.liveCaptureUntil=performance.now()+150;factory.highlightSource(data.line,null);}
+    }else if(data.type==='result'){
+      stopWorker(false);recording=data.trace;index=0;runAfterLayout=mode==='run'&&recording.events.length>0;
+      $('state').textContent=recording.status;$('message').textContent=recording.error||'';
+      $('provenance').textContent=`CPython ${recording.provenance.python.split(' ')[0]} · ${recording.provenance.revision.slice(0,8)}`;
+      if(!recording.codes.length)factory?.load(null,null,[],recording.source,recording.parsing,true);
+      render();buildMap(false,mode==='run');
+    }else if(data.type==='error')fail(data.message);
+  };
+  worker.postMessage({source,mode});
+}
+function move(value) { index = Math.max(0, Math.min(recording.events.length, value)); render(); }
+function resetProgram(){
+  stopPlayback();stopWorker();runAfterLayout=false;
+  layoutWorker?.terminate();layoutWorker=null;clearTimeout(layoutTimer);clearTimeout(previewTimer);
   parsingReplay?.stop();
   if(parsingReplay){parsingReplay.recording=null;parsingReplay.frames=[];parsingReplay.tokens=[];}
-  parsingMode=false;setParsingUI(false);lastLayout=null;
-  layoutWorker?.terminate(); clearTimeout(layoutTimer); graph = null; mapStates = []; selectedBlock = null;
+  recording=null;graph=null;lastLayout=null;mapStates=[];selectedBlock=null;index=0;parsingMode=false;
+  setParsingUI(false);
+  $('map').replaceChildren();$('map-status').textContent='Compile a program to build its map.';
   $('block-select').replaceChildren(new Option('Select a building or block…',''));
-  $('map').replaceChildren(); $('map-status').textContent = 'Waiting for capture'; $('block-detail').textContent = '';
-  stopPlayback(); stopWorker(); recording = null; render();
-  $('message').textContent = '';
-  $('run').disabled = true; $('cancel').disabled = false; $('state').textContent = 'Loading WASM';
-  factory?.starfield?.setCapturing(true);
-  worker = new Worker(new URL('./worker.mjs', import.meta.url), { type: 'module' });
-  const runGeneration = generation;
-  timer = setTimeout(() => fail('Runtime loading exceeded 60 seconds.'), 60000);
-  worker.onerror = e => { if (generation === runGeneration) fail(e.message); };
-  worker.onmessage = ({ data }) => {
-    if (generation !== runGeneration) return;
-    if (data.type === 'running') {
-      clearTimeout(timer); $('state').textContent = 'Capturing';
-      timer = setTimeout(() => fail('Execution stopped after 5 seconds. The worker has been discarded.'), 5000);
-    } else if (data.type === 'line') {
-      if(factory){factory.liveCaptureUntil=performance.now()+150;factory.highlightSource(data.line,null);}
-    } else if (data.type === 'result') {
-      stopWorker(false); recording = data.trace; index = 0;
-      $('state').textContent = recording.status;
-      $('message').textContent = recording.error || '';
-      $('provenance').textContent = `CPython ${recording.provenance.python.split(' ')[0]} · ${recording.provenance.revision.slice(0, 8)}`;
-      if(!recording.codes.length) factory?.load(null,null,[],recording.source,recording.parsing,true);
-      render();
-      buildMap();
-    } else if (data.type === 'error') fail(data.message);
-  };
-  worker.postMessage({ source: $('source').value });
-};
-function move(value) { index = Math.max(0, Math.min(recording.events.length, value)); render(); }
-$('first').onclick = () => { stopPlayback(); move(0); };
+  $('message').textContent='';$('state').textContent='Ready';$('provenance').textContent='';$('skip-animation').hidden=true;
+  if(factory){factory.liveCaptureUntil=0;factory.parsingPlaying=false;factory.load(null,null,[],$('source').value);}
+  render();
+}
+$('first').onclick=resetProgram;
 $('back').onclick = () => { stopPlayback(); move(index - 1); };
 $('next').onclick = () => { stopPlayback(); move(index + 1); };
 $('seek').oninput = () => { stopPlayback(); move(Number($('seek').value)); };
-$('play').onclick = () => {
-  if (playback) return stopPlayback();
-  if (index === recording.events.length) move(0);
-  $('play').textContent = 'Pause';
-  factory?.starfield?.setPlaying(true);
-  playback = setInterval(() => { move(index + 1); if (index === recording.events.length) stopPlayback(); }, 250);
+function startReplay() {
+  if(!recording?.events.length)return;
+  $('play').textContent='Pause';factory?.starfield?.setPlaying(true);
+  playback=setInterval(()=>{move(index+1);if(index===recording.events.length)stopPlayback();},250);
+}
+$('play').onclick=()=>{
+  if(playback)return stopPlayback();
+  if(recording?.events.length&&index<recording.events.length)return startReplay();
+  startOperation('run');
 };
 function describe(value) {
   if (!value) return '—';
@@ -97,7 +138,11 @@ function render() {
   renderMapState();
   const count = recording?.events.length || 0;
   for (const id of ['first', 'back', 'next', 'play', 'seek']) $(id).disabled = !count;
-  $('back').disabled = !count || index === 0; $('next').disabled = !count || index === count;
+  $('play').disabled=Boolean(operation||layoutWorker)||!recording?.codes.length||recording.source!==$('source').value;
+  $('play').textContent=operation==='run'?'Running…':playback?'Pause':count&&index<count?'Resume':'Run';
+  for(const id of ['back','next','seek'])if(operation)$(id).disabled=true;
+  $('back').disabled = Boolean(operation) || !count || index === 0; $('next').disabled = Boolean(operation) || !count || index === count;
+  $('first').disabled=!recording&&!operation&&!layoutWorker;
   $('seek').max = count; $('seek').value = index;
   $('counter').textContent = count ? `${Math.min(index + 1, count)} / ${count}${index === count ? ' · end' : ''}` : 'No recording';
   const event = recording?.events[Math.min(index, count - 1)];
@@ -123,14 +168,14 @@ function render() {
   $('stdout').textContent = index === count ? recording.stdout : event.stdout;
 }
 
-function buildMap(relayout=false) {
+function buildMap(relayout=false,executed=false) {
   layoutWorker?.terminate(); clearTimeout(layoutTimer);
   const targetAspect=windowAspect(); layoutAspect=targetAspect;
   try {
     graph = extractGraph(recording);
     mapStates = projectReplay(recording, graph);
     if (!graph.blocks.length) { factory?.starfield?.setCapturing(false); $('map-status').textContent = 'No compiled program'; return; }
-    $('map-status').textContent = 'Laying out program…';
+    $('map-status').textContent = 'Laying out program…';$('play').disabled=true;
     const current = graph;
     layoutWorker = new Worker(new URL('./layout-worker.mjs', import.meta.url), { type: 'module' });
     const stop = () => { clearTimeout(layoutTimer); layoutWorker?.terminate(); layoutWorker = null; };
@@ -148,7 +193,7 @@ function buildMap(relayout=false) {
       lastLayout=data.layout;
       factory?.load(data.layout,graph,recording.events,recording.source,recording.parsing,!relayout);
       if(parsingMode) {factory?.loadParsing();parsingReplay.render();}
-      if(relayout&&!parsingMode) factory?.finishConstruction();
+      if((relayout||executed)&&!parsingMode) factory?.finishConstruction();
       if(relayout&&parsingMode) factory?.view('iso');
       $('factory').dataset.layoutAspect=String(data.layout.placement.targetAspect);
       $('block-select').replaceChildren(new Option('Select a building or block…',''), ...graph.blocks.map(b=>new Option(`${b.id} · ${b.instructions.at(-1).opname}`,b.id)));
@@ -163,8 +208,9 @@ function buildMap(relayout=false) {
       }
       $('map-status').textContent = `Graphviz ${data.version} · ${graph.blocks.reduce((n,b)=>n+b.instructions.length,0)} opcodes · ${graph.blocks.length} blocks · ${graph.edges.length} connections`;
       if (graph.diagnostics.length) $('map-status').textContent += ` · ${graph.diagnostics.length} mapping warnings`;
-      renderMapState();
+      render();
       factory?.starfield?.setCapturing(false);
+      if(runAfterLayout){runAfterLayout=false;startReplay();}
     };
     layoutWorker.postMessage({ graph, targetAspect });
   } catch (error) { factory?.starfield?.setCapturing(false); $('map-status').textContent = `Map unavailable: ${error.message}`; $('message').textContent=$('map-status').textContent; }
@@ -217,7 +263,7 @@ function seekInstruction(blockId,offset) {
 }
 function previewSource() { paintPython($('source-highlight'),$('source').value+'\n'); if(!recording&&!worker) factory?.load(null,null,[],$('source').value,null,true); }
 let previewTimer;
-$('source').addEventListener('input',()=>{ paintPython($('source-highlight'),$('source').value+'\n'); clearTimeout(previewTimer); previewTimer=setTimeout(previewSource,180); });
+$('source').addEventListener('input',()=>{ paintPython($('source-highlight'),$('source').value+'\n'); if(recording)render(); clearTimeout(previewTimer); previewTimer=setTimeout(previewSource,180); });
 for(const name of ['editor','inspector']) $('toggle-'+name).onclick=()=>{
   const panel=$(name+'-panel'); panel.hidden=!panel.hidden;
   $('toggle-'+name).setAttribute('aria-expanded',String(!panel.hidden));

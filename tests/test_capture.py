@@ -7,6 +7,19 @@ from runtime.capture import capture
 
 
 class CaptureTests(unittest.TestCase):
+    def test_compile_only_does_not_execute(self):
+        source = "def f():\n    return 3\nprint(f())\nwhile True:\n    pass"
+        result = capture(source, compile_only=True)
+        self.assertEqual(result["status"], "compiled")
+        self.assertEqual(result["events"], [])
+        self.assertEqual(result["stdout"], "")
+        self.assertEqual([c["name"] for c in result["codes"]], ["<module>", "f"])
+        self.assertTrue(result["parsing"]["ast"])
+        self.assertTrue(all(c["instructions"] for c in result["codes"]))
+        self.assertEqual(capture("print(3)", compile_only=True)["stdout"], "")
+        self.assertEqual(capture("print(3)")["stdout"], "3\n")
+        self.assertEqual(capture("x = (", compile_only=True)["status"], "error")
+
     def test_parser_budget_keeps_compilation_working(self):
         import ast
         from _factory_probe import parse_begin, parse_end

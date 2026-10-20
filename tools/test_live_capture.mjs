@@ -10,9 +10,11 @@ try {
   await page.locator('#source').fill('import asyncio\nasync def main():\n    print(1)\n    await asyncio.sleep(1)\n    print(2)\n    await asyncio.sleep(1)\nasyncio.run(main())');
   await page.waitForTimeout(300);
   await page.locator('#run').click();
+  await page.waitForFunction(()=>!document.querySelector('#play').disabled,null,{timeout:60000});
+  await page.locator('#play').click();
   await page.waitForFunction(()=>document.querySelector('#run').disabled&&Number(document.querySelector('#factory').dataset.activeSource)>0,{},{timeout:60000});
   assert.equal(await page.locator('#factory').getAttribute('data-active-stage'),'1');
-  assert.equal(await page.locator('#factory').getAttribute('data-opcode-tiles'),'0');
+  assert.ok(Number(await page.locator('#factory').getAttribute('data-opcode-tiles'))>0);
   await page.waitForFunction(()=>!document.querySelector('#run').disabled,null,{timeout:60000});
   assert.equal(await page.locator('#state').textContent(),'completed');
   assert.deepEqual(errors,[]);

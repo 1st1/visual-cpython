@@ -73,17 +73,17 @@ Recordings distinguish completed, error, and limited outcomes. Exceptions follow
 
 ## Browser workbench
 
-The diagnostic UI exposes editing, capture, source/instruction selection, locals, stack, output, and forward/backward playback. It consumes complete recordings and drives the generated map described in [[graph]].
+The workbench separates compilation from execution, with source/instruction selection, locals, stack, output, and forward/backward trace playback. It consumes complete recordings and drives the generated map described in [[graph]].
 
-[web/worker.mjs](../../web/worker.mjs) loads the generated Emscripten runtime, standard-library archive, and capture driver. Each run gets a new worker and interpreter. The worker writes source into its virtual filesystem, executes capture, and sends a serializable recording to the UI. The hosting server serves static files only.
+[web/worker.mjs](../../web/worker.mjs) loads the generated Emscripten runtime, standard-library archive, and capture driver. Each Compile or Run operation gets a new worker and interpreter. The worker writes source into its virtual filesystem, executes capture, and sends a serializable recording to the UI. The hosting server serves static files only.
 
 [[tools/package_web.py#package]] publishes a content-hashed runtime manifest after staging the committed runtime, WASM binary, standard library, and capture driver. The worker fetches this manifest without caching and uses its build identifier on all four asset URLs, including Emscripten’s WASM lookup. Rebuilt parser probes therefore cannot silently reuse the previous build’s cached binary.
 
 With browser WebAssembly JSPI support, CPython completes asynchronously: the worker waits for the runtime exit callback before parsing captured output. Synchronous runtimes use the immediate exit code. The pinned build enables dynamic linking because CPython's JSPI initialization requires Emscripten's symbol resolver.
 
-[web/app.mjs](../../web/app.mjs) applies separate runtime-loading and execution deadlines and terminates discarded workers. Play, step, rewind, and seek select recorded snapshots rather than re-executing Python. Output at each event reflects captured output at that time; the terminal position shows final output/status. A wall-clock timeout discards the unfinished capture.
+[web/app.mjs](../../web/app.mjs) applies separate runtime-loading and execution deadlines and terminates discarded workers. Compile calls [[runtime/capture.py#capture]] in compile-only mode: validation, parser/AST observation, bytecode compilation, and recursive code-object decoding run without executing the submitted program. Run starts real trace capture of the compiled source in a fresh interpreter, then automatically plays recorded snapshots. Pause/Resume, step, rewind, and seek operate on those snapshots. Edited source must be compiled again before Run is enabled. A new Run discards the preceding trace before capturing a fresh one. Reset cancels capture/layout/playback, releases recorded events and parser replay references, clears output and inspection state, and restores the source-only deck while preserving editor text. Reset remains available during work; Back and the seek slider navigate only the current trace. Output at each event reflects captured output at that time; the terminal position shows final output/status. A wall-clock timeout discards the unfinished capture.
 
-The Emscripten link configuration sets a maximum linear-memory size; JavaScript, fetched assets, and browser overhead are additional. [web/index.html](../../web/index.html) presents a Compile action for recording execution, with status and errors in the source panel. The explanatory tracing and scope text is omitted from the interface; runtime limits remain enforced. [web/style.css](../../web/style.css) provides a responsive diagnostic layout; the first factory renderer is described in [[scene]].
+The Emscripten link configuration sets a maximum linear-memory size; JavaScript, fetched assets, and browser overhead are additional. [web/index.html](../../web/index.html) presents Compile in the source panel and Run in the transport. Persistent completion status is hidden; errors remain visible. Capture shows an indeterminate progress bar and elapsed execution time because total work is unknown, with Stop available only during Run. Skip animation appears only while compilation artifacts are being revealed. The explanatory tracing and scope text is omitted from the interface; runtime limits remain enforced. [web/style.css](../../web/style.css) provides a responsive diagnostic layout; the first factory renderer is described in [[scene]].
 
 ## Validation
 
@@ -94,3 +94,9 @@ Native semantic tests check observed values and identity, not merely event prese
 Build success, semantic test execution, and browser UI verification must be reported separately. The current scripts provide those checks without declaring that later graph extraction, routing, or native-JIT work is complete.
 
 [tools/test_browser.mjs](../../tools/test_browser.mjs) uses Playwright with installed headless Chrome against the static workbench. It verifies actual operand values, backward replay, output, calls, aliases, errors, event limits, hard worker timeout and recovery, cancellation, and mobile overflow. Screenshots are saved in ignored artifacts for visual inspection.
+
+## Compile and run separation checks
+
+Compilation must produce inspectable artifacts without executing user statements; execution capture starts only from Run.
+
+[[tests/test_capture.py#CaptureTests#test_compile_only_does_not_execute]] checks empty events/output, nested code artifacts, infinite-loop safety, syntax errors, and ordinary execution. [tools/test_compile_flow.mjs](../../tools/test_compile_flow.mjs) verifies these boundaries in WASM, conditional Skip/Stop controls, visible capture progress, automatic replay, the edited-source guard, and full reset both after and during execution (including rejection of late worker results).

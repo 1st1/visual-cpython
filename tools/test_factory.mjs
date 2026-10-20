@@ -5,7 +5,7 @@ const browser=await chromium.launch({channel:'chrome',headless:true,chromiumSand
 const page=await browser.newPage({viewport:{width:1600,height:1100}});
 const errors=[]; page.on('pageerror',e=>errors.push(e.message));
 await mkdir('artifacts',{recursive:true});
-async function capture(source) {
+async function capture(source,execute=true) {
   if(await page.locator('#editor-panel').isHidden()) await page.locator('#toggle-editor').click();
   if(await page.locator('#inspector-panel').isVisible()) await page.locator('#toggle-inspector').click();
   await page.locator('#source').fill(source);
@@ -32,6 +32,12 @@ async function capture(source) {
   await page.evaluate(()=>new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r))));
   const after=JSON.parse(await page.locator('#factory').getAttribute('data-framing'));
   assert.ok(camera.every((value,i)=>Math.abs(value-after[i])<.01),'Capture preserves orientation, relative pan, and map framing, including failure results '+JSON.stringify({camera,after}));
+  if(execute&&await page.locator('#state').textContent()==='compiled')await runCapture();
+}
+async function runCapture(){
+  await page.locator('#play').click();
+  await page.waitForFunction(()=>document.querySelector('#play').textContent==='Pause',null,{timeout:60000});
+  await page.locator('#play').click();await page.locator('#seek').fill('0');await page.locator('#seek').dispatchEvent('input');
 }
 try {
   await page.goto(process.env.FACTORY_URL || 'http://127.0.0.1:8000');
@@ -97,7 +103,7 @@ try {
   assert.notDeepEqual(JSON.parse(await minimap.getAttribute('data-target')),beforePan);
   await page.locator('#camera-iso').click();
   await page.screenshot({path:'artifacts/factory-empty.png',fullPage:true});
-  await capture('a=2\nb=3\nc=a+b\nprint(c)');
+  await capture('a=2\nb=3\nc=a+b\nprint(c)',false);
   assert.equal(await page.locator('#factory').getAttribute('data-pipeline-columns'),'4','Deck expands before artifact construction');
   assert.equal(await page.locator('#map-status').isVisible(),false);
   await page.screenshot({path:'artifacts/factory-hyperspace.png'});
@@ -120,6 +126,7 @@ try {
   assert.equal(await page.locator('#factory').getAttribute('data-revealed-edges'),await page.locator('#factory').getAttribute('data-edges'));
   assert.equal(await page.locator('#factory').getAttribute('data-revealed-enclosures'),await page.locator('#factory').getAttribute('data-enclosures'));
   await page.waitForFunction(()=>Number(document.querySelector('.starfield').dataset.warp)<.01);
+  await runCapture();
   await page.locator('#play').click();
   await page.waitForFunction(()=>{
     const warp=Number(document.querySelector('.starfield').dataset.warp);
@@ -127,7 +134,7 @@ try {
   });
   await page.locator('#play').click();
   await page.waitForFunction(()=>Number(document.querySelector('.starfield').dataset.warp)<.01);
-  await page.locator('#first').click();
+  await page.locator('#seek').fill('0');await page.locator('#seek').dispatchEvent('input');
 
   for(let i=0;i<30;i++) {
     if((await page.locator('#instructions .active').textContent()).includes('BINARY_OP')) break;
@@ -155,11 +162,12 @@ try {
   assert.equal(afterStack.slots.length,1); assert.match(afterStack.slots[0].text,/int 5/);
   await page.locator('#back').click();
   assert.deepEqual(JSON.parse(await page.locator('#factory').getAttribute('data-stack')),beforeStack);
-  await page.locator('#first').click();
+  await page.locator('#seek').fill('0');await page.locator('#seek').dispatchEvent('input');
   assert.equal(JSON.parse(await page.locator('#factory').getAttribute('data-stack')).sampled,false);
   await page.locator('#example').selectOption('asyncio');
   await page.waitForFunction(()=>document.querySelector('#source').value.includes('async def odds()'));
   await capture(await page.locator('#source').inputValue());
+  if(await page.locator('#state').textContent()==='compiled')await runCapture();
   assert.equal(await page.locator('#state').textContent(),'completed');
   await capture('print(None)');
   let sentinels=false;
@@ -223,6 +231,7 @@ try {
   await page.locator('#run').click();
   await page.waitForFunction(()=>!document.querySelector('#run').disabled,null,{timeout:60000});
   await page.waitForFunction(()=>/Graphviz/.test(document.querySelector('#map-status').textContent),null,{timeout:20000});
+  if(await page.locator('#state').textContent()==='compiled')await runCapture();
   assert.equal(await page.locator('#state').textContent(),'completed');
   assert.doesNotMatch(await page.locator('#map-status').textContent(),/warnings/);
   const instruction=page.locator('.opcode-list button:not(:disabled)').first();

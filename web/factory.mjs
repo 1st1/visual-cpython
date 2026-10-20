@@ -155,6 +155,7 @@ export class Factory {
       if(!this.revealStart&&this.host.dataset.phase!=='parsing')this.setActiveStage(this.starfield.capturing?1:this.replayStage);
       this.gridUniforms.time.value=this.reduced.matches?0:now*.001;
       this.viewSize=this.camera.position.distanceTo(this.controls.target)*2*Math.tan(THREE.MathUtils.degToRad(this.camera.fov/2));
+      const skip=document.getElementById('skip-animation');if(skip)skip.hidden=!this.revealStart;
       if (this.revealStart) {
         let complete=true, latest=null;
         const elapsed=now-this.revealStart;

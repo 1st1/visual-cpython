@@ -13,6 +13,15 @@ async function capture(source, status = 'completed') {
   await page.locator('#source').fill(source);
   await page.locator('#run').click();
   await page.waitForFunction(() => !document.querySelector('#run').disabled, null, { timeout: 60000 });
+  if(await page.locator('#state').textContent()==='compiled'){
+    await page.waitForFunction(()=>!document.querySelector('#play').disabled);
+    await page.locator('#play').click();
+    await page.waitForFunction(()=>!document.querySelector('#run').disabled,null,{timeout:60000});
+    if(status!=='Stopped'){
+      await page.waitForFunction(()=>document.querySelector('#play').textContent==='Pause',null,{timeout:60000});
+      await page.locator('#play').click();await page.locator('#seek').fill('0');await page.locator('#seek').dispatchEvent('input');
+    }
+  }
   assert.equal(await page.locator('#state').textContent(), status, await page.locator('#message').textContent());
   if (status !== 'Stopped') {
     await page.waitForFunction(() => /Graphviz|No compiled program|failed|unavailable/.test(document.querySelector('#map-status').textContent), null, { timeout: 20000 });
@@ -86,9 +95,9 @@ try {
   assert.equal(await page.locator('#stdout').textContent(), '7\n');
   console.log('PASS event budget, hard worker timeout, fresh interpreter recovery');
 
-  await page.locator('#run').click();
+  await page.locator('#play').click();
   await page.locator('#cancel').click();
-  assert.match(await page.locator('#message').textContent(), /cancelled/);
+  assert.match(await page.locator('#message').textContent(), /stopped/);
   await page.setViewportSize({ width: 390, height: 844 });
   await capture('print(42)');
   await end();

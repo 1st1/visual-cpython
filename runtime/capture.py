@@ -200,7 +200,7 @@ class Observer:
         return self.trace
 
 
-def capture(source, max_events=2000, progress=False):
+def capture(source, max_events=2000, progress=False, compile_only=False):
     if not 1 <= max_events <= 10000:
         raise ValueError("max_events must be between 1 and 10000")
     observer = Observer(max_events, progress)
@@ -264,14 +264,17 @@ def capture(source, max_events=2000, progress=False):
                 raise ValueError("annotations are not supported")
         code = compile(tree, FILENAME, "exec")
         observer.code(code)
-        previous = sys.gettrace()
-        try:
-            with contextlib.redirect_stdout(observer.output):
-                sys.settrace(observer.trace)
-                exec(code, {"__builtins__": dict(BUILTINS)})
-        finally:
-            sys.settrace(previous)
-        result["status"] = "completed"
+        if compile_only:
+            result["status"] = "compiled"
+        else:
+            previous = sys.gettrace()
+            try:
+                with contextlib.redirect_stdout(observer.output):
+                    sys.settrace(observer.trace)
+                    exec(code, {"__builtins__": dict(BUILTINS)})
+            finally:
+                sys.settrace(previous)
+            result["status"] = "completed"
     except CaptureLimit as exc:
         result.update(status="limited", error=str(exc))
     except Exception as exc:
@@ -286,4 +289,4 @@ def capture(source, max_events=2000, progress=False):
 
 if __name__ == "__main__":
     source = Path(sys.argv[1]).read_text() if len(sys.argv) > 1 else sys.stdin.read(16385)
-    print(json.dumps(capture(source, progress="--progress" in sys.argv[2:]), ensure_ascii=True))
+    print(json.dumps(capture(source, progress="--progress" in sys.argv[2:], compile_only="--compile-only" in sys.argv[2:]), ensure_ascii=True))

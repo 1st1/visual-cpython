@@ -66,3 +66,6 @@ button[aria-pressed=true]{background:#30206a;color:#65d4df;border-color:#7960aa}
 .editor{bottom:auto;max-height:calc(100dvh - 150px)}
 #state{display:block;margin-top:8px;font-size:11px;color:var(--muted)}
 @media(max-width:900px){.editor,.replay,.opcode-panel{top:8px}.minimap-tools-row button{padding:5px 3px;font-size:10px}}
+
+#capture-progress{display:flex;flex-direction:column;gap:6px;margin:8px 0;font-size:11px;color:var(--accent)}
+#capture-progress progress{width:100%;height:6px;accent-color:var(--accent)}
