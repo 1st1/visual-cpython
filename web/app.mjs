@@ -236,7 +236,7 @@ function render() {
   const steps=n=>`${n.toLocaleString()} ${n===1?'step':'steps'}`;
   $('counter').hidden=latest===0;
   $('counter').textContent=back
-    ?`Step ${current.toLocaleString()} of ${latest.toLocaleString()} · ${steps(back)} back`
+    ?`Step ${current.toLocaleString()} of ${latest.toLocaleString()}`
     :steps(latest);
   const event = recording?.events[Math.min(index, count - 1)];
   if (!event) {
@@ -364,18 +364,20 @@ $('toggle-inspector').onclick=()=>{
   const panel=$('inspector-panel');panel.hidden=!panel.hidden;
   $('toggle-inspector').setAttribute('aria-expanded',String(!panel.hidden));
 };
-const toolbarObserver=new ResizeObserver(()=>{
-  const bottom=document.querySelector('.program-toolbar').getBoundingClientRect().bottom;
-  document.documentElement.style.setProperty('--program-toolbar-bottom',`${bottom+10}px`);
-  const playbackBottom=document.querySelector('.playback-controls').getBoundingClientRect().bottom;
-  document.documentElement.style.setProperty('--playback-bottom',`${playbackBottom+10}px`);
-});
+function updateToolbarBounds(){
+  const program=document.querySelector('.program-toolbar').getBoundingClientRect();
+  const playback=document.querySelector('.playback-controls').getBoundingClientRect();
+  const style=document.documentElement.style;
+  style.setProperty('--program-toolbar-bottom',`${program.bottom+10}px`);
+  style.setProperty('--playback-bottom',`${playback.bottom+10}px`);
+  style.setProperty('--playback-height',`${playback.height}px`);
+  style.setProperty('--playback-width',`${playback.width}px`);
+}
+const toolbarObserver=new ResizeObserver(updateToolbarBounds);
 toolbarObserver.observe(document.querySelector('.program-toolbar'));
-const playbackObserver=new ResizeObserver(()=>{
-  const bottom=document.querySelector('.playback-controls').getBoundingClientRect().bottom;
-  document.documentElement.style.setProperty('--playback-bottom',`${bottom+10}px`);
-});
-playbackObserver.observe(document.querySelector('.playback-controls'));
+toolbarObserver.observe(document.querySelector('.playback-controls'));
+window.addEventListener('resize',updateToolbarBounds);
+
 
 try { factory=new Factory($('factory'),selectBlock,seekInstruction,seekSourceLine); parsingReplay=new ParsingReplay(factory); previewSource(); factory.view(); }
 catch(error) { $('toggle-minimap').disabled=true;$('toggle-minimap').setAttribute('aria-pressed','false'); $('scene-hint').textContent=`3D unavailable: ${error.message}. The schematic is available.`; changeView('map'); $('message').textContent='3D graphics unavailable; using the schematic.'; }

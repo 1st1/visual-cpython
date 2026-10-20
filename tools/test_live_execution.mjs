@@ -33,7 +33,7 @@ try{
  await page.locator('#next').click();await page.waitForTimeout(100);
  assert.notEqual(await page.locator('#event').textContent(),before,'one real opcode advances');
  await page.locator('#back').click();assert.equal(await page.locator('#event').textContent(),before);
- assert.equal(await page.locator('#counter').textContent(),`Step ${steps.toLocaleString()} of ${(steps+1).toLocaleString()} · 1 step back`);
+ assert.equal(await page.locator('#counter').textContent(),`Step ${steps.toLocaleString()} of ${(steps+1).toLocaleString()}`);
  await page.locator('#play').click();await page.waitForTimeout(100);
  assert.equal(await page.locator('#play').getAttribute('aria-label'),'Pause');
  assert.equal(await page.locator('#cancel, #capture-progress').count(),0);
