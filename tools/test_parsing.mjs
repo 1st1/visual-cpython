@@ -25,7 +25,7 @@ try {
   assert.equal(await page.locator('#factory').getAttribute('data-ghost-count'),'0');
   await page.screenshot({path:'artifacts/parsing-ast.png'});
   await page.locator('#play').click();
-  await page.waitForFunction(()=>document.querySelector('#play').textContent==='Pause',null,{timeout:60000});
+  await page.waitForFunction(()=>document.querySelector('#play').getAttribute('aria-label')==='Pause',null,{timeout:60000});
   await page.locator('#play').click();
   const pipeline=await page.locator('#factory').getAttribute('data-pipeline');
   await page.locator('#seek').focus();await page.locator('#seek').press('End');

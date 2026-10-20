@@ -25,13 +25,18 @@
     <p class="note">Enclosures are code objects. Trays group basic blocks. Each small box is one opcode; arrows inside a tray show instruction order. Gold: taken branch · green: continuation/jump · dashed violet: observed Python call.</p>
     <nav id="minimap-tools" aria-label="Scene controls">
       <div class="minimap-tools-row"><button id="camera-iso" aria-label="Isometric view" title="Isometric view"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m12 2 9 5v10l-9 5-9-5V7Z M3 7l9 5 9-5 M12 12v10"/></svg></button><button id="camera-top" aria-label="Top view" title="Top view"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="1"/><path d="M3 9h18M3 15h18M9 3v18M15 3v18"/></svg></button><button id="zoom-out" aria-label="Zoom out">−</button><button id="zoom-fit" aria-label="Fit scene" title="Fit scene"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 3H3v5M16 3h5v5M21 16v5h-5M8 21H3v-5"/><rect x="8" y="8" width="8" height="8" rx="1"/></svg></button><button id="zoom-in" aria-label="Zoom in">+</button></div>
-      <div class="minimap-tools-row"><button id="toggle-inspector" aria-expanded="false">Inspector</button></div>
     </nav>
     <div id="map-status" class="note" role="status">Run a program to build its map.</div>
-    <div class="transport"><div class="buttons"><button id="first" disabled>Reset</button><button id="back" disabled>← Back</button><button id="play" disabled>Run</button><button id="cancel" hidden>Stop</button><button id="next" disabled>Step →</button></div>
-    <div id="capture-progress" hidden role="status"><span id="capture-progress-label">Preparing runtime…</span><progress aria-label="Execution capture progress"></progress></div>
+    <nav class="playback-controls" aria-label="Execution controls"><div class="playback-buttons">
+      <button id="back" disabled aria-label="Step back" title="Step back"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 5v14M19 5l-10 7 10 7Z"/></svg></button>
+      <button id="play" disabled aria-label="Run" title="Run"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m8 4 12 8-12 8Z"/></svg></button>
+      <button id="next" disabled aria-label="Step forward" title="Step forward"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M19 5v14M5 5l10 7-10 7Z"/></svg></button>
+      <button id="cancel" hidden aria-label="Stop capture" title="Stop capture"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="6" y="6" width="12" height="12" rx="1"/></svg></button>
+      <button id="toggle-inspector" aria-expanded="false" aria-controls="inspector-panel" aria-label="Inspector" title="Inspector"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M14 3v18M17 8h1M17 12h1M17 16h1"/></svg></button>
+    </div>
     <input id="seek" type="range" min="0" max="0" value="0" disabled aria-label="Execution event">
-    </div><div id="factory" class="factory"></div>
+    <div id="capture-progress" hidden role="status"><span id="capture-progress-label">Preparing runtime…</span><progress aria-label="Execution capture progress"></progress></div>
+    </nav><div id="factory" class="factory"></div>
     <div id="scene-hint" class="note"></div>
     <section id="parse-panel" hidden><strong>PEG parser · observed checkpoints</strong><div id="parse-status"></div><pre id="parse-attempts"></pre><p id="parse-budget" class="note"></p><div class="buttons"><button id="parse-back">←</button><button id="parse-play">Play parsing</button><button id="parse-next">→</button><button id="parse-end">AST result</button></div><label><input id="parse-detail" type="checkbox"> Step every checkpoint (including generated helper rules)</label><input id="parse-seek" type="range" min="0" value="0" aria-label="Parsing checkpoint"></section>
     <div id="map" class="map" hidden></div>

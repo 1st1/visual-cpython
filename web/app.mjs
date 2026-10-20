@@ -35,7 +35,15 @@ $('example').onchange = async () => {
   finally { if(request===exampleRequest) $('run').disabled=Boolean(worker); }
 };
 
-function stopPlayback() { factory?.starfield?.setPlaying(false); clearInterval(playback); playback = null; $('play').textContent = recording?.events.length&&index<recording.events.length?'Resume':'Run'; }
+function setPlaybackLabel(label) {
+  const button=$('play');
+  if(button.getAttribute('aria-label')===label)return;
+  button.setAttribute('aria-label',label);button.title=label;
+  button.innerHTML=label==='Pause'
+    ?'<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 4v16M16 4v16"/></svg>'
+    :'<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m8 4 12 8-12 8Z"/></svg>';
+}
+function stopPlayback() { factory?.starfield?.setPlaying(false); clearInterval(playback); playback = null; setPlaybackLabel(recording?.events.length&&index<recording.events.length?'Resume':'Run'); }
 function stopWorker(endFlight=true) {
   if(endFlight)factory?.starfield?.setCapturing(false);
   generation++;clearTimeout(timer);clearInterval(progressTick);worker?.terminate();worker=null;operation=null;
@@ -117,13 +125,12 @@ function resetProgram(){
   if(factory){factory.liveCaptureUntil=0;factory.parsingPlaying=false;factory.load(null,null,[],$('source').value);}
   render();
 }
-$('first').onclick=resetProgram;
 $('back').onclick = () => { stopPlayback(); move(index - 1); };
 $('next').onclick = () => { stopPlayback(); move(index + 1); };
 $('seek').oninput = () => { stopPlayback(); move(Number($('seek').value)); };
 function startReplay() {
   if(!recording?.events.length)return;
-  $('play').textContent='Pause';factory?.starfield?.setPlaying(true);
+  setPlaybackLabel('Pause');factory?.starfield?.setPlaying(true);
   playback=setInterval(()=>{move(index+1);if(index===recording.events.length)stopPlayback();},250);
 }
 $('play').onclick=()=>{
@@ -146,13 +153,13 @@ function rows(target, items) {
 function render() {
   renderMapState();
   const count = recording?.events.length || 0;
-  for (const id of ['first', 'back', 'next', 'play', 'seek']) $(id).disabled = !count;
+  for (const id of ['back', 'next', 'play', 'seek']) $(id).disabled = !count;
   $('play').disabled=Boolean(operation||layoutWorker)||!recording?.codes.length||recording.source!==$('source').value;
-  $('play').textContent=operation==='run'?'Running…':playback?'Pause':count&&index<count?'Resume':'Run';
+  setPlaybackLabel(operation==='run'?'Running…':playback?'Pause':count&&index<count?'Resume':'Run');
   for(const id of ['back','next','seek'])if(operation)$(id).disabled=true;
   $('back').disabled = Boolean(operation) || !count || index === 0; $('next').disabled = Boolean(operation) || !count || index === count;
-  $('first').disabled=!recording&&!operation&&!layoutWorker;
   $('seek').max = count; $('seek').value = index;
+  $('seek').style.setProperty('--seek-progress',`${count?index/count*100:0}%`);
   $('counter').textContent = count ? `${Math.min(index + 1, count)} / ${count}${index === count ? ' · end' : ''}` : 'No recording';
   const event = recording?.events[Math.min(index, count - 1)];
   if (!event) {
@@ -281,8 +288,16 @@ $('toggle-inspector').onclick=()=>{
 const toolbarObserver=new ResizeObserver(()=>{
   const bottom=document.querySelector('.program-toolbar').getBoundingClientRect().bottom;
   document.documentElement.style.setProperty('--program-toolbar-bottom',`${bottom+10}px`);
+  const playbackBottom=document.querySelector('.playback-controls').getBoundingClientRect().bottom;
+  document.documentElement.style.setProperty('--playback-bottom',`${playbackBottom+10}px`);
 });
 toolbarObserver.observe(document.querySelector('.program-toolbar'));
+const playbackObserver=new ResizeObserver(()=>{
+  const bottom=document.querySelector('.playback-controls').getBoundingClientRect().bottom;
+  document.documentElement.style.setProperty('--playback-bottom',`${bottom+10}px`);
+});
+playbackObserver.observe(document.querySelector('.playback-controls'));
+
 try { factory=new Factory($('factory'),selectBlock,seekInstruction,seekSourceLine); parsingReplay=new ParsingReplay(factory); previewSource(); factory.view('iso'); }
 catch(error) { $('toggle-minimap').disabled=true;$('toggle-minimap').setAttribute('aria-pressed','false'); $('scene-hint').textContent=`3D unavailable: ${error.message}. The schematic is available.`; changeView('map'); $('message').textContent='3D graphics unavailable; using the schematic.'; }
 window.addEventListener('pagehide',event=>{ if(!event.persisted) factory?.dispose(); });
@@ -298,7 +313,7 @@ window.addEventListener('resize',()=>{
 function setParsingUI(active) {
   $('parse-panel').hidden=!active;
   $('map-status').hidden=active;
-  document.querySelector('.transport').hidden=active;
+  document.querySelector('.playback-controls').hidden=active;
   factory?.showOpcodes(!active);
 }
 function showExecution() {

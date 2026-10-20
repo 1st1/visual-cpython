@@ -19,7 +19,7 @@ async function capture(source, status = 'completed') {
     await page.locator('#play').click();
     await page.waitForFunction(()=>!document.querySelector('#run').disabled,null,{timeout:60000});
     if(status!=='Stopped'){
-      await page.waitForFunction(()=>document.querySelector('#play').textContent==='Pause',null,{timeout:60000});
+      await page.waitForFunction(()=>document.querySelector('#play').getAttribute('aria-label')==='Pause',null,{timeout:60000});
       await page.locator('#play').click();await page.locator('#seek').fill('0');await page.locator('#seek').dispatchEvent('input');
     }
   }

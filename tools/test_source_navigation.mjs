@@ -17,7 +17,7 @@ try{
  if(await page.locator('#editor-panel').isHidden()) await page.locator('#toggle-editor').click();
  await page.locator('#source').fill('total=0\nfor i in range(3):\n total+=i\n\nprint(total)');await page.locator('#run').click();
  await page.waitForFunction(()=>!document.querySelector('#play').disabled,null,{timeout:60000});
- await page.locator('#play').click();await page.waitForFunction(()=>document.querySelector('#play').textContent==='Pause',null,{timeout:60000});await page.locator('#play').click();
+ await page.locator('#play').click();await page.waitForFunction(()=>document.querySelector('#play').getAttribute('aria-label')==='Pause',null,{timeout:60000});await page.locator('#play').click();
  await page.locator('#seek').fill('0');await page.locator('#seek').dispatchEvent('input');
  if(await page.locator('#editor-panel').isVisible())await page.locator('#close-editor').click();
  await page.locator('#toggle-inspector').click();

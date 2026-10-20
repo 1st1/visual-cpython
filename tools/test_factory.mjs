@@ -39,7 +39,7 @@ async function capture(source,execute=true) {
 }
 async function runCapture(){
   await page.locator('#play').click();
-  await page.waitForFunction(()=>document.querySelector('#play').textContent==='Pause',null,{timeout:60000});
+  await page.waitForFunction(()=>document.querySelector('#play').getAttribute('aria-label')==='Pause',null,{timeout:60000});
   await page.locator('#play').click();await page.locator('#seek').fill('0');await page.locator('#seek').dispatchEvent('input');
 }
 try {
