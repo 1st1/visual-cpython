@@ -241,7 +241,7 @@ export class Factory {
     this.artifactFrames=parsing?parsingFrames(parsing).frames.filter(f=>f.event.kind===2||f.event.kind===3):[];
     const tokens=parsing?.events.filter(e=>e.kind===2) || [],ast=parsing?.ast || [];
     this.astLayout=astTreeLayout(ast);
-    this.sourceTileWidth=Math.max(...this.sourceLines.map((line,i)=>measureSurfaceText(String(i+1).padStart(3)+'  '+line+'     ',SOURCE_FONT_SIZE)))+.26;
+    this.sourceTileWidth=Math.max(...this.sourceLines.map((line,i)=>measureSurfaceText(String(i+1).padStart(3)+'  '+line.padEnd(35)+'     ',SOURCE_FONT_SIZE)))+.26;
     this.sourceColumnPitch=this.sourceTileWidth+.5;
     const sourceBounds=sourceFootprint(layout,this.sourceLines.length,{sourceOnly:!layout&&!tokens.length&&!ast.length,sourceTileWidth:this.sourceTileWidth,tokenCount:tokens.length,astWidth:this.astLayout.width,astDepth:this.astLayout.depth});
     this.host.dataset.pipelineColumns=String(sourceBounds.lanes.length);
