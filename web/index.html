@@ -9,8 +9,7 @@
 <dialog id="share-dialog" aria-labelledby="share-title">
   <div class="editor-heading"><h2 id="share-title">Share program</h2><button id="close-share" aria-label="Close sharing popup">×</button></div>
   <label for="share-url">Copy this link to share your custom Python program.</label>
-  <input id="share-url" type="text" readonly spellcheck="false" aria-label="Share URL">
-  <div class="buttons"><button id="copy-share" disabled>Copy link</button></div>
+  <div class="share-link-row"><input id="share-url" type="text" readonly spellcheck="false" aria-label="Share URL"><button id="copy-share" disabled>Copy link</button></div>
   <p id="share-status" role="status"></p>
 </dialog>
 <main>
@@ -18,7 +17,7 @@
     <button id="toggle-minimap" aria-label="Toggle minimap" title="Toggle minimap" aria-pressed="true" aria-controls="pipeline-minimap"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m3 5 6-2 6 2 6-2v16l-6 2-6-2-6 2Z M9 3v16M15 5v16"/></svg></button>
     <select id="example" aria-label="Program example"><option value="accumulate">Accumulator</option><option value="shortest">Shortest path · breadth-first search</option><option value="asyncio">Asyncio · odd and even tasks</option><option value="branch">Branches and calls</option><option value="alias">Shared objects</option><option value="error">Runtime error</option><option value="loop">Infinite loop</option><option value="custom" disabled>Custom</option></select>
     <button id="toggle-editor" aria-expanded="false" aria-controls="editor-panel">Edit</button>
-    <button id="run" class="primary">Compile</button>
+    <button id="run" class="primary" aria-keyshortcuts="Meta+Enter Control+Enter" title="Compile (⌘/Ctrl+Enter)">Compile</button>
     <button id="share-program" hidden>Share</button>
     <button id="skip-animation" hidden>Stop animation</button>
     <span id="state" hidden>Ready</span>
@@ -26,9 +25,9 @@
   </div>
   <section class="editor panel" id="editor-panel" role="dialog" aria-label="Edit Python source" hidden>
     <div class="editor-heading"><label for="source">Python source · up to 256 Python tokens</label><button id="close-editor" aria-label="Close code editor">×</button></div>
-    <p id="editor-error" role="alert" hidden></p>
     <textarea id="source" hidden aria-hidden="true"></textarea>
     <div class="source-editor" id="code-editor"></div>
+    <p id="editor-error" role="alert" hidden></p>
   </section>
   <section class="map-panel panel">
     <div class="title map-title"><h2>CPython X-Ray</h2><span class="badge">CPYTHON · NO JIT</span></div>

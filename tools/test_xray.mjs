@@ -19,6 +19,7 @@ async function capture(source,execute=true) {
     }
     requestAnimationFrame(settled);
   }));
+  await page.locator('#close-editor').click();
   await page.locator('#run').click();
   if(await page.evaluate(()=>matchMedia('(prefers-reduced-motion: reduce)').matches)){
     await page.evaluate(()=>new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r))));

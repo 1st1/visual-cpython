@@ -15,11 +15,15 @@ try{
   await page.locator('.cm-content').fill(source);await page.locator('#close-editor').click();await page.locator('#run').click();
   await page.waitForFunction(()=>!document.querySelector('#editor-error').hidden,null,{timeout:60000});
   assert.equal(await page.locator('#editor-panel').isVisible(),true);assert.match(await page.locator('#editor-error').textContent(),/Line 1:/);
+  const editorBox=await page.locator('#code-editor').boundingBox(),errorBox=await page.locator('#editor-error').boundingBox();assert.ok(errorBox.y>=editorBox.y+editorBox.height);
   assert.equal(await page.locator('.cm-content').getAttribute('aria-invalid'),'true');assert.equal(await page.locator('#message').textContent(),'');
  }
  await page.locator('.cm-content').fill('import time, math, json, sys\nfrom collections import Counter\ntime.sleep(.05)\nprint(math.sqrt(9), json.dumps([1]), Counter("aba")["a"])\nprint("stderr works", file=sys.stderr)');
- assert.equal(await page.locator('#editor-error').isHidden(),true);await page.locator('#run').click();
- await page.waitForFunction(()=>!document.querySelector('#play').disabled,null,{timeout:60000});await page.locator('#close-editor').click();await page.locator('#play').click();
+ assert.equal(await page.locator('#editor-error').isHidden(),true);await page.keyboard.press('Meta+Enter');
+ await page.waitForFunction(()=>!document.querySelector('#play').disabled,null,{timeout:60000});
+ assert.equal(await page.locator('#xray').getAttribute('data-phase'),'replay','Editor compilation skips the reveal');
+ assert.equal(await page.locator('#skip-animation').isHidden(),true);
+ await page.locator('#close-editor').click();await page.locator('#play').click();
  await page.waitForFunction(()=>['completed','error'].includes(document.querySelector('#state').textContent),null,{timeout:60000});
  assert.equal(await page.locator('#state').textContent(),'completed',await page.locator('#stdout').textContent());
  assert.equal(await page.locator('#stdout').textContent(),'3.0 [1] 2\nstderr works\n');assert.deepEqual(errors,[]);

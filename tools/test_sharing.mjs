@@ -17,8 +17,13 @@ try{
  await page.locator('#share-program').click();
  await page.waitForFunction(()=>!document.querySelector('#copy-share').disabled,null,{timeout:60000});
  const url=await page.locator('#share-url').inputValue();
- await page.evaluate(()=>Object.defineProperty(navigator,'clipboard',{configurable:true,value:{writeText:async text=>{window.copiedShare=text;}}}));
- await page.locator('#copy-share').click();assert.equal(await page.evaluate(()=>window.copiedShare),url);
+ await page.evaluate(()=>Object.defineProperty(navigator,'clipboard',{configurable:true,value:undefined}));
+ await page.locator('#copy-share').click();assert.equal(await page.locator('#copy-share').textContent(),'Copied');
+ const inputBox=await page.locator('#share-url').boundingBox(),buttonBox=await page.locator('#copy-share').boundingBox();
+ assert.ok(buttonBox.x>=inputBox.x+inputBox.width);assert.equal(buttonBox.y,inputBox.y);
+ await page.evaluate(()=>{const input=document.createElement('textarea');input.id='paste-test';document.querySelector('#share-dialog').append(input);input.focus();});
+ await page.keyboard.press('Meta+v');assert.equal(await page.locator('#paste-test').inputValue(),url);
+ await page.locator('#paste-test').evaluate(e=>e.remove());
  assert.equal(await decodeProgram(new URLSearchParams(new URL(url).hash.slice(1)).get('code')),source);
  await page.keyboard.press('Escape');assert.equal(await page.locator('#share-dialog').isHidden(),true);
  await page.goto(url);await page.reload();

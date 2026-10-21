@@ -81,7 +81,13 @@ document.querySelector('.playback-run-slot').addEventListener('click',()=>{
   },2200);
 });
 $('run').onclick=()=>{hideCompileHint();startOperation('compile');};
+document.addEventListener('keydown',event=>{
+  if(event.key!=='Enter'||!(event.metaKey||event.ctrlKey)||event.altKey||event.isComposing||$('share-dialog').open)return;
+  event.preventDefault();event.stopPropagation();
+  if(!event.repeat&&!$('run').disabled)$('run').click();
+},{capture:true});
 function startOperation(mode) {
+  const skipReveal=mode==='compile'&&$('example').value==='custom'&&!$('editor-panel').hidden;
   const source=mode==='compile'?$('source').value:recording?.source;
   if(mode==='run'&&(!recording||source!==$('source').value))return;
   parsingReplay?.stop();parsingMode=false;setParsingUI(false);
@@ -104,7 +110,7 @@ function startOperation(mode) {
   $('message').textContent='';if(mode==='compile')$('map-status').textContent='Compiling…';
   $('run').disabled=mode==='compile';$('run').textContent=mode==='compile'?'Compiling…':'Compile';
   $('state').textContent='Loading WASM';
-  xray?.starfield?.setCapturing(true);
+  xray?.starfield?.setCapturing(!skipReveal);
   render();
   worker=createRuntimeWorker();
   const runGeneration=generation;
@@ -133,7 +139,7 @@ function startOperation(mode) {
       $('state').textContent=recording.status;$('message').textContent='';
       $('provenance').textContent=`CPython ${recording.provenance.python.split(' ')[0]} · ${recording.provenance.revision.slice(0,8)}`;
       if(!recording.codes.length)xray?.load(null,null,[],recording.source,recording.parsing,mode!=='compile');
-      render();buildMap(false,mode==='run');
+      render();buildMap(false,mode==='run',0,skipReveal);
       if(recording.error&&recording.source===$('source').value)showCompileError(recording);
     }else if(data.type==='error')fail(data.message);
   };
@@ -278,7 +284,7 @@ function render() {
   $('stdout').textContent = (output.stdout || '') + (output.stderr || '');
 }
 
-function buildMap(relayout=false,executed=false,attempt=0) {
+function buildMap(relayout=false,executed=false,attempt=0,skipReveal=false) {
   layoutWorker?.terminate(); clearTimeout(layoutTimer);
   const targetAspect=windowAspect(); layoutAspect=targetAspect;
   try {
@@ -295,7 +301,7 @@ function buildMap(relayout=false,executed=false,attempt=0) {
     const error = message => {
       if(layoutWorker!==activeWorker)return;
       stop();
-      if(attempt===0)return buildMap(relayout,executed,1);
+      if(attempt===0)return buildMap(relayout,executed,1,skipReveal);
       xray?.starfield?.setCapturing(false);
       $('map-status').textContent = `Layout failed: ${message || 'could not start the layout worker'}`;
       $('message').textContent=$('map-status').textContent;
@@ -314,7 +320,7 @@ function buildMap(relayout=false,executed=false,attempt=0) {
       lastLayout=data.layout;
       xray?.load(data.layout,graph,recording.events,recording.source,recording.parsing,executed&&!relayout);
       if(parsingMode) {xray?.loadParsing();parsingReplay.render();}
-      if((relayout||executed)&&!parsingMode) xray?.finishConstruction();
+      if((relayout||executed||skipReveal)&&!parsingMode) xray?.finishConstruction();
       if(relayout&&parsingMode) xray?.view();
       $('xray').dataset.layoutAspect=String(data.layout.placement.targetAspect);
       for (const block of graph.blocks) {
@@ -454,9 +460,20 @@ $('share-program').onclick=async()=>{
   }catch(error){if(!controller.signal.aborted)$('share-status').textContent=error.message;}
 };
 $('copy-share').onclick=async()=>{
-  try{await navigator.clipboard.writeText($('share-url').value);$('copy-share').textContent='Copied';}
-  catch{$('share-url').focus();$('share-url').select();$('share-status').textContent='Select and copy the link above.';}
+  const field=$('share-url'),button=$('copy-share');
+  // Copy synchronously while the click still carries user activation. This
+  // also works on HTTP origins where navigator.clipboard is unavailable.
+  field.focus();field.select();field.setSelectionRange(0,field.value.length);
+  let copied=false;
+  try{copied=document.execCommand('copy');}catch{}
+  if(!copied){
+    try{await navigator.clipboard.writeText(field.value);copied=true;}catch{}
+  }
+  button.textContent=copied?'Copied':'Try again';
+  $('share-status').textContent=copied?'Link copied to clipboard.':'Copy was blocked by your browser. Please allow clipboard access and try again.';
+  button.focus();
 };
+
 let sharedLoad;
 async function loadSharedProgram(){
   sharedLoad?.abort();
