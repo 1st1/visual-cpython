@@ -177,7 +177,7 @@ html,body{touch-action:pan-x pan-y}
 }
 @media(orientation:portrait){
  .mobile-device .program-toolbar{max-width:calc(100% - 16px - env(safe-area-inset-left) - env(safe-area-inset-right))}
- .mobile-device .playback-controls{top:auto;right:max(8px,env(safe-area-inset-right));bottom:max(8px,env(safe-area-inset-bottom));max-width:calc(100% - 16px)}
+ .mobile-device .playback-controls{top:auto;left:max(8px,env(safe-area-inset-left));right:auto;bottom:max(8px,env(safe-area-inset-bottom));max-width:calc(100% - 16px)}
  .mobile-device #inspector-panel{top:var(--program-toolbar-bottom,54px);bottom:calc(var(--playback-height,64px) + max(8px,env(safe-area-inset-bottom)) + 10px)}
  .mobile-device #editor-panel{max-height:calc(100dvh - var(--program-toolbar-bottom,54px) - var(--playback-height,64px) - env(safe-area-inset-bottom) - 28px)}
  .mobile-device #editor-panel .source-editor{height:min(420px,calc(100dvh - var(--program-toolbar-bottom,54px) - var(--playback-height,64px) - env(safe-area-inset-bottom) - 110px))}
