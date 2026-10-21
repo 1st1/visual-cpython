@@ -87,7 +87,8 @@ document.addEventListener('keydown',event=>{
   if(!event.repeat&&!$('run').disabled)$('run').click();
 },{capture:true});
 function startOperation(mode) {
-  const skipReveal=mode==='compile'&&$('example').value==='custom'&&!$('editor-panel').hidden;
+  const preserveScene=mode==='compile'&&$('example').value==='custom'&&Boolean(lastLayout);
+  const skipReveal=preserveScene||(mode==='compile'&&$('example').value==='custom'&&!$('editor-panel').hidden);
   const source=mode==='compile'?$('source').value:recording?.source;
   if(mode==='run'&&(!recording||source!==$('source').value))return;
   parsingReplay?.stop();parsingMode=false;setParsingUI(false);
@@ -96,9 +97,9 @@ function startOperation(mode) {
   if(mode==='compile'){
     clearEditorError();
     appliedSource=source;
-    lastLayout=null;graph=null;mapStates=[];selectedBlock=null;recording=null;
-    $('map').replaceChildren();
-    xray?.load(null,null,[],source,null,false);
+    graph=null;mapStates=[];selectedBlock=null;recording=null;
+    if(preserveScene)xray?.finishConstruction();
+    else {lastLayout=null;$('map').replaceChildren();xray?.load(null,null,[],source,null,false);}
   } else {
     recording={...recording,events:[],stdout:'',stderr:'',status:'compiled'};delete recording.error;
     mapStates=[];selectedBlock=null;index=0;
@@ -138,8 +139,8 @@ function startOperation(mode) {
       stopWorker(false);recording=data.trace;index=0;runAfterLayout=mode==='run'&&recording.events.length>0;
       $('state').textContent=recording.status;$('message').textContent='';
       $('provenance').textContent=`CPython ${recording.provenance.python.split(' ')[0]} · ${recording.provenance.revision.slice(0,8)}`;
-      if(!recording.codes.length)xray?.load(null,null,[],recording.source,recording.parsing,mode!=='compile');
-      render();buildMap(false,mode==='run',0,skipReveal);
+      if(!recording.codes.length&&!preserveScene)xray?.load(null,null,[],recording.source,recording.parsing,mode!=='compile');
+      render();buildMap(false,mode==='run',{skipReveal,preserveScene});
       if(recording.error&&recording.source===$('source').value)showCompileError(recording);
     }else if(data.type==='error')fail(data.message);
   };
@@ -185,18 +186,18 @@ function seekSourceLine(line){
   stopPlayback();selectedBlock=null;move(target);
 }
 function move(value) { selectedBlock=null; index = Math.max(0, Math.min(recording.events.length, value)); render(); }
-function resetProgram(){
+function resetProgram(preserveScene=false){
   clearEditorError();
   appliedSource=$('source').value;
   stopPlayback();stopWorker();runAfterLayout=false;
   layoutWorker?.terminate();layoutWorker=null;clearTimeout(layoutTimer);clearTimeout(previewTimer);
   parsingReplay?.stop();
   if(parsingReplay){parsingReplay.recording=null;parsingReplay.frames=[];parsingReplay.tokens=[];}
-  recording=null;graph=null;lastLayout=null;mapStates=[];selectedBlock=null;index=0;parsingMode=false;
+  recording=null;graph=null;if(!preserveScene)lastLayout=null;mapStates=[];selectedBlock=null;index=0;parsingMode=false;
   setParsingUI(false);
-  $('map').replaceChildren();$('map-status').textContent='Compile a program to build its map.';
+  if(!preserveScene)$('map').replaceChildren();$('map-status').textContent='Compile a program to build its map.';
   $('message').textContent='';$('state').textContent='Ready';$('provenance').textContent='';$('skip-animation').hidden=true;
-  if(xray){xray.liveCaptureUntil=0;xray.parsingPlaying=false;xray.load(null,null,[],$('source').value);}
+  if(xray){xray.liveCaptureUntil=0;xray.parsingPlaying=false;if(preserveScene)xray.finishConstruction();else xray.load(null,null,[],$('source').value);}
   render();
 }
 function resetRun(){
@@ -284,7 +285,7 @@ function render() {
   $('stdout').textContent = (output.stdout || '') + (output.stderr || '');
 }
 
-function buildMap(relayout=false,executed=false,attempt=0,skipReveal=false) {
+function buildMap(relayout=false,executed=false,{attempt=0,skipReveal=false,preserveScene=false}={}) {
   layoutWorker?.terminate(); clearTimeout(layoutTimer);
   const targetAspect=windowAspect(); layoutAspect=targetAspect;
   try {
@@ -301,7 +302,7 @@ function buildMap(relayout=false,executed=false,attempt=0,skipReveal=false) {
     const error = message => {
       if(layoutWorker!==activeWorker)return;
       stop();
-      if(attempt===0)return buildMap(relayout,executed,1,skipReveal);
+      if(attempt===0)return buildMap(relayout,executed,{attempt:1,skipReveal,preserveScene});
       xray?.starfield?.setCapturing(false);
       $('map-status').textContent = `Layout failed: ${message || 'could not start the layout worker'}`;
       $('message').textContent=$('map-status').textContent;
@@ -318,7 +319,7 @@ function buildMap(relayout=false,executed=false,attempt=0,skipReveal=false) {
       svg.removeAttribute('width'); svg.removeAttribute('height');
       $('map').replaceChildren(document.importNode(svg, true)); zoom = 1; setZoom();
       lastLayout=data.layout;
-      xray?.load(data.layout,graph,recording.events,recording.source,recording.parsing,executed&&!relayout);
+      xray?.load(data.layout,graph,recording.events,recording.source,recording.parsing,preserveScene||(executed&&!relayout));
       if(parsingMode) {xray?.loadParsing();parsingReplay.render();}
       if((relayout||executed||skipReveal)&&!parsingMode) xray?.finishConstruction();
       if(relayout&&parsingMode) xray?.view();
@@ -371,17 +372,18 @@ function changeView(mode) {
 }
 $('camera-iso').onclick=()=>xray?.setCameraMode('3d'); $('camera-top').onclick=()=>xray?.setCameraMode('2d');
 function seekInstruction(blockId,offset) {
+  if(!graph||!recording||layoutWorker||operation==='compile'||recording.source!==$('source').value)return;
   const block=graph.blocks.find(b=>b.id===blockId);
   const visits=recording.events.filter(e=>e.kind==='opcode'&&e.code===block.code&&e.offset===offset);
   const visit=visits.find(e=>e.seq>index)??visits[0];
   if(visit) { stopPlayback(); move(visit.seq); }
 }
-function previewSource() { sourceEditor.sync(); if(!recording&&!worker) xray?.load(null,null,[],$('source').value,null,true); }
+function previewSource() { sourceEditor.sync(); if(!recording&&!worker&&!lastLayout) xray?.load(null,null,[],$('source').value,null,true); }
 let previewTimer;
 $('source').addEventListener('input',()=>{ clearEditorError();++exampleRequest;$('example').value='custom';$('share-program').hidden=false;$('run').disabled=operation==='compile'; sourceEditor.sync(); if(recording)render(); clearTimeout(previewTimer); previewTimer=setTimeout(previewSource,180); });
 function setEditorOpen(open) {
   if(!open&&!$('editor-panel').hidden&&$('source').value!==appliedSource){
-    resetProgram();previewSource();
+    resetProgram($('example').value==='custom'&&Boolean(lastLayout));previewSource();
   }
   $('editor-panel').hidden=!open;
   $('toggle-editor').setAttribute('aria-expanded',String(open));

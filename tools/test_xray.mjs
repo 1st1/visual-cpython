@@ -6,6 +6,7 @@ const page=await browser.newPage({viewport:{width:1600,height:1100}});
 const errors=[]; page.on('pageerror',e=>errors.push(e.message));
 await mkdir('artifacts',{recursive:true});
 async function capture(source,execute=true) {
+  await page.locator('#example').selectOption('accumulate');
   if(await page.locator('#editor-panel').isHidden()) await page.locator('#toggle-editor').click();
   if(await page.locator('#inspector-panel').isVisible()) await page.locator('#toggle-inspector').click();
   await page.locator('.cm-content').fill(source);
