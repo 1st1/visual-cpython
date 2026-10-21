@@ -2,7 +2,7 @@
 <html lang="en">
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-<title>CPython Factory · Capture workbench</title>
+<title>CPython X-Ray</title>
 <link rel="stylesheet" href="style.css">
 <body>
 
@@ -21,7 +21,7 @@
     <div class="source-editor"><pre id="source-highlight" aria-hidden="true"></pre><textarea wrap="off" id="source" spellcheck="false" aria-label="Python source" maxlength="16384"></textarea></div>
   </section>
   <section class="map-panel panel">
-    <div class="title map-title"><h2>The program factory</h2><span class="badge">CPYTHON · NO JIT</span></div>
+    <div class="title map-title"><h2>CPython X-Ray</h2><span class="badge">CPYTHON · NO JIT</span></div>
     <p class="note">Enclosures are code objects. Trays group basic blocks. Each small box is one opcode; arrows inside a tray show instruction order. Gold: taken branch · green: continuation/jump · dashed violet: observed Python call.</p>
     <nav id="minimap-tools" aria-label="Scene controls">
       <div class="minimap-tools-row"><div class="camera-mode-switch" role="group" aria-label="Camera mode"><button id="camera-iso" aria-label="3D view" title="3D view" aria-pressed="true"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m12 2 9 5v10l-9 5-9-5V7Z M3 7l9 5 9-5 M12 12v10"/></svg></button><button id="camera-top" aria-label="2D view" title="2D view" aria-pressed="false"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="1"/><path d="M3 9h18M3 15h18M9 3v18M15 3v18"/></svg></button></div><button id="zoom-out" aria-label="Zoom out">−</button><button id="zoom-fit" aria-label="Fit scene" title="Fit scene"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 3H3v5M16 3h5v5M21 16v5h-5M8 21H3v-5"/><rect x="8" y="8" width="8" height="8" rx="1"/></svg></button><button id="zoom-in" aria-label="Zoom in">+</button></div>
@@ -39,7 +39,7 @@
     <input id="seek" type="range" min="0" max="0" value="0" disabled aria-label="Execution event">
     <div id="counter" hidden>0 steps</div>
     <div id="compile-hint" role="status" hidden>Click on Compile first.</div>
-    </nav><div id="factory" class="factory"></div>
+    </nav><div id="xray" class="xray"></div>
     <div id="scene-hint" class="note"></div>
     <section id="parse-panel" hidden><strong>PEG parser · observed checkpoints</strong><div id="parse-status"></div><pre id="parse-attempts"></pre><p id="parse-budget" class="note"></p><div class="buttons"><button id="parse-back">←</button><button id="parse-play">Play parsing</button><button id="parse-next">→</button><button id="parse-end">AST result</button></div><label><input id="parse-detail" type="checkbox"> Step every checkpoint (including generated helper rules)</label><input id="parse-seek" type="range" min="0" value="0" aria-label="Parsing checkpoint"></section>
     <div id="map" class="map" hidden></div>
@@ -56,6 +56,6 @@
     <div class="inspector-output"><h3>Program output</h3><pre id="stdout" class="output" tabindex="0" aria-label="Program output"></pre></div>
   </section>
 </main>
-<footer>Observed execution · shared graph · isometric factory. <span id="provenance"></span></footer>
+<footer>Observed execution · shared graph · 3D execution view. <span id="provenance"></span></footer>
 <script type="module" src="app.mjs"></script>
 </body></html>

@@ -1,8 +1,8 @@
 # Block placement and connection routing
 
-The factory separates [[scene#Isometric factory scene#Compact placement|Graphviz placement]] from [[scene#Isometric factory scene#Obstacle-aware opcode routing|tile-aware arrow routing]]. Libavoid and circuit-routing comparisons remain planned.
+The xray separates [[scene#Isometric X-Ray scene#Compact placement|Graphviz placement]] from [[scene#Isometric X-Ray scene#Obstacle-aware opcode routing|tile-aware arrow routing]]. Libavoid and circuit-routing comparisons remain planned.
 
-This develops [[factory-world#Program-built factory world#Stable layout and controlled detail]]. The immediate scope excludes JIT machinery and native execution. Existing JIT research remains a future reference rather than a requirement for the first layout.
+This develops [[xray-world#Program-built X-Ray world#Stable layout and controlled detail]]. The immediate scope excludes JIT machinery and native execution. Existing JIT research remains a future reference rather than a requirement for the first layout.
 
 ## Placement at two scales
 

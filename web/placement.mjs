@@ -1,14 +1,14 @@
 import { toDot } from './graph.mjs';
 import { normalizeLayout } from './layout.mjs';
 
-export function factoryFootprint(layout) {
+export function xrayFootprint(layout) {
   const width=Math.max(layout?.bounds.width || 8,8), depth=Math.max(layout?.bounds.height || 8,8);
   return { width, depth, serviceX:-width/2-2.8,
     minX:-width/2-5.2, maxX:width/2+1, minZ:-depth/2-3.2, maxZ:depth/2+1 };
 }
 
 export function sourceFootprint(layout,lineCount=1,pipeline={}) {
-  const f=factoryFootprint(layout),rows=Math.min(24,Math.max(1,lineCount)),columns=Math.ceil(Math.max(1,lineCount)/rows);
+  const f=xrayFootprint(layout),rows=Math.min(24,Math.max(1,lineCount)),columns=Math.ceil(Math.max(1,lineCount)/rows);
   const sourceTileWidth=pipeline.sourceTileWidth ?? 8.2,sourceColumnPitch=sourceTileWidth+.5;
   const sourceWidth=columns*sourceColumnPitch+.6,sourceDepth=rows*1.15+1.6;
   const tokenDepth=Math.max(4,Math.ceil((pipeline.tokenCount || 0)/4)*1.2+2);

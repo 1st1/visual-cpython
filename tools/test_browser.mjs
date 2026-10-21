@@ -6,7 +6,7 @@ const browser = await chromium.launch({ channel: 'chrome', headless: true, chrom
 const page = await browser.newPage({ viewport: { width: 1440, height: 1000 } });
 const errors = [];
 page.on('pageerror', error => errors.push(error.message));
-const base = process.env.FACTORY_URL || 'http://127.0.0.1:8000';
+const base = process.env.XRAY_URL || 'http://127.0.0.1:8000';
 await mkdir('artifacts', { recursive: true });
 
 async function capture(source, status = 'completed') {
@@ -34,7 +34,7 @@ async function end() {
 try {
   await page.addInitScript(()=>{const original=window.setTimeout;window.setTimeout=(fn,ms,...args)=>original(fn,ms===100?0:ms,...args);});
   await page.goto(base);
-  await page.waitForFunction(()=>document.querySelector('#factory').hidden);
+  await page.waitForFunction(()=>document.querySelector('#xray').hidden);
   await capture('a=2\nb=3\nc=a+b\nprint(c)');
   let foundAddition = false;
   for (let i = 0; i < 30; i++) {

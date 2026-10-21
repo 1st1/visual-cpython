@@ -1,4 +1,4 @@
-# Program-built factory world
+# Program-built X-Ray world
 
 The proposed visual direction is a Factorio-inspired map: persistent CPython machinery surrounds a program-generated neighborhood. Compilation builds that neighborhood; execution activates its blocks and nearby runtime machinery.
 
@@ -22,7 +22,7 @@ First reveal syntax as a blueprint: function boundaries, statements, branches, a
 
 Default runtime blocks represent basic blocks inside a code-object enclosure. Each can expand to show its instructions and caches. A function's enclosure is shared by its calls; activation state appears separately. The module has its own enclosure. An AST node is not assumed to map one-to-one to an instruction or a basic block.
 
-Use a preview layout to reserve positions before revealing structures. Blueprint geometry is an explanatory preview, not an artifact claimed to exist inside CPython. Keep source-to-AST-to-instruction mappings inspectable as representations change. A compilation error leaves the failing artifact highlighted and prevents execution; it should not produce a completed working factory.
+Use a preview layout to reserve positions before revealing structures. Blueprint geometry is an explanatory preview, not an artifact claimed to exist inside CPython. Keep source-to-AST-to-instruction mappings inspectable as representations change. A compilation error leaves the failing artifact highlighted and prevents execution; it should not produce a completed working xray.
 
 ## Execution activates the neighborhood
 
@@ -78,4 +78,4 @@ The first design exercise follows the accumulator example through construction, 
 
 At each pause, the viewer should be able to identify what is executing, which state changed, why a connection lit up, and where execution can go next. Source selection should locate the corresponding map structures, and selecting a block should show its source and actual instructions. Construction animation must be skippable, and stepping must wait for transitions to settle.
 
-The first implementation should validate this layout and state model with a plain schematic and recorded fixture before adding full 3D art. This preserves [[presentation#Presentation approach#Evidence and validation plan]] while making the evolving factory map the intended final presentation.
+The first implementation should validate this layout and state model with a plain schematic and recorded fixture before adding full 3D art. This preserves [[presentation#Presentation approach#Evidence and validation plan]] while making the evolving xray map the intended final presentation.

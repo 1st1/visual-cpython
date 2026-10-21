@@ -23,15 +23,15 @@ def build():
         archive = subprocess.check_output(["git", "-C", str(ROOT / "cpython"), "archive", revision])
         with tarfile.open(fileobj=io.BytesIO(archive)) as files:
             files.extractall(source, filter="data")
-        (source / ".factory-revision").write_text(revision)
-    if (source / ".factory-revision").read_text() != revision:
+        (source / ".xray-revision").write_text(revision)
+    if (source / ".xray-revision").read_text() != revision:
         raise SystemExit("WASM source revision mismatch")
     instrument(source)
-    shutil.copy2(ROOT / "runtime/probe.c", source / "Modules/_factory_probe.c")
+    shutil.copy2(ROOT / "runtime/probe.c", source / "Modules/_xray_probe.c")
     output = ROOT / ".build/wasm"
     output.mkdir(exist_ok=True)
     (output / "Modules").mkdir(exist_ok=True)
-    (output / "Modules/Setup.local").write_text("*static*\n_factory_probe _factory_probe.c -DPy_BUILD_CORE\n")
+    (output / "Modules/Setup.local").write_text("*static*\n_xray_probe _xray_probe.c -DPy_BUILD_CORE\n")
     native = ROOT / ".build/native/python.exe"
     if not native.exists():
         native = ROOT / ".build/native/python"

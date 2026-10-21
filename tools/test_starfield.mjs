@@ -6,10 +6,10 @@ const browser=await chromium.launch({channel:'chrome',headless:true,chromiumSand
 try{
   const page=await browser.newPage({viewport:{width:800,height:600}}),errors=[];
   page.on('pageerror',e=>errors.push(e.message));page.on('console',m=>{if(m.type()==='error'&&!m.text().includes('404'))errors.push(m.text());});
-  const origin=process.env.FACTORY_URL || 'http://127.0.0.1:8000';
+  const origin=process.env.XRAY_URL || 'http://127.0.0.1:8000';
   await page.route(origin+'/',route=>route.fulfill({contentType:'text/html',body:'<!doctype html><body style="margin:0"></body>'}));
   await page.goto(origin);
-  // @lat: [[scene#Isometric factory scene#Space presentation]]
+  // @lat: [[scene#Isometric X-Ray scene#Space presentation]]
   const result=await page.evaluate(async threePath=>{
     const THREE=await import(threePath),{Starfield}=await import('/starfield.mjs');
     const renderer=new THREE.WebGLRenderer({preserveDrawingBuffer:true});renderer.setSize(800,600);document.body.append(renderer.domElement);

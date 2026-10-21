@@ -15,7 +15,7 @@ import {parsingFrames} from './parsing.mjs';
 import {astTreeLayout,tokensForConstruction,instructionAst} from './ast-tree.mjs';
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
-import { factoryFootprint, sourceFootprint } from './placement.mjs';
+import { xrayFootprint, sourceFootprint } from './placement.mjs';
 import { instructionText, instructionGrid } from './opcodes.mjs';
 
 const SOURCE_FONT_SIZE=1.0125*.28;
@@ -72,7 +72,7 @@ function sourceTile(parent,width,depth,line,tokens) {
   };
 }
 
-export class Factory {
+export class XRay {
   constructor(host, onSelect, onInstruction, onSourceLine) {
     this.host=host; this.onSelect=onSelect; this.nodes=new Map(); this.edges=new Map(); this.pickables=[];
     this.reduced=matchMedia('(prefers-reduced-motion: reduce)');
@@ -81,7 +81,7 @@ export class Factory {
     this.renderer.setPixelRatio(1);
     this.renderer.outputColorSpace=THREE.SRGBColorSpace;
     this.renderer.shadowMap.enabled=true;this.renderer.shadowMap.type=THREE.PCFShadowMap;
-    this.renderer.domElement.setAttribute('aria-label','Interactive CPython factory. Drag to orbit, right-drag or scroll to pan, pinch to zoom. Select blocks with the block menu.');
+    this.renderer.domElement.setAttribute('aria-label','Interactive CPython X-Ray. Drag to orbit, right-drag or scroll to pan, pinch to zoom. Select blocks with the block menu.');
     this.renderer.domElement.setAttribute('role','img');
     this.renderer.domElement.addEventListener('webglcontextlost', e => { e.preventDefault(); host.dataset.error='Graphics context lost; use Schematic or reload.'; });
     host.append(this.renderer.domElement);
@@ -94,10 +94,10 @@ export class Factory {
     this.controls.mouseButtons.MIDDLE=THREE.MOUSE.PAN;
     this.navigationGesture=new NavigationGesture();
     let navigationMode;
-    try { navigationMode=localStorage.getItem('factory-navigation-mode'); } catch {}
+    try { navigationMode=localStorage.getItem('xray-navigation-mode'); } catch {}
     this.setNavigationMode(navigationMode);
     let cameraMode;
-    try { cameraMode=localStorage.getItem('factory-camera-mode'); } catch {}
+    try { cameraMode=localStorage.getItem('xray-camera-mode'); } catch {}
     this.setCameraMode(cameraMode,false);
     this.wheelPan=event=>{
       event.preventDefault();event.stopImmediatePropagation();
@@ -235,7 +235,7 @@ export class Factory {
     }
     this.opcodePanel.querySelector('.opcode-list').replaceChildren();
     this.opcodePanel.querySelector('.opcode-caption').textContent='Run a program to inspect its bytecode.';
-    const footprint=factoryFootprint(layout), w=footprint.width, d=footprint.depth;
+    const footprint=xrayFootprint(layout), w=footprint.width, d=footprint.depth;
     this.sourceLines=source.split('\n');this.sourceSyntax=syntaxLines(source);
     this.parsing=parsing;this.autoFrame=null;
     this.artifactFrames=parsing?parsingFrames(parsing).frames.filter(f=>f.event.kind===2||f.event.kind===3):[];
@@ -747,7 +747,7 @@ export class Factory {
     document.getElementById('camera-iso').setAttribute('aria-pressed',String(!flat));
     document.getElementById('camera-top').setAttribute('aria-pressed',String(flat));
     this.setNavigationMode(this.navigationMode);
-    try { localStorage.setItem('factory-camera-mode',this.cameraMode); } catch {}
+    try { localStorage.setItem('xray-camera-mode',this.cameraMode); } catch {}
     if(fit)this.view();
   }
   setNavigationMode(mode) {
@@ -760,8 +760,8 @@ export class Factory {
       :'Wheel to zoom · Two-finger scroll to pan · Pinch to zoom';
     if(this.cameraMode==='2d')this.navigationHint=this.navigationHint.replace('Drag to orbit · Right/middle-drag to pan','Drag to pan').replace('Drag to orbit','Drag to pan');
     document.getElementById('scene-hint').textContent=this.navigationHint;
-    this.renderer.domElement.setAttribute('aria-label',`Interactive CPython factory. ${this.navigationHint}. Click a tile to select it.`);
-    try { localStorage.setItem('factory-navigation-mode',this.navigationMode); } catch {}
+    this.renderer.domElement.setAttribute('aria-label',`Interactive CPython X-Ray. ${this.navigationHint}. Click a tile to select it.`);
+    try { localStorage.setItem('xray-navigation-mode',this.navigationMode); } catch {}
   }
   dispose() { this.backgroundBlur.dispose();this.opcodeTrail.dispose(); this.starfield?.dispose(); for(const [name,handler] of [['gesturestart',this.gestureStart],['gesturechange',this.gestureChange],['gestureend',this.gestureEnd]]) this.renderer.domElement.removeEventListener(name,handler,true); this.renderer.domElement.removeEventListener('wheel',this.wheelPan,true); this.minimap?.dispose(); this.resizeObserver.disconnect(); this.renderer.setAnimationLoop(null); this.controls.dispose(); release(this.world); disposeTextAtlas();this.sun.shadow.dispose();this.renderer.dispose(); this.renderer.domElement.remove(); this.opcodePanel.remove(); }
 }

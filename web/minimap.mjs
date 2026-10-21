@@ -2,19 +2,19 @@ import * as THREE from 'three';
 import {isMobileNavigationDevice} from './navigation.mjs';
 
 export class Minimap {
-  constructor(host,factory) {
-    this.factory=factory;
+  constructor(host,xray) {
+    this.xray=xray;
     this.panel=document.createElement('div');this.panel.className='minimap';this.panel.id='pipeline-minimap';
     this.panel.innerHTML='<canvas width="560" height="256" tabindex="0" role="img" aria-label="Pipeline minimap. Click or drag to pan. Left and right arrow keys pan the camera."></canvas>';
     this.toggle=document.getElementById('toggle-minimap');
     let savedVisibility;
-    try { savedVisibility=localStorage.getItem('factory-minimap-visible'); } catch {}
+    try { savedVisibility=localStorage.getItem('xray-minimap-visible'); } catch {}
     this.panel.hidden=savedVisibility==='false'||(savedVisibility!=='true'&&matchMedia('(max-width: 900px)').matches);
     this.toggle.setAttribute('aria-pressed',String(!this.panel.hidden));
     this.toggle.onclick=()=>{
       this.panel.hidden=!this.panel.hidden;
       this.toggle.setAttribute('aria-pressed',String(!this.panel.hidden));
-      try { localStorage.setItem('factory-minimap-visible',String(!this.panel.hidden)); } catch {}
+      try { localStorage.setItem('xray-minimap-visible',String(!this.panel.hidden)); } catch {}
     };
     host.append(this.panel);this.canvas=this.panel.querySelector('canvas');
     this.panel.append(document.getElementById('minimap-tools'));
@@ -30,16 +30,16 @@ export class Minimap {
       const button=document.createElement('button');button.type='button';button.innerHTML=content;
       button.setAttribute('aria-label',mode==='auto'?'Auto navigation':mode==='mouse'?'Mouse navigation':'Trackpad navigation');
       button.title=title;button.dataset.mode=mode;
-      button.onclick=()=>{factory.setNavigationMode(mode);update();};navigation.append(button);
+      button.onclick=()=>{xray.setNavigationMode(mode);update();};navigation.append(button);
     }
-    const update=()=>navigation.querySelectorAll('button').forEach(button=>button.setAttribute('aria-pressed',String(button.dataset.mode===factory.navigationMode)));
+    const update=()=>navigation.querySelectorAll('button').forEach(button=>button.setAttribute('aria-pressed',String(button.dataset.mode===xray.navigationMode)));
     const navigationControls=this.navigationControls=document.createElement('div');navigationControls.className='navigation-controls';
     navigationControls.hidden=isMobileNavigationDevice();
     update();navigationControls.append(navigation,document.getElementById('scene-hint'));host.append(navigationControls);
 
     this.canvas.onkeydown=e=>{if(['ArrowLeft','ArrowRight'].includes(e.key)){e.preventDefault();this.pan(e.key==='ArrowLeft'?-1:1);}};
     const move=e=>{
-      const r=this.canvas.getBoundingClientRect(),bounds=factory.extent;
+      const r=this.canvas.getBoundingClientRect(),bounds=xray.extent;
       if(!bounds)return;
       const x=THREE.MathUtils.clamp((e.clientX-r.left)/r.width,0,1),z=THREE.MathUtils.clamp((e.clientY-r.top)/r.height,0,1);
       this.center(bounds.minX+x*(bounds.maxX-bounds.minX),bounds.minZ+z*(bounds.maxZ-bounds.minZ));
@@ -49,14 +49,14 @@ export class Minimap {
     this.canvas.onpointerup=this.canvas.onpointercancel=()=>this.drag=false;
   }
   center(x,z) {
-    const f=this.factory,delta=new THREE.Vector3(x-f.controls.target.x,0,z-f.controls.target.z);
+    const f=this.xray,delta=new THREE.Vector3(x-f.controls.target.x,0,z-f.controls.target.z);
     f.camera.position.add(delta);f.controls.target.add(delta);f.controls.update();this.draw();
   }
   pan(direction) {
-    const f=this.factory;this.center(f.controls.target.x+direction*f.viewSize/f.camera.zoom*.25,f.controls.target.z);
+    const f=this.xray;this.center(f.controls.target.x+direction*f.viewSize/f.camera.zoom*.25,f.controls.target.z);
   }
   draw() {
-    const f=this.factory,e=f.extent;if(!e||this.panel.hidden)return;
+    const f=this.xray,e=f.extent;if(!e||this.panel.hidden)return;
     const ctx=this.canvas.getContext('2d'),w=this.canvas.width,h=this.canvas.height;
     const x=v=>(v-e.minX)/(e.maxX-e.minX)*w,z=v=>(v-e.minZ)/(e.maxZ-e.minZ)*h;
     ctx.clearRect(0,0,w,h);ctx.fillStyle='#0c1222';ctx.fillRect(0,0,w,h);

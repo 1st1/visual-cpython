@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import * as THREE from 'three';
 import {OpcodeTrail} from '../web/opcode-trail.mjs';
-// @lat: [[scene#Isometric factory scene#Opcode transition trail]]
+// @lat: [[scene#Isometric X-Ray scene#Opcode transition trail]]
 const scene=new THREE.Scene(),trail=new OpcodeTrail(scene);
 const tile=(x,z)=>({position:new THREE.Vector3(x,.8,z),width:2,height:1});
 for(const [x,z] of [[3,0],[-3,0],[0,3],[0,-3],[3,4]]){

@@ -88,7 +88,7 @@ for (const [name, source, output] of cases) {
         assert.ok(Math.abs(a.x-b.x)>=(a.width+b.width)/2 || Math.abs(a.y-b.y)>=(a.height+b.height)/2);
       }
     }
-    // @lat: [[scene#Isometric factory scene#Obstacle-aware opcode routing]]
+    // @lat: [[scene#Isometric X-Ray scene#Obstacle-aware opcode routing]]
     const routedBlocks=new Map(geometry.nodes.map(placed=>{
       const block=graph.blocks.find(b=>b.id===placed.id);
       return [placed.id,instructionGrid(block.instructions,winner.options.compact,winner.options.tileAspect).tiles.map(t=>({x:placed.x+t.x,z:placed.y+t.y,width:t.width,depth:t.height}))];

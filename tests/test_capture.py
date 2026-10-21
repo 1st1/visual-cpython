@@ -22,7 +22,7 @@ class CaptureTests(unittest.TestCase):
 
     def test_parser_budget_keeps_compilation_working(self):
         import ast
-        from _factory_probe import parse_begin, parse_end
+        from _xray_probe import parse_begin, parse_end
         parse_begin()
         try:
             tree = ast.parse("\n".join("x=1" for _ in range(300)))

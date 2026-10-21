@@ -6,8 +6,9 @@ self.onmessage = async ({ data }) => {
   if(started)return;
   started=true;
   try {
-    if(data.mode==='run'&&!WebAssembly.Suspending)
-      throw new Error('Live stepping requires a browser with WebAssembly JSPI support.');
+    const control=data.control?new Int32Array(data.control):null;
+    if(data.mode==='run'&&!control&&!WebAssembly.Suspending)
+      throw new Error('Live stepping needs cross-origin isolation on this browser. Reload after the server headers are updated.');
     const manifest = await fetch(`${import.meta.env.BASE_URL}runtime/runtime.json`, { cache: 'no-store' }).then(check).then(r => r.json());
     if (!/^[a-f0-9]{64}$/.test(manifest.version)) throw new Error('Invalid runtime manifest. Run tools/package_web.py again.');
     const asset = name => new URL(`${import.meta.env.BASE_URL}runtime/${name}?build=${manifest.version}`, self.location.origin).href;
@@ -25,8 +26,8 @@ self.onmessage = async ({ data }) => {
       onExit: code => finish(code),
       print: text => lines.push(text),
       printErr: text => {
-        if(text.startsWith('@factory-event:')){
-          self.postMessage({type:'event',event:JSON.parse(text.slice(15))});return;
+        if(text.startsWith('@xray-event:')){
+          self.postMessage({type:'event',event:JSON.parse(text.slice('@xray-event:'.length))});return;
         }
         errors.push(text);
       },
@@ -38,14 +39,21 @@ self.onmessage = async ({ data }) => {
         module.FS.writeFile("/program.py", data.source);
         if(data.mode==='run'){
           const device=module.FS.makedev(64,0);
-          module.FS.registerDevice(device,{
-            open(stream){stream.seekable=false;},
-            async readAsync(stream,buffer,offset){
+          const operations={open(stream){stream.seekable=false;}};
+          if(control){
+            operations.read=(stream,buffer,offset)=>{
+              // A permit is consumed atomically, including one sent before wait.
+              while(Atomics.compareExchange(control,0,1,0)!==1)Atomics.wait(control,0,0);
+              buffer[offset]=115;return 1;
+            };
+          }else{
+            operations.readAsync=async(stream,buffer,offset)=>{
               await new Promise(resolve=>{advance=resolve;});
               buffer[offset]=115;return 1;
-            },
-          });
-          module.FS.mkdev('/dev/factory-control',0o600,device);
+            };
+          }
+          module.FS.registerDevice(device,operations);
+          module.FS.mkdev('/dev/xray-control',0o600,device);
         }
       },
     });

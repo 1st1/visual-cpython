@@ -50,7 +50,7 @@ snapshot(PyObject *self, PyObject *arg)
 /* Fixed-size C records avoid allocating Python objects while parsing. */
 #include <stdarg.h>
 #define PARSE_LIMIT 24000
-int _FactoryParserEnabled = 0;
+int _XRayParserEnabled = 0;
 typedef struct {
     int kind, depth, cursor, end, line, column, end_line, end_column;
     void *ast_address; PyObject *ast_object;
@@ -59,34 +59,34 @@ typedef struct {
 static ParseEvent parse_events[PARSE_LIMIT];
 static int parse_count, parse_dropped;
 static ParseEvent *new_parse_event(int kind) {
-    if (!_FactoryParserEnabled) return NULL;
+    if (!_XRayParserEnabled) return NULL;
     if (parse_count == PARSE_LIMIT) { parse_dropped++; return NULL; }
     ParseEvent *e = &parse_events[parse_count++];
     memset(e, 0, sizeof(*e)); e->kind = kind; return e;
 }
-void _FactoryParserLog(int depth, int cursor, int fill, const char *format, ...) {
+void _XRayParserLog(int depth, int cursor, int fill, const char *format, ...) {
     ParseEvent *e = new_parse_event(0); if (!e) return;
     e->depth=depth; e->cursor=cursor; e->end=fill;
     va_list args; va_start(args, format); vsnprintf(e->text, sizeof(e->text), format, args); va_end(args);
 }
-void _FactoryParserRewind(int depth, int from, int to) {
+void _XRayParserRewind(int depth, int from, int to) {
     if (from == to) return;
     ParseEvent *e = new_parse_event(1); if (!e) return;
     e->depth=depth; e->cursor=from; e->end=to;
 }
-void _FactoryParserToken(int index, int type, int line, int column, const char *text, int length) {
+void _XRayParserToken(int index, int type, int line, int column, const char *text, int length) {
     ParseEvent *e = new_parse_event(2); if (!e) return;
     e->cursor=index; e->end=type; e->line=line; e->column=column;
     snprintf(e->text,sizeof(e->text),"%.*s",length,text);
 }
-void _FactoryAstCreated(void *address, const char *kind, int line, int column, int end_line, int end_column) {
+void _XRayAstCreated(void *address, const char *kind, int line, int column, int end_line, int end_column) {
     ParseEvent *e = new_parse_event(3); if (!e) return;
     e->ast_address=address; e->line=line; e->column=column;
     e->end_line=end_line; e->end_column=end_column;
     snprintf(e->text,sizeof(e->text),"%s",kind);
 }
-void _FactoryAstBind(void *address, PyObject *object) {
-    if (!_FactoryParserEnabled) return;
+void _XRayAstBind(void *address, PyObject *object) {
+    if (!_XRayParserEnabled) return;
     for (int i=parse_count-1;i>=0;i--) if(parse_events[i].kind==3 && parse_events[i].ast_address==address) {
         parse_events[i].ast_object=object; return;
     }
@@ -96,10 +96,10 @@ static PyObject *ast_id(PyObject *self, PyObject *object) {
     Py_RETURN_NONE;
 }
 static PyObject *parse_begin(PyObject *self, PyObject *unused) {
-    parse_count=0; parse_dropped=0; _FactoryParserEnabled=1; Py_RETURN_NONE;
+    parse_count=0; parse_dropped=0; _XRayParserEnabled=1; Py_RETURN_NONE;
 }
 static PyObject *parse_end(PyObject *self, PyObject *unused) {
-    _FactoryParserEnabled=0;
+    _XRayParserEnabled=0;
     PyObject *events=PyList_New(parse_count); if (!events) return NULL;
     for (int i=0;i<parse_count;i++) {
         ParseEvent *e=&parse_events[i];
@@ -122,6 +122,6 @@ static PyMethodDef methods[] = {
     {NULL, NULL, 0, NULL}
 };
 static struct PyModuleDef module = {
-    PyModuleDef_HEAD_INIT, "_factory_probe", NULL, -1, methods
+    PyModuleDef_HEAD_INIT, "_xray_probe", NULL, -1, methods
 };
-PyMODINIT_FUNC PyInit__factory_probe(void) { return PyModule_Create(&module); }
+PyMODINIT_FUNC PyInit__xray_probe(void) { return PyModule_Create(&module); }

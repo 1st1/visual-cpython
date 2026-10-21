@@ -3,7 +3,7 @@ import {sourceVisits,nextSourceVisit} from './source-navigation.mjs';
 import {paintPython} from './python-syntax.mjs';
 import { extractGraph, projectReplay, createReplayProjector } from './graph.mjs';
 import { ParsingReplay } from './parsing.mjs';
-import { Factory } from './factory.mjs';
+import { XRay } from './xray.mjs';
 const $ = id => document.getElementById(id);
 preventPageZoom();
 document.documentElement.classList.toggle('mobile-device',isMobileNavigationDevice());
@@ -17,9 +17,9 @@ const examples = {
 let worker, timer, playback, recording, index = 0, generation = 0;
 let layoutWorker, layoutTimer, graph, mapStates = [], selectedBlock, zoom = 1;
 let parsingReplay, parsingMode=false, lastLayout;
-let factory, viewMode = '3d', layoutAspect, resizeTimer;
+let xray, viewMode = '3d', layoutAspect, resizeTimer;
 let resetAllowed=false;
-let livePlaying=false,liveWaiting=false,liveTimer,projectLive;
+let livePlaying=false,liveWaiting=false,liveTimer,projectLive,liveControl;
 const HISTORY_LIMIT=2000;
 let operation=null,runAfterLayout=false;
 const windowAspect=()=>window.innerWidth/Math.max(1,window.innerHeight);
@@ -29,7 +29,7 @@ let appliedSource=$('source').value;
 $('example').onchange = async () => {
   const request=++exampleRequest, name=$('example').value;
   if(name==='custom')return;
-  const applyExample=source=>{ $('source').value=source;resetProgram();previewSource();factory?.view(); };
+  const applyExample=source=>{ $('source').value=source;resetProgram();previewSource();xray?.view(); };
   const file={shortest:new URL('./programs/shortest_path.py',import.meta.url),asyncio:new URL('./programs/asyncio_numbers.py',import.meta.url)}[name];
   if(!file) { applyExample(examples[name]); return; }
   $('run').disabled=true;
@@ -49,15 +49,15 @@ function setPlaybackLabel(label) {
     ?'<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 4v16M16 4v16"/></svg>'
     :'<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m8 4 12 8-12 8Z"/></svg>';
 }
-function stopPlayback() { livePlaying=false;clearTimeout(liveTimer); factory?.starfield?.setPlaying(false); clearInterval(playback); playback = null; setPlaybackLabel(recording?.events.length&&index<recording.events.length?'Resume':'Run'); }
+function stopPlayback() { livePlaying=false;clearTimeout(liveTimer); xray?.starfield?.setPlaying(false); clearInterval(playback); playback = null; setPlaybackLabel(recording?.events.length&&index<recording.events.length?'Resume':'Run'); }
 function stopWorker(endFlight=true) {
-  if(endFlight)factory?.starfield?.setCapturing(false);
-  resetAllowed=false;liveWaiting=false;projectLive=null;clearTimeout(liveTimer);livePlaying=false;
+  if(endFlight)xray?.starfield?.setCapturing(false);
+  resetAllowed=false;liveWaiting=false;projectLive=null;liveControl=null;clearTimeout(liveTimer);livePlaying=false;
   generation++;clearTimeout(timer);worker?.terminate();worker=null;operation=null;
   $('run').disabled=false;$('run').textContent='Compile';
 }
 function fail(message) { stopPlayback();stopWorker();runAfterLayout=false;$('state').textContent='Stopped';$('message').textContent=message;render(); }
-$('skip-animation').onclick=()=>{factory?.finishConstruction();$('skip-animation').hidden=true;};
+$('skip-animation').onclick=()=>{xray?.finishConstruction();$('skip-animation').hidden=true;};
 let compileHintTimer,compileHintHideTimer;
 function hideCompileHint(){
   clearTimeout(compileHintTimer);clearTimeout(compileHintHideTimer);
@@ -83,19 +83,19 @@ function startOperation(mode) {
     appliedSource=source;
     lastLayout=null;graph=null;mapStates=[];selectedBlock=null;recording=null;
     $('map').replaceChildren();
-    factory?.load(null,null,[],source,null,false);
+    xray?.load(null,null,[],source,null,false);
   } else {
     recording={...recording,events:[],stdout:'',status:'compiled'};delete recording.error;
     mapStates=[];selectedBlock=null;index=0;
-    if(factory){factory.instructionVisits.clear();factory.panelBlock=null;factory.opcodeTrail.clear();factory.previousOpcodeTile=null;}
-    factory?.finishConstruction();
+    if(xray){xray.instructionVisits.clear();xray.panelBlock=null;xray.opcodeTrail.clear();xray.previousOpcodeTile=null;}
+    xray?.finishConstruction();
   }
   operation=mode;
   if(mode==='run'){projectLive=createReplayProjector(recording,graph);livePlaying=true;}
   $('message').textContent='';if(mode==='compile')$('map-status').textContent='Compiling…';
   $('run').disabled=mode==='compile';$('run').textContent=mode==='compile'?'Compiling…':'Compile';
   $('state').textContent='Loading WASM';
-  factory?.starfield?.setCapturing(true);
+  xray?.starfield?.setCapturing(true);
   render();
   worker=new Worker(new URL('./worker.mjs',import.meta.url),{type:'module'});
   const runGeneration=generation;
@@ -107,7 +107,7 @@ function startOperation(mode) {
       clearTimeout(timer);$('state').textContent=mode==='compile'?'Compiling':'running';
       if(mode==='compile')timer=setTimeout(()=>fail('Compilation exceeded 15 seconds.'),15000);
       else {
-        factory?.starfield?.setCapturing(false);factory?.starfield?.setPlaying(livePlaying);
+        xray?.starfield?.setCapturing(false);xray?.starfield?.setPlaying(livePlaying);
         render();
       }
     }else if(data.type==='event'){
@@ -123,11 +123,13 @@ function startOperation(mode) {
       stopWorker(false);recording=data.trace;index=0;runAfterLayout=mode==='run'&&recording.events.length>0;
       $('state').textContent=recording.status;$('message').textContent=recording.error||'';
       $('provenance').textContent=`CPython ${recording.provenance.python.split(' ')[0]} · ${recording.provenance.revision.slice(0,8)}`;
-      if(!recording.codes.length)factory?.load(null,null,[],recording.source,recording.parsing,mode!=='compile');
+      if(!recording.codes.length)xray?.load(null,null,[],recording.source,recording.parsing,mode!=='compile');
       render();buildMap(false,mode==='run');
     }else if(data.type==='error')fail(data.message);
   };
-  worker.postMessage({source,mode});
+  if(mode==='run'&&!WebAssembly.Suspending&&globalThis.crossOriginIsolated&&typeof SharedArrayBuffer!=='undefined')
+    liveControl=new Int32Array(new SharedArrayBuffer(4));
+  worker.postMessage({source,mode,control:liveControl?.buffer});
 }
 function scheduleLive(){
   clearTimeout(liveTimer);
@@ -135,7 +137,10 @@ function scheduleLive(){
 }
 function advanceLive(){
   if(!worker||!liveWaiting)return;
-  liveWaiting=false;worker.postMessage({type:'advance'});render();
+  liveWaiting=false;
+  if(liveControl){Atomics.store(liveControl,0,1);Atomics.notify(liveControl,0,1);}
+  else worker.postMessage({type:'advance'});
+  render();
 }
 function appendLiveEvent(event){
   const follow=livePlaying||index>=recording.events.length-1;
@@ -146,11 +151,11 @@ function appendLiveEvent(event){
   // UI positions are local to the retained window; runtime sequence stays monotonic.
   for(let i=0;i<recording.events.length;i++)recording.events[i].seq=i;
   recording.stdout=event.stdout;
-  if(factory){
-    factory.instructionVisits.clear();factory.panelBlock=null;
+  if(xray){
+    xray.instructionVisits.clear();xray.panelBlock=null;
     for(const e of recording.events)if(e.kind==='opcode'){
       const key=`${e.code}:${e.offset}`;
-      factory.instructionVisits.set(key,(factory.instructionVisits.get(key)||0)+1);
+      xray.instructionVisits.set(key,(xray.instructionVisits.get(key)||0)+1);
     }
   }
   if(follow)index=recording.events.length-1;
@@ -174,14 +179,14 @@ function resetProgram(){
   setParsingUI(false);
   $('map').replaceChildren();$('map-status').textContent='Compile a program to build its map.';
   $('message').textContent='';$('state').textContent='Ready';$('provenance').textContent='';$('skip-animation').hidden=true;
-  if(factory){factory.liveCaptureUntil=0;factory.parsingPlaying=false;factory.load(null,null,[],$('source').value);}
+  if(xray){xray.liveCaptureUntil=0;xray.parsingPlaying=false;xray.load(null,null,[],$('source').value);}
   render();
 }
 function resetRun(){
   hideCompileHint();stopPlayback();stopWorker();
   recording={...recording,events:[],stdout:'',status:'compiled'};delete recording.error;
   mapStates=[];selectedBlock=null;index=0;
-  if(factory){factory.instructionVisits.clear();factory.panelBlock=null;factory.opcodeTrail.clear();factory.previousOpcodeTile=null;}
+  if(xray){xray.instructionVisits.clear();xray.panelBlock=null;xray.opcodeTrail.clear();xray.previousOpcodeTile=null;}
   $('message').textContent='';$('state').textContent='compiled';render();
 }
 $('reset').onclick=resetRun;
@@ -195,14 +200,14 @@ $('seek').oninput = () => { stopPlayback(); move(Number($('seek').value)); };
 function startReplay() {
   resetAllowed=false;
   if(!recording?.events.length)return;
-  setPlaybackLabel('Pause');factory?.starfield?.setPlaying(true);
+  setPlaybackLabel('Pause');xray?.starfield?.setPlaying(true);
   playback=setInterval(()=>{move(index+1);if(index===recording.events.length)stopPlayback();},250);
 }
 $('play').onclick=()=>{
   if(livePlaying||playback){stopPlayback();resetAllowed=true;render();return;}
   if(operation==='run'){
     resetAllowed=false;livePlaying=true;index=Math.max(0,recording.events.length-1);
-    factory?.starfield?.setPlaying(true);scheduleLive();render();return;
+    xray?.starfield?.setPlaying(true);scheduleLive();render();return;
   }
   if(recording?.events.length&&index<recording.events.length)return startReplay();
   startOperation('run');
@@ -269,12 +274,12 @@ function buildMap(relayout=false,executed=false) {
       graph = extractGraph(recording);
       mapStates = projectReplay(recording, graph);
     }
-    if (!graph.blocks.length) { factory?.starfield?.setCapturing(false); $('map-status').textContent = 'No compiled program'; return; }
+    if (!graph.blocks.length) { xray?.starfield?.setCapturing(false); $('map-status').textContent = 'No compiled program'; return; }
     $('map-status').textContent = 'Laying out program…';$('play').disabled=true;
     const current = graph;
     layoutWorker = new Worker(new URL('./layout-worker.mjs', import.meta.url), { type: 'module' });
     const stop = () => { clearTimeout(layoutTimer); layoutWorker?.terminate(); layoutWorker = null; };
-    const error = message => { stop(); factory?.starfield?.setCapturing(false); $('map-status').textContent = `Layout failed: ${message}`; $('message').textContent=$('map-status').textContent; };
+    const error = message => { stop(); xray?.starfield?.setCapturing(false); $('map-status').textContent = `Layout failed: ${message}`; $('message').textContent=$('map-status').textContent; };
     layoutTimer = setTimeout(() => error('exceeded 15 seconds'), 15000);
     layoutWorker.onerror = e => error(e.message);
     layoutWorker.onmessage = ({ data }) => {
@@ -286,11 +291,11 @@ function buildMap(relayout=false,executed=false) {
       svg.removeAttribute('width'); svg.removeAttribute('height');
       $('map').replaceChildren(document.importNode(svg, true)); zoom = 1; setZoom();
       lastLayout=data.layout;
-      factory?.load(data.layout,graph,recording.events,recording.source,recording.parsing,executed&&!relayout);
-      if(parsingMode) {factory?.loadParsing();parsingReplay.render();}
-      if((relayout||executed)&&!parsingMode) factory?.finishConstruction();
-      if(relayout&&parsingMode) factory?.view();
-      $('factory').dataset.layoutAspect=String(data.layout.placement.targetAspect);
+      xray?.load(data.layout,graph,recording.events,recording.source,recording.parsing,executed&&!relayout);
+      if(parsingMode) {xray?.loadParsing();parsingReplay.render();}
+      if((relayout||executed)&&!parsingMode) xray?.finishConstruction();
+      if(relayout&&parsingMode) xray?.view();
+      $('xray').dataset.layoutAspect=String(data.layout.placement.targetAspect);
       for (const block of graph.blocks) {
         const node = document.getElementById(block.id);
         node.setAttribute('tabindex', '0'); node.setAttribute('role', 'button');
@@ -302,22 +307,22 @@ function buildMap(relayout=false,executed=false) {
       $('map-status').textContent = `Graphviz ${data.version} · ${graph.blocks.reduce((n,b)=>n+b.instructions.length,0)} opcodes · ${graph.blocks.length} blocks · ${graph.edges.length} connections`;
       if (graph.diagnostics.length) $('map-status').textContent += ` · ${graph.diagnostics.length} mapping warnings`;
       render();
-      factory?.starfield?.setCapturing(false);
+      xray?.starfield?.setCapturing(false);
       if(runAfterLayout){runAfterLayout=false;startReplay();}
     };
     layoutWorker.postMessage({ graph, targetAspect });
-  } catch (error) { factory?.starfield?.setCapturing(false); $('map-status').textContent = `Map unavailable: ${error.message}`; $('message').textContent=$('map-status').textContent; }
+  } catch (error) { xray?.starfield?.setCapturing(false); $('map-status').textContent = `Map unavailable: ${error.message}`; $('message').textContent=$('map-status').textContent; }
 }
 function setZoom() {
   const svg = $('map').querySelector('svg');
   if (svg) svg.style.width = `${zoom * 100}%`;
 }
-$('zoom-in').onclick = () => { if(viewMode==='3d') return factory?.zoom(1.25); zoom = Math.min(4, zoom * 1.25); setZoom(); };
-$('zoom-out').onclick = () => { if(viewMode==='3d') return factory?.zoom(.8); zoom = Math.max(0.5, zoom / 1.25); setZoom(); };
-$('zoom-fit').onclick = () => { if(viewMode==='3d') return factory?.view(); zoom = 1; setZoom(); };
+$('zoom-in').onclick = () => { if(viewMode==='3d') return xray?.zoom(1.25); zoom = Math.min(4, zoom * 1.25); setZoom(); };
+$('zoom-out').onclick = () => { if(viewMode==='3d') return xray?.zoom(.8); zoom = Math.max(0.5, zoom / 1.25); setZoom(); };
+$('zoom-fit').onclick = () => { if(viewMode==='3d') return xray?.view(); zoom = 1; setZoom(); };
 function renderMapState() {
   const state = mapStates[Math.min(index, mapStates.length - 1)];
-  if(!parsingMode) factory?.setState(state,recording?.events[Math.min(index,mapStates.length-1)],selectedBlock,index===mapStates.length);
+  if(!parsingMode) xray?.setState(state,recording?.events[Math.min(index,mapStates.length-1)],selectedBlock,index===mapStates.length);
   $('map').querySelectorAll('.executing,.traversed,.selected').forEach(n => n.classList.remove('executing', 'traversed', 'selected'));
   if (state) {
     document.getElementById(state.block)?.classList.add('executing');
@@ -333,18 +338,18 @@ function renderMapState() {
 function selectBlock(id) { if(id){$('inspector-panel').hidden=false;$('toggle-inspector').setAttribute('aria-expanded','true');} selectedBlock=id; renderMapState(); }
 function changeView(mode) {
   if(mode==='map'&&parsingMode) showExecution();
-  viewMode=mode; $('factory').hidden=mode!=='3d'; $('map').hidden=mode!=='map'; $('scene-hint').hidden=mode!=='3d';
+  viewMode=mode; $('xray').hidden=mode!=='3d'; $('map').hidden=mode!=='map'; $('scene-hint').hidden=mode!=='3d';
   for(const id of ['camera-iso','camera-top']) $(id).disabled=mode!=='3d';
-  if(mode==='3d') factory?.resize();
+  if(mode==='3d') xray?.resize();
 }
-$('camera-iso').onclick=()=>factory?.setCameraMode('3d'); $('camera-top').onclick=()=>factory?.setCameraMode('2d');
+$('camera-iso').onclick=()=>xray?.setCameraMode('3d'); $('camera-top').onclick=()=>xray?.setCameraMode('2d');
 function seekInstruction(blockId,offset) {
   const block=graph.blocks.find(b=>b.id===blockId);
   const visits=recording.events.filter(e=>e.kind==='opcode'&&e.code===block.code&&e.offset===offset);
   const visit=visits.find(e=>e.seq>index)??visits[0];
   if(visit) { stopPlayback(); move(visit.seq); }
 }
-function previewSource() { paintPython($('source-highlight'),$('source').value+'\n'); if(!recording&&!worker) factory?.load(null,null,[],$('source').value,null,true); }
+function previewSource() { paintPython($('source-highlight'),$('source').value+'\n'); if(!recording&&!worker) xray?.load(null,null,[],$('source').value,null,true); }
 let previewTimer;
 $('source').addEventListener('input',()=>{ ++exampleRequest;$('example').value='custom';$('run').disabled=operation==='compile'; paintPython($('source-highlight'),$('source').value+'\n'); if(recording)render(); clearTimeout(previewTimer); previewTimer=setTimeout(previewSource,180); });
 function setEditorOpen(open) {
@@ -379,15 +384,15 @@ toolbarObserver.observe(document.querySelector('.playback-controls'));
 window.addEventListener('resize',updateToolbarBounds);
 
 
-try { factory=new Factory($('factory'),selectBlock,seekInstruction,seekSourceLine); parsingReplay=new ParsingReplay(factory); previewSource(); factory.view(); }
+try { xray=new XRay($('xray'),selectBlock,seekInstruction,seekSourceLine); parsingReplay=new ParsingReplay(xray); previewSource(); xray.view(); }
 catch(error) { $('toggle-minimap').disabled=true;$('toggle-minimap').setAttribute('aria-pressed','false'); $('scene-hint').textContent=`3D unavailable: ${error.message}. The schematic is available.`; changeView('map'); $('message').textContent='3D graphics unavailable; using the schematic.'; }
-window.addEventListener('pagehide',event=>{ if(!event.persisted) factory?.dispose(); });
+window.addEventListener('pagehide',event=>{ if(!event.persisted) xray?.dispose(); });
 
 window.addEventListener('resize',()=>{
   clearTimeout(resizeTimer);
   resizeTimer=setTimeout(()=>{
     if(recording?.codes.length && Math.abs(windowAspect()-(layoutAspect || 0))>.01) buildMap(true);
-    else if(!recording&&!worker) factory?.view();
+    else if(!recording&&!worker) xray?.view();
   },250);
 });
 
@@ -395,12 +400,12 @@ function setParsingUI(active) {
   $('parse-panel').hidden=!active;
   $('map-status').hidden=active;
   document.querySelector('.playback-controls').hidden=active;
-  factory?.showOpcodes(!active);
+  xray?.showOpcodes(!active);
 }
 function showExecution() {
   parsingReplay?.stop();parsingMode=false;setParsingUI(false);
-  if(!recording) factory?.load(null,null,[],$('source').value,null,true);
-  factory?.finishConstruction();renderMapState();
+  if(!recording) xray?.load(null,null,[],$('source').value,null,true);
+  xray?.finishConstruction();renderMapState();
 }
 
 

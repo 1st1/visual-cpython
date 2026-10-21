@@ -17,7 +17,7 @@ import types
 import time
 from pathlib import Path
 
-FILENAME = "<factory-program>"
+FILENAME = "<xray-program>"
 ALLOWED = {
     "Module", "Expr", "Constant", "Name", "Load", "Store", "Assign", "AugAssign",
     "FunctionDef", "arguments", "arg", "Return", "Call", "keyword", "If", "For",
@@ -86,7 +86,7 @@ class Observer:
         self.sequence = 0
         self.object_sequence = 0
         self.frame_sequence = 0
-        self.control = open("/dev/factory-control", "rb", buffering=0) if live else None
+        self.control = open("/dev/xray-control", "rb", buffering=0) if live else None
         self.progress = progress
         self.last_progress = -1.0
         self.limit = limit
@@ -175,7 +175,7 @@ class Observer:
             now = time.monotonic()
             if now - self.last_progress >= 1 / 30:
                 self.last_progress = now
-                print("@factory-line:" + str(frame.f_lineno), file=sys.__stderr__, flush=True)
+                print("@xray-line:" + str(frame.f_lineno), file=sys.__stderr__, flush=True)
         frame.f_trace_opcodes = True
         if event == "call":
             # This revision enables opcode instrumentation at the next legacy
@@ -191,7 +191,7 @@ class Observer:
             return self.trace
         if not self.live and len(self.events) >= self.limit:
             raise CaptureLimit("event budget exceeded")
-        from _factory_probe import snapshot
+        from _xray_probe import snapshot
         record = {"seq": self.sequence, "kind": event, "frame": self.frames[frame],
                   "parent": self.frames.get(frame.f_back), "code": self.codes[frame.f_code],
                   "offset": frame.f_lasti, "line": frame.f_lineno,
@@ -219,7 +219,7 @@ class Observer:
         self.sequence += 1
         if self.live:
             # The asynchronous device read suspends the actual evaluator here.
-            print("@factory-event:" + json.dumps(record), file=sys.__stderr__, flush=True)
+            print("@xray-event:" + json.dumps(record), file=sys.__stderr__, flush=True)
             if record["kind"] == "opcode":
                 if self.control.read(1) != b"s":
                     raise CaptureLimit("Execution stopped")
@@ -249,7 +249,7 @@ def capture(source, max_events=2000, progress=False, compile_only=False, live=Fa
             tokens = []
         if sum(t.type not in ignored for t in tokens) > 200:
             raise ValueError("source exceeds 200 Python tokens")
-        from _factory_probe import parse_begin, parse_end, ast_id
+        from _xray_probe import parse_begin, parse_end, ast_id
         parse_begin()
         try:
             tree = ast.parse(source, FILENAME)

@@ -13,7 +13,7 @@ try {
     await route.fulfill({contentType:'text/javascript',body:await readFile(files[path])});
   });
   await page.goto('http://grid.test/');
-  // @lat: [[scene#Isometric factory scene#Grid continuity checks]]
+  // @lat: [[scene#Isometric X-Ray scene#Grid continuity checks]]
   const results=await page.evaluate(async()=>{
     const THREE=await import('three'),{createGrid}=await import('./grid.mjs');
     const renderer=new THREE.WebGLRenderer({antialias:true});renderer.setSize(800,500);

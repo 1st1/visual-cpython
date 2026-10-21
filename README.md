@@ -1,4 +1,4 @@
-# CPython Factory
+# CPython X-Ray
 
 An interactive 3D visualization of real CPython tokenization, PEG/AST construction,
 bytecode, and execution. Programs run in a disposable browser worker using an
@@ -30,8 +30,8 @@ or use `npm run preview -- --port 8001`.
 
 Import this repository into Vercel. `vercel.json` selects Vite, `npm run build`,
 and `dist` as the output directory. No local CPython checkout or build outputs
-are needed for deployment. Python loads only when a capture starts; Graphviz
-loads in a separate worker when the recording is ready for layout.
+are needed for deployment. Python loads for Compile and Run; Graphviz loads in a separate worker when
+compiled artifacts are ready for layout.
 
 ## Rebuild the observation runtime locally
 
@@ -63,13 +63,13 @@ Full build details and rebuild boundaries are in
 npm run test:wasm
 # With Vite dev or preview running and Google Chrome installed:
 npm run test:browser
-npm run test:factory
+npm run test:xray
 npm run test:parsing
 npm run test:memory
 lat check
 ```
 
-Set `FACTORY_URL=http://127.0.0.1:8001` to target a preview on another port.
+Set `XRAY_URL=http://127.0.0.1:8001` to target a preview on another port.
 Screenshots are written to ignored `artifacts/`. Native tests use
 `.build/native/python.exe -m unittest discover -s tests -v` (or `python` where
 that is the executable name); `npm run test:graph` also uses the native build.
@@ -82,15 +82,21 @@ perturbs specialization, so this is not an uninstrumented performance trace.
 Coroutine suspensions and resumptions retain activation identity. The selected
 asyncio API supports cooperative tasks and timers, without socket or thread I/O.
 Other imports, private attributes, classes, generators, and dynamic code are
-restricted. The UI lists current capture limits.
+restricted. Live history retains the latest 2,000 events without imposing a total
+execution-event limit.
 
-Use **Run & capture**, then play, step, rewind, or seek the recording. Source,
-tokens, AST nodes, and opcode tiles share one map. Compilation correspondence
-links appear only in their relevant construction stage. Execution uses
-synchronized highlights and an opcode transition trail. **Skip reveal** shows
-the completed map; reduced motion suppresses construction and signal animation.
+Use **Compile** to build source, token, AST, and opcode views without executing
+Python. **Run/Pause** and **Step** control live execution. Back and the slider
+inspect retained history; resuming returns to the live interpreter. **Reset**
+after Pause clears the run while preserving compilation. Source edits require
+recompilation. **Stop animation** skips construction reveal.
 
-Drag to orbit, scroll or right-drag to pan, and pinch to zoom. **Focus opcode**,
-**Stack**, and the minimap navigate larger programs. The inspector provides
-locals, the full sampled stack, and output. Graphviz routing remains a baseline:
-crossings are not junctions, and obstacle clearance is not certified.
+Drag to orbit, use the mouse/trackpad navigation setting for scroll behavior,
+and pinch to zoom the scene. The minimap offers 3D/2D, zoom, and fit controls.
+The Inspector provides source, instructions, locals, operand stack, and output.
+Mobile portrait places execution controls at the bottom; landscape aligns both
+toolbars at the top. Mouse/trackpad choices are hidden on mobile devices.
+
+Live stepping uses WebAssembly JSPI where available, or a shared-memory worker gate on Safari and other browsers without JSPI. Serve with the configured Vite preview or Vercel headers: `Cross-Origin-Opener-Policy: same-origin`, `Cross-Origin-Embedder-Policy: require-corp`, and `Cross-Origin-Resource-Policy: same-origin`. A plain static server without these headers cannot provide the Safari fallback.
+
+For the Safari-engine regression test, install WebKit with `npx playwright install webkit`, then run `npm run test:safari` against the running app. `XRAY_URL` can point it at a production preview.

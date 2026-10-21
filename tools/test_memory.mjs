@@ -5,8 +5,8 @@ import {readFile} from 'node:fs/promises';
 const browser=await chromium.launch({channel:'chrome',headless:true,chromiumSandbox:true});
 try {
   const page=await browser.newPage({viewport:{width:1920,height:1080},deviceScaleFactor:2,reducedMotion:'reduce'});
-  await page.goto(process.env.FACTORY_URL || 'http://127.0.0.1:8000');
-  await page.waitForFunction(()=>document.querySelector('#factory').dataset.rendered==='true');
+  await page.goto(process.env.XRAY_URL || 'http://127.0.0.1:8000');
+  await page.waitForFunction(()=>document.querySelector('#xray').dataset.rendered==='true');
   const source=await readFile(new URL('../web/programs/shortest_path.py',import.meta.url),'utf8');
   const samples=[];
   for(let run=0;run<3;run++){
@@ -17,7 +17,7 @@ try {
     await page.waitForFunction(()=>/Graphviz/.test(document.querySelector('#map-status').textContent),null,{timeout:20000});
     await page.evaluate(()=>new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r))));
     samples.push(await page.evaluate(()=>{
-      const f=document.querySelector('#factory'),canvas=f.querySelector(':scope > canvas'),stars=f.querySelectorAll('.starfield canvas');
+      const f=document.querySelector('#xray'),canvas=f.querySelector(':scope > canvas'),stars=f.querySelectorAll('.starfield canvas');
       return {blur:JSON.parse(f.dataset.backgroundBlur),atlas:JSON.parse(f.dataset.textAtlas),labels:Number(f.dataset.labelCanvasBytes),textures:Number(f.dataset.gpuTextures),geometries:Number(f.dataset.gpuGeometries),pixels:canvas.width*canvas.height,starCanvases:stars.length};
     }));
   }

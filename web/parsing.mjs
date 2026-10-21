@@ -14,8 +14,8 @@ export function parsingFrames(parsing) {
 }
 
 export class ParsingReplay {
-  constructor(factory,onMode) {
-    this.factory=factory;this.onMode=onMode;
+  constructor(xray,onMode) {
+    this.xray=xray;this.onMode=onMode;
     this.panel=document.getElementById('parse-panel');
     this.range=document.getElementById('parse-seek');
     this.range.oninput=()=>{this.stop();this.index=Number(this.range.value);this.render();};
@@ -25,12 +25,12 @@ export class ParsingReplay {
     document.getElementById('parse-play').onclick=()=>{
       if(this.timer) return this.stop();
       if(this.index===this.frames.length) this.index=0;
-      this.factory.parsingPlaying=true;
+      this.xray.parsingPlaying=true;
       document.getElementById('parse-play').textContent='Pause parsing';
       this.timer=setInterval(()=>{this.index=this.nextIndex(1);this.render();if(this.index===this.frames.length)this.stop();},40);
     };
   }
-  stop() {this.factory.parsingPlaying=false;clearInterval(this.timer);this.timer=null;document.getElementById('parse-play').textContent='Play parsing';}
+  stop() {this.xray.parsingPlaying=false;clearInterval(this.timer);this.timer=null;document.getElementById('parse-play').textContent='Play parsing';}
   nextIndex(delta) {
     let next=this.index+delta;
     if(!document.getElementById('parse-detail').checked) {
@@ -46,12 +46,12 @@ export class ParsingReplay {
   load(recording) {
     this.stop();this.recording=recording;
     const {frames,tokens}=parsingFrames(recording.parsing);this.frames=frames;this.tokens=tokens;this.index=0;
-    this.factory.loadParsing(recording,tokens);this.range.max=frames.length;this.render();
+    this.xray.loadParsing(recording,tokens);this.range.max=frames.length;this.render();
   }
   render() {
     const final=this.index===this.frames.length,frame=this.frames[Math.min(this.index,this.frames.length-1)];
     this.range.value=this.index;
-    this.factory.setParsingState(frame,final);
+    this.xray.setParsingState(frame,final);
     const event=frame?.event;
     const status=final?(this.recording.parsing.ast?'Parse result · AST available':'Parse failed · no AST'):event?.kind===3?`Construct ${event.text} · ${event.retained?"retained in AST":"not retained in final AST"}`:event?.kind===2?`Tokenizer emitted ${event.token} · line ${event.line}`:event?.kind===1?`Backtrack · token ${event.cursor} → ${event.end}`:event?.text.trim();
     document.getElementById('parse-status').textContent=`${this.index} / ${this.frames.length} · ${status || 'No checkpoints'}`;

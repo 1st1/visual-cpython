@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import {connector} from '../web/connector.mjs';
-// @lat: [[scene#Isometric factory scene#Shared geometry]]
+// @lat: [[scene#Isometric X-Ray scene#Shared geometry]]
 for(const dashed of [false,true])for(const points of [
   [[0,0],[0,2],[1,2]],
   [[0,0],[0,2],[.01,2]],

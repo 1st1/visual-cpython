@@ -13,7 +13,7 @@ try {
     await route.fulfill({contentType:'text/javascript',body:await readFile(files[path])});
   });
   await page.goto('http://text.test/');
-  // @lat: [[scene#Isometric factory scene#Shared distance-field text]]
+  // @lat: [[scene#Isometric X-Ray scene#Shared distance-field text]]
   const results=await page.evaluate(async()=>{
     const THREE=await import('three'),{surfaceText}=await import('./text-atlas.mjs');
     const renderer=new THREE.WebGLRenderer();renderer.setSize(800,400);

@@ -73,7 +73,7 @@ function starMesh(stars,appearance,uniforms,distant){
   const mesh=new THREE.Mesh(geometry,material);mesh.frustumCulled=false;mesh.renderOrder=distant?1:2;return mesh;
 }
 
-// The existing renderer draws this camera-independent background before the factory.
+// The existing renderer draws this camera-independent background before the xray.
 export class Starfield {
   constructor(host){
     this.layer=document.createElement('div');this.layer.className='starfield';this.layer.setAttribute('aria-hidden','true');host.prepend(this.layer);

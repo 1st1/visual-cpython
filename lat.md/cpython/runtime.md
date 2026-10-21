@@ -43,9 +43,9 @@ Commit the refreshed [web/public/runtime](../../web/public/runtime) files after 
 
 ### Build validation
 
-Runtime integrity, compilation, capture correctness, and production-browser behavior are separate checks. Browser tests accept FACTORY_URL so the same suites can target Vite development or the built preview.
+Runtime integrity, compilation, capture correctness, and production-browser behavior are separate checks. Browser tests accept XRAY_URL so the same suites can target Vite development or the built preview.
 
-Run the native interpreter with `-m unittest discover -s tests -v` (`.build/native/python.exe` on this macOS build, or `.build/native/python` where applicable). npm run test:wasm checks the committed runtime; npm run test:graph additionally requires the local native interpreter. With Vite development or preview running, npm run test:browser, npm run test:factory, npm run test:parsing, and npm run test:memory exercise capture, rendering, parser replay, and resource bounds. Run lat check for documentation validation. Screenshots remain ignored under artifacts/.
+Run the native interpreter with `-m unittest discover -s tests -v` (`.build/native/python.exe` on this macOS build, or `.build/native/python` where applicable). npm run test:wasm checks the committed runtime; npm run test:graph additionally requires the local native interpreter. With Vite development or preview running, npm run test:browser, npm run test:xray, npm run test:parsing, and npm run test:memory exercise capture, rendering, parser replay, and resource bounds. Run lat check for documentation validation. Screenshots remain ignored under artifacts/.
 
 ## Observed instruction stacks
 
@@ -79,7 +79,10 @@ The workbench compiles without executing, then advances the real interpreter at 
 
 [[tools/package_web.py#package]] publishes a content-hashed runtime manifest after staging the committed runtime, WASM binary, standard library, and capture driver. The worker fetches this manifest without caching and uses its build identifier on all four asset URLs, including Emscripten’s WASM lookup. Rebuilt parser probes therefore cannot silently reuse the previous build’s cached binary.
 
-Live Run requires WebAssembly JSPI. [web/worker.mjs](../../web/worker.mjs) registers an asynchronous Emscripten filesystem device. [[runtime/capture.py#Observer#trace]] emits the pre-instruction snapshot, then reads one byte from that device. The read suspends the real WASM stack; one UI permit completes it and allows execution to reach the next opcode. Unsupported browsers receive a capability message instead of silently capturing a complete trace. Compile and native capture retain their synchronous compatibility.
+Live Run uses JSPI when available and a shared-memory worker gate otherwise. [web/worker.mjs](../../web/worker.mjs) registers an Emscripten filesystem device. [[runtime/capture.py#Observer#trace]] emits the pre-instruction snapshot, then reads one permit byte. With JSPI, an asynchronous read suspends the WASM stack until the UI resolves it. Without JSPI, the read blocks only the worker using Atomics.wait; the main thread writes a shared permit and notifies it. An atomic compare/exchange consumes each permit, including a permit delivered before the worker begins waiting. Both paths advance the same interpreter and never pre-capture a run.
+
+The fallback requires SharedArrayBuffer and cross-origin isolation. [vite.config.mjs](../../vite.config.mjs) and [vercel.json](../../vercel.json) send COOP same-origin, COEP require-corp, and CORP same-origin for development, preview, and deployment. CORP also lets WebKit reuse worker resources without a policy rejection. The worker reports a capability error if neither execution transport is available. Compile and native capture retain synchronous compatibility. Reset terminates the worker even while it is waiting on shared memory.
+
 
 [web/app.mjs](../../web/app.mjs) starts a fresh interpreter for each Run. Run grants one permit every 100 ms after the next snapshot arrives; Pause cancels future permits, and Step grants one permit at the live frontier. There is at most one permit in flight. Opaque builtin calls can finish before the next opcode pause, and asyncio timers use real wall time, including pauses. Recompiling or changing the program terminates the worker even during an opaque call. Loading and compilation retain deadlines; live execution has no five-second or total-event deadline.
 
@@ -110,3 +113,9 @@ Live controls must suspend the evaluator, advance real opcodes, survive history 
 [tools/test_live_execution.mjs](../../tools/test_live_execution.mjs) runs beyond the former event budget, checks bounded history, pause stability, real opcode steps, backward inspection, resume, cancellation, fresh runs, asyncio, exceptions, and silent run reset that preserves compilation. It accelerates only the UI permit delay; the actual WASM suspension protocol remains unchanged.
 
 [tools/test_live_runtime.mjs](../../tools/test_live_runtime.mjs) streams more than 85,000 events across 4,500 calls using the packaged WASM runtime. It checks identity eviction, completed-frame release, rolling output, monotonic sequences, and an empty runtime event array. Node requires its experimental WASM JSPI flag.
+
+## Safari live stepping checks
+
+Safari must execute live opcodes without JSPI, retaining responsive controls and bounded history.
+
+[tools/test_safari.mjs](../../tools/test_safari.mjs) uses WebKit with JSPI disabled in both the page and interpreter worker to verify isolation headers, a loop beyond the history limit, pause stability, single stepping, backward inspection, reset of a blocked worker, fresh runs, and asyncio completion.

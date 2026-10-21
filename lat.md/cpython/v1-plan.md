@@ -1,8 +1,8 @@
 # First-version implementation plan
 
-V1 is an interpreter-only browser application where a small editable Python program constructs a factory map and its real execution activates that map. This page is the release plan; [[runtime#Capture runtime]] records the implemented capture slice.
+V1 is an interpreter-only browser application where a small editable Python program constructs a xray map and its real execution activates that map. This page is the release plan; [[runtime#Capture runtime]] records the implemented capture slice.
 
-The visual contract comes from [[factory-world#Program-built factory world]], the layout candidates from [[layout#Block placement and connection routing]], and the semantic model from [[compilation#Shared compilation flow]] and [[execution#Interpreter and JIT execution#Adaptive execution]].
+The visual contract comes from [[xray-world#Program-built X-Ray world]], the layout candidates from [[layout#Block placement and connection routing]], and the semantic model from [[compilation#Shared compilation flow]] and [[execution#Interpreter and JIT execution#Adaptive execution]].
 
 ## User-visible completion target
 
@@ -26,7 +26,7 @@ Separate execution, graph extraction, layout, playback, and rendering so each st
 | Graph extraction | Map code objects and instructions into basic blocks and edges | Semantic graph with stable IDs and source mappings |
 | Placement and routing | Arrange measured components and connect named ports | Validated bounds, ports, paths, bridge annotations |
 | Playback | Apply events to state; restore snapshots for rewind | Deterministic scene-state model |
-| Renderer and UI | Render that state and accept user inspection/control | Interactive factory and explanatory panels |
+| Renderer and UI | Render that state and accept user inspection/control | Interactive xray and explanatory panels |
 
 Use TypeScript for the application and playback model, Three.js for the final scene, CPython compiled with Emscripten for execution, and native layout/routing algorithms exposed through WASM where feasible. Pin the exact dependency versions after the feasibility work. Adapt the local Glow assets for visual primitives and controls, without forcing the application/data model into a monolithic gallery HTML file.
 
@@ -36,7 +36,7 @@ Track build recipes, instrumentation patches, fixture programs, schemas, and sma
 
 ## Milestone 1 - Prove runtime capture and WASM
 
-Establish that the pinned CPython can run in a browser worker and expose the execution state the factory needs. Detailed observation is the primary technical risk, so test it before building the full scene.
+Establish that the pinned CPython can run in a browser worker and expose the execution state the xray needs. Detailed observation is the primary technical risk, so test it before building the full scene.
 
 First reproduce a minimal integer-add/function-call capture natively, where debugging is easier. Compile the same instrumented revision to WASM and run it through a minimal worker harness. Verify stdout, errors, fresh-run isolation, and cancellation by discarding/recreating the worker. Enforce execution budgets independently of catchable Python exceptions; configure and test a WASM memory bound appropriate to the runtime's baseline footprint.
 
@@ -50,7 +50,7 @@ Exit gate: the same small program produces consistent semantic results and coher
 
 ## Milestone 2 - Extract graphs and define replay
 
-Turn compiler artifacts and captured events into a stable model that can power both a diagnostic inspector and the final factory. Rewind restores recorded state rather than re-executing Python.
+Turn compiler artifacts and captured events into a stable model that can power both a diagnostic inspector and the final xray. Rewind restores recorded state rather than re-executing Python.
 
 Collect tokens, AST, symbol information, nested code objects, disassembly, constants/names, source positions, and exception metadata. Construct a runtime CFG from final bytecode boundaries and branch targets. Mark that CFG as derived from assembled bytecode; it is not the compiler's pre-assembly optimization graph. Defer exact compiler intermediate snapshots unless inexpensive hooks provide them faithfully.
 
@@ -82,9 +82,9 @@ Use the other supported programs to validate dynamic graph generation, not just 
 
 Exit gate: a user can change a condition or loop count and see the resulting graph/state/output without a hardcoded animation script. Unsupported code and resource limits produce actionable messages rather than broken scenes.
 
-## Milestone 5 - Render the factory in 3D
+## Milestone 5 - Render the xray in 3D
 
-Replace the schematic drawing with the planned factory world while retaining the same geometry and playback state. Rendering must not introduce another model of Python execution.
+Replace the schematic drawing with the planned xray world while retaining the same geometry and playback state. Rendering must not introduce another model of Python execution.
 
 Create a compact original kit: ground tiles, compiler/runtime machinery, code-object enclosures, basic-block structures, instruction strips, local slots, stacks, object displays, route segments, corners, and bridges. Use distinct forms for structures with distinct meanings. Keep detailed source/disassembly text screen-aligned and legible.
 

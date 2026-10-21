@@ -7,7 +7,7 @@ try{
  page.on('pageerror',e=>{if(!errors.length)console.log(e.stack);errors.push(e.message);});
  // Run the normal permit scheduler faster, without changing worker stepping.
  await page.addInitScript(()=>{const original=window.setTimeout;window.setTimeout=(fn,ms,...args)=>original(fn,ms===100?0:ms,...args);});
- await page.goto(process.env.FACTORY_URL||'http://127.0.0.1:8000');
+ await page.goto(process.env.XRAY_URL||'http://127.0.0.1:8000');
  async function compile(source){
   if(await page.locator('#editor-panel').isHidden())await page.locator('#toggle-editor').click();
   await page.locator('#source').fill(source);await page.locator('#run').click();
@@ -50,17 +50,17 @@ try{
  await compile('while True:\n pass');await page.locator('#play').click();
  await page.waitForFunction(()=>Number(document.querySelector('#seek').max)>2);
  assert.equal(await page.locator('#reset').isDisabled(),true);
- const tiles=await page.locator('#factory').getAttribute('data-opcode-tiles');
+ const tiles=await page.locator('#xray').getAttribute('data-opcode-tiles');
  await page.locator('#play').click();assert.equal(await page.locator('#reset').isEnabled(),true);
  await page.locator('#reset').click();await page.waitForTimeout(200);
  assert.equal(await page.locator('#reset').isDisabled(),true);
  assert.equal(await page.locator('#counter').textContent(),'0 steps');
  assert.equal(await page.locator('#reset').isVisible(),true);
- assert.equal(await page.locator('#factory').getAttribute('data-opcode-tiles'),tiles);
+ assert.equal(await page.locator('#xray').getAttribute('data-opcode-tiles'),tiles);
  assert.equal(await page.locator('#play').isEnabled(),true);
  assert.equal(await page.locator('.playback-buttons > button').first().getAttribute('id'),'reset');
  assert.equal(await page.locator('#message').textContent(),'');
- assert.equal(await page.locator('#factory').getAttribute('data-pipeline-columns'),'4');
+ assert.equal(await page.locator('#xray').getAttribute('data-pipeline-columns'),'4');
  assert.equal(await page.locator('#state').textContent(),'compiled');assert.equal(await page.locator('#seek').isDisabled(),true);
  assert.deepEqual(errors,[]);
  console.log('PASS unlimited live loop, bounded history, pause, opcode step, history back, resume, recompile, fresh execution, async, errors, reset');

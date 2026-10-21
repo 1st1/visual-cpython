@@ -1,4 +1,4 @@
-"""Build a disposable, pinned CPython with the factory observation module."""
+"""Build a disposable, pinned CPython with the xray observation module."""
 import argparse
 import io
 import shutil
@@ -14,7 +14,7 @@ ROOT = Path(__file__).resolve().parents[1]
 def build(jobs=8):
     revision = (ROOT / "runtime/revision.txt").read_text().strip()
     target = ROOT / ".build/native"
-    stamp = target / ".factory-revision"
+    stamp = target / ".xray-revision"
     if not stamp.exists():
         if target.exists() and any(target.iterdir()):
             raise SystemExit("Unstamped build directory; move it aside before building")
@@ -26,8 +26,8 @@ def build(jobs=8):
     if stamp.read_text().strip() != revision:
         raise SystemExit("Build revision differs; move .build/native aside")
     instrument(target)
-    shutil.copy2(ROOT / "runtime/probe.c", target / "Modules/_factory_probe.c")
-    (target / "Modules/Setup.local").write_text("*static*\n_factory_probe _factory_probe.c -DPy_BUILD_CORE\n")
+    shutil.copy2(ROOT / "runtime/probe.c", target / "Modules/_xray_probe.c")
+    (target / "Modules/Setup.local").write_text("*static*\n_xray_probe _xray_probe.c -DPy_BUILD_CORE\n")
     if not (target / "Makefile").exists():
         subprocess.run(["./configure", "--with-pydebug", "--without-ensurepip", "--enable-experimental-jit=no"], cwd=target, check=True)
     subprocess.run(["make", f"-j{jobs}"], cwd=target, check=True)

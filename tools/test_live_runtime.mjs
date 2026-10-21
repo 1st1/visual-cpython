@@ -8,8 +8,8 @@ const exited=new Promise(resolve=>{finish=resolve;}),lines=[],errors=[];
 const runtime=await createModule({
  noInitialRun:true,onExit:finish,print:line=>lines.push(line),
  printErr:line=>{
-  if(!line.startsWith('@factory-event:')){errors.push(line);return;}
-  const event=JSON.parse(line.slice(15));assert.equal(event.seq,lastSequence+1);lastSequence=event.seq;
+  if(!line.startsWith('@xray-event:')){errors.push(line);return;}
+  const event=JSON.parse(line.slice('@xray-event:'.length));assert.equal(event.seq,lastSequence+1);lastSequence=event.seq;
   events++;if(event.kind==='opcode')opcodes++;
  },
  preRun(m){
@@ -18,7 +18,7 @@ const runtime=await createModule({
   m.FS.writeFile('/program.py','def f(x):\n return x+1\nfor i in range(4500):\n n=f(i)\n print(n)');
   const device=m.FS.makedev(64,0);
   m.FS.registerDevice(device,{open(s){s.seekable=false;},async readAsync(s,b,p){b[p]=115;return 1;}});
-  m.FS.mkdev('/dev/factory-control',0o600,device);
+  m.FS.mkdev('/dev/xray-control',0o600,device);
  },
 });
 const immediate=runtime.callMain(['-I','/capture.py','/program.py','--live']);

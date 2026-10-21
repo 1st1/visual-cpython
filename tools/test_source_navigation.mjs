@@ -14,7 +14,7 @@ try{
  const page=await browser.newPage({viewport:{width:1600,height:1000},reducedMotion:'reduce'}),errors=[];
  page.on('pageerror',e=>errors.push(e.message));
  await page.addInitScript(()=>{const original=window.setTimeout;window.setTimeout=(fn,ms,...args)=>original(fn,ms===100?0:ms,...args);});
- await page.goto(process.env.FACTORY_URL||'http://127.0.0.1:8000');
+ await page.goto(process.env.XRAY_URL||'http://127.0.0.1:8000');
  if(await page.locator('#editor-panel').isHidden()) await page.locator('#toggle-editor').click();
  await page.locator('#source').fill('total=0\nfor i in range(3):\n total+=i\n\nprint(total)');await page.locator('#run').click();
  await page.waitForFunction(()=>!document.querySelector('#play').disabled,null,{timeout:60000});
@@ -25,20 +25,20 @@ try{
  assert.equal(await page.locator('#block-select, #focus-block, #visit-block, .opcode-heading button').count(),0);
  const line=page.locator('#source-view [data-line="3"]');
  await line.click();const first=Number(await page.locator('#seek').inputValue());
- assert.equal(await page.locator('#factory').getAttribute('data-active-source'),'3');
+ assert.equal(await page.locator('#xray').getAttribute('data-active-source'),'3');
  await line.click();assert.ok(Number(await page.locator('#seek').inputValue())>first,'Repeated line click advances to next visit, not next opcode');
  assert.equal(await page.locator('#source-view [data-line="4"]').isDisabled(),true);
  await page.locator('#seek').fill(await page.locator('#seek').getAttribute('max'));await page.locator('#seek').dispatchEvent('input');
  await line.click();assert.equal(Number(await page.locator('#seek').inputValue()),first,'Past the last visit wraps to first');
  await page.locator('#toggle-inspector').click();await page.locator('#camera-top').click();
  await page.waitForTimeout(350);
- const pose=JSON.parse(await page.locator('#factory').getAttribute('data-camera'));
- const pipeline=JSON.parse(await page.locator('#factory').getAttribute('data-pipeline'));
+ const pose=JSON.parse(await page.locator('#xray').getAttribute('data-camera'));
+ const pipeline=JSON.parse(await page.locator('#xray').getAttribute('data-pipeline'));
  const camera=new THREE.PerspectiveCamera(38,1.6,.1,2000);camera.position.fromArray(pose);camera.quaternion.fromArray(pose,3);camera.zoom=pose[10];camera.updateProjectionMatrix();camera.updateMatrixWorld();
  const point=new THREE.Vector3(pipeline.source+.05,.31,-(5*1.15+1.6)/2+1.2+2*1.15).project(camera);
  await page.mouse.click((point.x+1)*800,(1-point.y)*500);
  assert.ok(Number(await page.locator('#seek').inputValue())>first,'3D source tile uses the same next-visit navigation');
- assert.equal(await page.locator('#factory').getAttribute('data-active-source'),'3');
+ assert.equal(await page.locator('#xray').getAttribute('data-active-source'),'3');
  assert.deepEqual(errors,[]);
  console.log('PASS line visit boundaries, wraparound, Inspector line clicks, disabled unexecuted lines, 3D source raycast');
 }finally{await browser.close();}
