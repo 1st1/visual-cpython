@@ -164,7 +164,7 @@ button[aria-pressed=true]{background:#30206a;color:#65d4df;border-color:#7960aa}
 
 /* Keep UI scrolling available, but route zoom exclusively to the scene. */
 html,body{touch-action:pan-x pan-y}
-.mobile-device select,.mobile-device .source-editor #source,.mobile-device .source-editor #source-highlight{font-size:16px}
+.mobile-device .source-editor #source,.mobile-device .source-editor #source-highlight{font-size:16px}
 
 .mobile-device .program-toolbar{top:max(8px,env(safe-area-inset-top));left:max(8px,env(safe-area-inset-left));gap:5px}
 .mobile-device .minimap,.mobile-device #editor-panel{top:var(--program-toolbar-bottom,54px)}
