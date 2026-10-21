@@ -8,7 +8,7 @@ await mkdir('artifacts',{recursive:true});
 async function capture(source,execute=true) {
   if(await page.locator('#editor-panel').isHidden()) await page.locator('#toggle-editor').click();
   if(await page.locator('#inspector-panel').isVisible()) await page.locator('#toggle-inspector').click();
-  await page.locator('#source').fill(source);
+  await page.locator('.cm-content').fill(source);
   await page.waitForTimeout(250);
   await page.evaluate(()=>new Promise(resolve=>{
     let previous=null;
@@ -57,9 +57,7 @@ try {
   assert.equal(viewport.width,1600);assert.equal(viewport.height,1100);
   assert.equal(await page.locator('#xray').getAttribute('data-source-tiles'),'7');
   assert.equal(await page.locator('#xray').getAttribute('data-pipeline-columns'),'1','Source preview only renders its own stage');
-  assert.equal(await page.locator('#source-highlight').textContent(),await page.locator('#source').inputValue()+'\n');
-  assert.ok(await page.locator('#source-highlight .syntax-keyword').count()>0);
-  assert.ok(await page.locator('#source-highlight .syntax-number').count()>0);
+  assert.ok(await page.locator('.cm-content span').count()>0);
   assert.equal(await page.locator('.starfield canvas').count(),0);
   assert.equal(await page.locator('.starfield').getAttribute('data-renderer'),'webgl');
   assert.equal(await page.locator('.starfield').getAttribute('data-star-count'),'36000');
@@ -72,7 +70,7 @@ try {
   assert.equal(await page.locator('.starfield').getAttribute('data-time'),still);
   await page.emulateMedia({reducedMotion:'no-preference'});
   if(await page.locator('#editor-panel').isHidden()) await page.locator('#toggle-editor').click();
-  await page.locator('#source').fill('# comment\n\nx=1');
+  await page.locator('.cm-content').fill('# comment\n\nx=1');
   await page.waitForFunction(()=>document.querySelector('#xray').dataset.sourceTiles==='3');
   await page.locator('#toggle-editor').click();
   assert.equal(await page.locator('#editor-panel').isHidden(),true);
@@ -287,7 +285,7 @@ try {
   await page.waitForFunction(()=>document.querySelector('#xray').hidden);
   assert.equal(await page.locator('#map').isVisible(),true);
   if(await page.locator('#editor-panel').isHidden()) await page.locator('#toggle-editor').click();
-  await page.locator('#source').fill('print(7)'); await page.locator('#run').click();
+  await page.locator('.cm-content').fill('print(7)'); await page.locator('#run').click();
   await page.waitForFunction(()=>/Graphviz/.test(document.querySelector('#map-status').textContent),null,{timeout:60000});
   assert.ok(await page.locator('#map .node').count()>0);
   console.log('PASS WebGL unavailable: schematic and capture remain usable');

@@ -81,8 +81,9 @@ real token requests, PEG checkpoints, and AST constructors. Opcode tracing
 perturbs specialization, so this is not an uninstrumented performance trace.
 Coroutine suspensions and resumptions retain activation identity. The selected
 asyncio API supports cooperative tasks and timers, without socket or thread I/O.
-Other imports, private attributes, classes, generators, and dynamic code are
-restricted. Live history retains the latest 2,000 events without imposing a total
+Public standard-library imports such as time, math, json, and collections are
+available when supported by the bundled WASM runtime. Third-party imports,
+private attributes, classes, generators, and dynamic code remain restricted. Live history retains the latest 2,000 events without imposing a total
 execution-event limit.
 
 Use **Compile** to build source, token, AST, and opcode views without executing
@@ -100,3 +101,7 @@ toolbars at the top. Mouse/trackpad choices are hidden on mobile devices.
 Live stepping uses WebAssembly JSPI where available, or a shared-memory worker gate on Safari and other browsers without JSPI. Serve with the configured Vite preview or Vercel headers: `Cross-Origin-Opener-Policy: same-origin`, `Cross-Origin-Embedder-Policy: require-corp`, and `Cross-Origin-Resource-Policy: same-origin`. A plain static server without these headers cannot provide the Safari fallback.
 
 For the Safari-engine regression test, install WebKit with `npx playwright install webkit`, then run `npm run test:safari` against the running app. `XRAY_URL` can point it at a production preview.
+
+Custom programs support up to 256 Python tokens and 16 KiB of source. Edit uses
+CodeMirror with Tab indentation and inline compilation errors. Share opens a
+copyable gzip/base64url link; opening it previews the source without running it.

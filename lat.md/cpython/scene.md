@@ -136,9 +136,9 @@ The example selector includes concurrent odd and even number tasks, demonstratin
 
 ## Python syntax highlighting
 
-The editor, source inspector, and 3D source tiles share a lightweight Python presentation lexer. Keywords, builtins, strings, numbers, comments, and operators receive consistent colors distinct from execution highlighting.
+CodeMirror provides Python editing, while source inspection and 3D tiles use a lightweight presentation lexer. Keywords, builtins, strings, numbers, comments, and operators receive consistent colors distinct from execution highlighting.
 
-[web/python-syntax.mjs](../../web/python-syntax.mjs) preserves source text and handles multiline strings across source tiles. It is a display lexer rather than a Python parser; string interpolation is colored as a string. The editor uses a scroll-synchronized highlighted layer behind its native textarea, preserving ordinary editing and accessible text input. DOM highlighting uses textContent rather than HTML interpolation.
+[web/python-syntax.mjs](../../web/python-syntax.mjs) preserves source text and handles multiline strings across source tiles. It is a display lexer rather than a Python parser; string interpolation is colored as a string. [web/editor.mjs](../../web/editor.mjs) embeds CodeMirror with Python syntax, line numbers, undo/redo, four-space Tab indentation, Shift-Tab outdent, and inline compilation diagnostics. Edits exceeding 16 KiB are rejected with a message, while compilation and sharing enforce the 256-token limit. Escape closes the popup; changes still autosave on close. DOM highlighting uses textContent rather than HTML interpolation.
 
 ## Shared distance-field text
 

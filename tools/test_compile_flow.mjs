@@ -5,7 +5,7 @@ try{
  const page=await browser.newPage();
  await page.goto(process.env.XRAY_URL||'http://127.0.0.1:8000');
  await page.locator('#toggle-editor').click();
- await page.locator('#source').fill('print(7)\nwhile True:\n pass');await page.locator('#run').click();
+ await page.locator('.cm-content').fill('print(7)\nwhile True:\n pass');await page.locator('#run').click();
  await page.waitForFunction(()=>!document.querySelector('#play').disabled,null,{timeout:60000});
  assert.equal(await page.locator('#state').textContent(),'compiled');
  assert.equal(await page.locator('#stdout').textContent(),'');
@@ -16,7 +16,7 @@ try{
  assert.equal(await page.locator('#state').textContent(),'Ready');
  assert.equal(await page.locator('#play').isDisabled(),true);
  assert.equal(await page.locator('#xray').getAttribute('data-pipeline-columns'),'1');
- await page.locator('#source').fill('if');await page.locator('#run').click();
+ await page.locator('.cm-content').fill('if');await page.locator('#run').click();
  await page.waitForFunction(()=>!document.querySelector('#run').disabled);
  assert.equal(await page.locator('#state').textContent(),'error');assert.equal(await page.locator('#play').isDisabled(),true);
  console.log('PASS compile-only infinite loop, explicit Run, reset during execution, stale source, syntax error');

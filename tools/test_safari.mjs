@@ -36,7 +36,7 @@ try{
  assert.equal(await page.title(),'CPython X-Ray');
  async function compile(source){
   if(await page.locator('#editor-panel').isHidden())await page.locator('#toggle-editor').click();
-  await page.locator('#source').fill(source);await page.locator('#run').click();
+  await page.locator('.cm-content').fill(source);await page.locator('#run').click();
   await page.waitForFunction(()=>!document.querySelector('#play').disabled,null,{timeout:60000});
   await page.locator('#close-editor').click();
  }

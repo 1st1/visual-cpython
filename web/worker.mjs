@@ -61,7 +61,8 @@ self.onmessage = async ({ data }) => {
     // CPython wraps main with WebAssembly.promising on JSPI-capable browsers.
     // callMain then returns undefined; onExit carries the actual completion.
     const args=["-I", "/capture.py", "/program.py"];
-    if(data.mode==="compile")args.push("--compile-only");
+    if(data.mode==="validate")args.push("--validate-only");
+    else if(data.mode==="compile")args.push("--compile-only");
     else args.push("--live");
     const immediate = runtime.callMain(args);
     const exitCode = Number.isInteger(immediate) ? immediate : await exited;

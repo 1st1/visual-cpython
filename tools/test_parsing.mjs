@@ -11,7 +11,7 @@ try {
   await page.goto(process.env.XRAY_URL || 'http://127.0.0.1:8000');
   async function capture(source) {
     if(await page.locator('#editor-panel').isHidden()) await page.locator('#toggle-editor').click();
-    await page.locator('#source').fill(source);await page.locator('#run').click();
+    await page.locator('.cm-content').fill(source);await page.locator('#run').click();
     await page.waitForFunction(()=>!document.querySelector('#run').disabled,null,{timeout:60000});
     await page.waitForFunction(()=>/Graphviz|No compiled/.test(document.querySelector('#map-status').textContent));
   }

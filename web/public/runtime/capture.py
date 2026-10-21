@@ -31,9 +31,11 @@ BUILTINS = {name: getattr(builtins, name) for name in ("print", "range", "len", 
 
 
 def import_module(name, globals=None, locals=None, fromlist=(), level=0):
-    if name != "asyncio" or level:
-        raise ImportError("Only asyncio imports are supported")
+    if level or name.split(".")[0] not in sys.stdlib_module_names or name.startswith("_"):
+        raise ImportError("Only public Python standard-library imports are supported")
     module = builtins.__import__(name, globals, locals, fromlist, level)
+    if name != "asyncio":
+        return module
     # The worker has no sockets/threads to wake the loop. Keep real asyncio
     # Tasks, Futures and timer scheduling, without the socketpair self-pipe.
     class WorkerLoop(module.SelectorEventLoop):
@@ -231,7 +233,7 @@ class Observer:
         return self.trace
 
 
-def capture(source, max_events=2000, progress=False, compile_only=False, live=False):
+def capture(source, max_events=2000, progress=False, compile_only=False, live=False, validate_only=False):
     if not 1 <= max_events <= 10000:
         raise ValueError("max_events must be between 1 and 10000")
     observer = Observer(max_events, progress, live)
@@ -243,13 +245,18 @@ def capture(source, max_events=2000, progress=False, compile_only=False, live=Fa
             raise ValueError("source exceeds 16 KiB")
         ignored = {tokenize.ENCODING, tokenize.ENDMARKER, tokenize.COMMENT, tokenize.NL,
                    tokenize.NEWLINE, tokenize.INDENT, tokenize.DEDENT}
+        tokens = []
         try:
-            tokens = list(tokenize.generate_tokens(io.StringIO(source).readline))
+            for item in tokenize.generate_tokens(io.StringIO(source).readline):
+                tokens.append(item)
         except (tokenize.TokenError, IndentationError):
             # Let the real parser produce its diagnostic and observable failure.
-            tokens = []
-        if sum(t.type not in ignored for t in tokens) > 200:
-            raise ValueError("source exceeds 200 Python tokens")
+            pass
+        token_count = sum(t.type not in ignored for t in tokens)
+        if token_count > 256:
+            raise ValueError("source exceeds 256 Python tokens")
+        if validate_only:
+            return {"status": "validated", "tokens": token_count}
         from _xray_probe import parse_begin, parse_end, ast_id
         parse_begin()
         try:
@@ -278,21 +285,28 @@ def capture(source, max_events=2000, progress=False, compile_only=False, live=Fa
             if event["kind"] == 3:
                 event["node"] = retained.get(seq)
                 event["retained"] = seq in retained
+        def reject(node, message):
+            error = ValueError(message)
+            error.lineno = getattr(node, "lineno", None)
+            if error.lineno:
+                line = source.splitlines()[error.lineno - 1]
+                error.offset = len(line.encode("utf-8")[:node.col_offset].decode("utf-8")) + 1
+            raise error
         for node in ast.walk(tree):
             if type(node).__name__ not in ALLOWED:
-                raise ValueError(f"unsupported construct: {type(node).__name__}")
+                reject(node, f"unsupported construct: {type(node).__name__}")
             if isinstance(node, ast.Name) and node.id.startswith("__"):
-                raise ValueError("dunder names are not supported")
-            if isinstance(node, ast.Import) and any(alias.name != "asyncio" for alias in node.names):
-                raise ValueError("Only asyncio imports are supported")
-            if isinstance(node, ast.ImportFrom) and (node.module != "asyncio" or node.level or any(alias.name.startswith("_") for alias in node.names)):
-                raise ValueError("Only public asyncio imports are supported")
+                reject(node, "dunder names are not supported")
+            if isinstance(node, ast.Import) and any(alias.name.split(".")[0] not in sys.stdlib_module_names or alias.name.startswith("_") for alias in node.names):
+                reject(node, "Only public Python standard-library imports are supported")
+            if isinstance(node, ast.ImportFrom) and (node.level or not node.module or node.module.split(".")[0] not in sys.stdlib_module_names or node.module.startswith("_") or any(alias.name.startswith("_") for alias in node.names)):
+                reject(node, "Only public Python standard-library imports are supported")
             if isinstance(node, ast.Attribute) and node.attr.startswith("_"):
-                raise ValueError("private attributes are not supported")
+                reject(node, "private attributes are not supported")
             if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)) and (node.decorator_list or node.returns):
-                raise ValueError("decorators and annotations are not supported")
+                reject(node, "decorators and annotations are not supported")
             if isinstance(node, ast.arg) and node.annotation:
-                raise ValueError("annotations are not supported")
+                reject(node, "annotations are not supported")
         code = compile(tree, FILENAME, "exec")
         observer.code(code)
         if compile_only:
@@ -310,9 +324,11 @@ def capture(source, max_events=2000, progress=False, compile_only=False, live=Fa
         result.update(status="limited", error=str(exc))
     except Exception as exc:
         result.update(status="error", error=f"{type(exc).__name__}: {exc}")
+        if getattr(exc, "lineno", None):
+            result["error_location"] = {"line": exc.lineno, "column": getattr(exc, "offset", 1) or 1}
     result["stdout"] = observer.output.getvalue()
     result["stderr"] = observer.stderr.getvalue()
-    if result.get("error"):
+    if result.get("error") and not compile_only:
         result["stderr"] = (result["stderr"] + result["error"] + "\n")[-4096:]
     # Release retained frames/objects after serialization; never keep them between runs.
     observer.frames.clear()
@@ -323,4 +339,4 @@ def capture(source, max_events=2000, progress=False, compile_only=False, live=Fa
 
 if __name__ == "__main__":
     source = Path(sys.argv[1]).read_text() if len(sys.argv) > 1 else sys.stdin.read(16385)
-    print(json.dumps(capture(source, progress="--progress" in sys.argv[2:], compile_only="--compile-only" in sys.argv[2:], live="--live" in sys.argv[2:]), ensure_ascii=True))
+    print(json.dumps(capture(source, progress="--progress" in sys.argv[2:], compile_only="--compile-only" in sys.argv[2:], live="--live" in sys.argv[2:], validate_only="--validate-only" in sys.argv[2:]), ensure_ascii=True))

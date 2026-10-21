@@ -34,9 +34,6 @@ button[aria-pressed=true]{background:#8ebeff20;color:#d0eaff;border-color:#b0dff
 #parse-seek{accent-color:var(--accent)}
 
 .source-editor{position:relative;height:230px;overflow:hidden;border:1px solid #b4c9fa30;border-radius:5px;background:#090f234f}
-.source-editor #source,.source-editor #source-highlight{position:absolute;inset:0;width:100%;height:100%;margin:0;border:0;padding:10px;font:14px/1.7 ui-monospace,SFMono-Regular,Consolas,monospace;letter-spacing:normal;tab-size:4;white-space:pre;overflow-wrap:normal;max-height:none;border-radius:0}
-.source-editor #source{resize:none;background:transparent;color:transparent;caret-color:#edf0f5;-webkit-text-fill-color:transparent;z-index:1}.source-editor #source::selection{background:#8fb8ff40}
-.source-editor #source-highlight{pointer-events:none;overflow:hidden;background:transparent}
 .syntax-keyword{color:#cfacff}.syntax-string{color:#f1ca9d}.syntax-number{color:#8bded2}.syntax-comment{color:#8394ae}.syntax-builtin{color:#8ecfff}.syntax-operator{color:#b4c2de}.syntax-plain{color:#e2eaff}
 
 .starfield{position:absolute;inset:0;pointer-events:none;overflow:hidden;background:radial-gradient(ellipse at 47% 43%,#bc358c38,transparent 43%),radial-gradient(ellipse at 24% 38%,#75509038,transparent 48%),radial-gradient(ellipse at 57% 52%,#456ca536,transparent 48%),radial-gradient(ellipse at 72% 66%,#724e8530,transparent 44%)}.starfield canvas{width:100%;height:100%}.xray>canvas{position:relative}.xray:has(.starfield){background-image:none}
@@ -170,7 +167,7 @@ button[aria-pressed=true]{background:#30206a;color:#65d4df;border-color:#7960aa}
 
 /* Keep UI scrolling available, but route zoom exclusively to the scene. */
 html,body{touch-action:pan-x pan-y}
-.mobile-device .source-editor #source,.mobile-device .source-editor #source-highlight{font-size:16px}
+.mobile-device .source-editor .cm-editor{font-size:16px}
 
 .mobile-device{--hosting-clearance:52px}
 .mobile-device .program-toolbar{top:max(8px,env(safe-area-inset-top));left:max(8px,env(safe-area-inset-left));gap:5px}
@@ -203,3 +200,16 @@ html,body{touch-action:pan-x pan-y}
 
 @media(max-width:900px){:root:not(.mobile-device) .hosting-banner{right:8px;bottom:8px}}
 @media(max-width:380px){.navigation-controls{bottom:54px}}
+
+#share-dialog{width:min(480px,calc(100% - 32px));padding:20px;border:1px solid var(--control-outline);border-radius:10px;background:#171729;color:#edf0f5;box-shadow:0 20px 80px #0008}
+#share-dialog::backdrop{background:#05071299;backdrop-filter:blur(4px)}
+#share-dialog .editor-heading h2{font-size:18px}
+#share-dialog label{margin:16px 0 10px;line-height:1.6}
+#share-url{width:100%;min-width:0;padding:10px;font:12px ui-monospace,SFMono-Regular,Consolas,monospace;color:inherit;background:#0d1020;border:1px solid var(--control-outline);border-radius:5px}
+#share-dialog .buttons{margin:12px 0}
+#share-status{font-size:12px;line-height:1.6;color:var(--muted);margin:0}
+.mobile-device #share-url{font-size:16px}
+
+#editor-error{margin:0 0 12px;padding:10px;border-left:2px solid #ee5788;background:#c923591a;color:#ffb3cb;font-size:12px;line-height:1.6;white-space:pre-wrap;overflow-wrap:anywhere}
+
+.source-editor .cm-editor{height:100%}

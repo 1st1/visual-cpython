@@ -16,7 +16,7 @@ try{
  await page.addInitScript(()=>{const original=window.setTimeout;window.setTimeout=(fn,ms,...args)=>original(fn,ms===100?0:ms,...args);});
  await page.goto(process.env.XRAY_URL||'http://127.0.0.1:8000');
  if(await page.locator('#editor-panel').isHidden()) await page.locator('#toggle-editor').click();
- await page.locator('#source').fill('total=0\nfor i in range(3):\n total+=i\n\nprint(total)');await page.locator('#run').click();
+ await page.locator('.cm-content').fill('total=0\nfor i in range(3):\n total+=i\n\nprint(total)');await page.locator('#run').click();
  await page.waitForFunction(()=>!document.querySelector('#play').disabled,null,{timeout:60000});
  await page.locator('#play').click();await page.waitForFunction(()=>document.querySelector('#state').textContent==='completed',null,{timeout:60000});
  await page.locator('#seek').fill('0');await page.locator('#seek').dispatchEvent('input');

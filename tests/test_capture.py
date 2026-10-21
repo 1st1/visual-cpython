@@ -103,6 +103,18 @@ class CaptureTests(unittest.TestCase):
         offsets = [e["offset"] for e in result["events"] if e["kind"] == "opcode"]
         self.assertGreater(len(offsets), len(set(offsets)))
 
+    # @lat: [[runtime#Capture runtime#Shared program limits]]
+    def test_shared_program_limits(self):
+        source = "x=1\n" * 85 + "pass\n"
+        result = capture(source, validate_only=True)
+        self.assertEqual(result, {"status": "validated", "tokens": 256})
+        self.assertEqual(capture(source, compile_only=True)["status"], "compiled")
+        for suffix in ("pass\n", "pass\n("):
+            for options in ({"validate_only": True}, {"compile_only": True}):
+                self.assertIn("256 Python tokens", capture(source + suffix, **options)["error"])
+        self.assertIn("16 KiB", capture("#" * 16385, validate_only=True)["error"])
+        self.assertEqual(capture("while True: pass", validate_only=True)["status"], "validated")
+
     def test_errors_are_not_successful_returns(self):
         result = capture("def f(x):\n    return 1 / x\nprint(7)\nf(0)")
         self.assertEqual(result["status"], "error")
@@ -135,8 +147,20 @@ class CaptureTests(unittest.TestCase):
         self.assertEqual(len(set(e["frame"] for e in suspended)), 1)
         self.assertIsNone(sys.gettrace())
 
+    def test_standard_library_and_diagnostics(self):
+        source = 'import time, math, json, sys\nfrom collections import Counter\ntime.sleep(.001)\nprint(math.sqrt(9), json.dumps([1]), Counter("aba")["a"])\nprint("err", file=sys.stderr)'
+        result = capture(source)
+        self.assertEqual(result["status"], "completed", result.get("error"))
+        self.assertEqual(result["stdout"], "3.0 [1] 2\n")
+        self.assertEqual(result["stderr"], "err\n")
+        for source in ("if", "import third_party_module", "x=1\nprint.__class__"):
+            result = capture(source, compile_only=True)
+            self.assertEqual(result["status"], "error")
+            self.assertGreater(result["error_location"]["line"], 0)
+            self.assertEqual(result["stderr"], "")
+
     def test_input_validation(self):
-        for source in ("import os", "print.__class__", "x=0\n" * 70, "#" * 17000):
+        for source in ("import third_party_module", "print.__class__", "x=0\n" * 86, "#" * 17000):
             self.assertEqual(capture(source)["status"], "error")
 
     def test_null_is_not_python_none(self):

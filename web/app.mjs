@@ -1,3 +1,6 @@
+import {createRuntimeWorker} from './runtime-worker.mjs';
+import {createSourceEditor} from './editor.mjs';
+import {encodeProgram,decodeProgram,validateProgram} from './sharing.mjs';
 import {isMobileNavigationDevice,preventPageZoom} from './navigation.mjs';
 import {sourceVisits,nextSourceVisit} from './source-navigation.mjs';
 import {paintPython} from './python-syntax.mjs';
@@ -24,10 +27,15 @@ const HISTORY_LIMIT=2000;
 let operation=null,runAfterLayout=false;
 const windowAspect=()=>window.innerWidth/Math.max(1,window.innerHeight);
 $('source').value = examples.accumulate;
+const sourceEditor=createSourceEditor($('code-editor'),$('source'),()=>{
+  $('editor-error').textContent='Source exceeds 16 KiB. Shorten the program before adding more code.';
+  $('editor-error').hidden=false;
+});
 let exampleRequest=0;
 let appliedSource=$('source').value;
 $('example').onchange = async () => {
   const request=++exampleRequest, name=$('example').value;
+  $('share-program').hidden=name!=='custom';
   if(name==='custom')return;
   const applyExample=source=>{ $('source').value=source;resetProgram();previewSource();xray?.view(); };
   const file={shortest:new URL('./programs/shortest_path.py',import.meta.url),asyncio:new URL('./programs/asyncio_numbers.py',import.meta.url)}[name];
@@ -80,6 +88,7 @@ function startOperation(mode) {
   stopPlayback();stopWorker();runAfterLayout=false;
   layoutWorker?.terminate();clearTimeout(layoutTimer);layoutWorker=null;
   if(mode==='compile'){
+    clearEditorError();
     appliedSource=source;
     lastLayout=null;graph=null;mapStates=[];selectedBlock=null;recording=null;
     $('map').replaceChildren();
@@ -97,7 +106,7 @@ function startOperation(mode) {
   $('state').textContent='Loading WASM';
   xray?.starfield?.setCapturing(true);
   render();
-  worker=new Worker(new URL('./worker.mjs',import.meta.url),{type:'module'});
+  worker=createRuntimeWorker();
   const runGeneration=generation;
   timer=setTimeout(()=>fail('Runtime loading exceeded 60 seconds.'),60000);
   worker.onerror=e=>{if(generation===runGeneration)fail(e.message);};
@@ -125,6 +134,7 @@ function startOperation(mode) {
       $('provenance').textContent=`CPython ${recording.provenance.python.split(' ')[0]} · ${recording.provenance.revision.slice(0,8)}`;
       if(!recording.codes.length)xray?.load(null,null,[],recording.source,recording.parsing,mode!=='compile');
       render();buildMap(false,mode==='run');
+      if(recording.error&&recording.source===$('source').value)showCompileError(recording);
     }else if(data.type==='error')fail(data.message);
   };
   if(mode==='run'&&!WebAssembly.Suspending&&globalThis.crossOriginIsolated&&typeof SharedArrayBuffer!=='undefined')
@@ -170,6 +180,7 @@ function seekSourceLine(line){
 }
 function move(value) { selectedBlock=null; index = Math.max(0, Math.min(recording.events.length, value)); render(); }
 function resetProgram(){
+  clearEditorError();
   appliedSource=$('source').value;
   stopPlayback();stopWorker();runAfterLayout=false;
   layoutWorker?.terminate();layoutWorker=null;clearTimeout(layoutTimer);clearTimeout(previewTimer);
@@ -359,16 +370,16 @@ function seekInstruction(blockId,offset) {
   const visit=visits.find(e=>e.seq>index)??visits[0];
   if(visit) { stopPlayback(); move(visit.seq); }
 }
-function previewSource() { paintPython($('source-highlight'),$('source').value+'\n'); if(!recording&&!worker) xray?.load(null,null,[],$('source').value,null,true); }
+function previewSource() { sourceEditor.sync(); if(!recording&&!worker) xray?.load(null,null,[],$('source').value,null,true); }
 let previewTimer;
-$('source').addEventListener('input',()=>{ ++exampleRequest;$('example').value='custom';$('run').disabled=operation==='compile'; paintPython($('source-highlight'),$('source').value+'\n'); if(recording)render(); clearTimeout(previewTimer); previewTimer=setTimeout(previewSource,180); });
+$('source').addEventListener('input',()=>{ clearEditorError();++exampleRequest;$('example').value='custom';$('share-program').hidden=false;$('run').disabled=operation==='compile'; sourceEditor.sync(); if(recording)render(); clearTimeout(previewTimer); previewTimer=setTimeout(previewSource,180); });
 function setEditorOpen(open) {
   if(!open&&!$('editor-panel').hidden&&$('source').value!==appliedSource){
     resetProgram();previewSource();
   }
   $('editor-panel').hidden=!open;
   $('toggle-editor').setAttribute('aria-expanded',String(open));
-  if(open)$('source').focus();else $('toggle-editor').focus();
+  if(open)sourceEditor.focus();else $('toggle-editor').focus();
 }
 $('toggle-editor').onclick=()=>setEditorOpen($('editor-panel').hidden);
 $('close-editor').onclick=()=>setEditorOpen(false);
@@ -419,5 +430,57 @@ function showExecution() {
 }
 
 
-$('source').addEventListener('scroll',()=>{ $('source-highlight').scrollTop=$('source').scrollTop; $('source-highlight').scrollLeft=$('source').scrollLeft; });
-paintPython($('source-highlight'),$('source').value+'\n');
+
+sourceEditor.sync();
+
+let shareValidation;
+$('close-share').onclick=()=>$('share-dialog').close();
+$('share-dialog').addEventListener('close',()=>shareValidation?.abort());
+$('share-url').onclick=()=>$('share-url').select();
+$('share-program').onclick=async()=>{
+  setEditorOpen(false);
+  shareValidation?.abort();const controller=new AbortController();shareValidation=controller;
+  const source=$('source').value;
+  $('share-url').value='';$('copy-share').disabled=true;$('copy-share').textContent='Copy link';
+  $('share-status').textContent='Preparing link…';$('share-dialog').showModal();
+  try{
+    await validateProgram(source,controller.signal);
+    const encoded=await encodeProgram(source);
+    if(controller.signal.aborted)return;
+    const url=new URL(location.href);url.hash=`code=${encoded}`;
+    $('share-url').value=url.href;$('copy-share').disabled=false;
+    $('share-status').textContent='Anyone with this link can view your code.';
+    $('share-url').focus();$('share-url').select();
+  }catch(error){if(!controller.signal.aborted)$('share-status').textContent=error.message;}
+};
+$('copy-share').onclick=async()=>{
+  try{await navigator.clipboard.writeText($('share-url').value);$('copy-share').textContent='Copied';}
+  catch{$('share-url').focus();$('share-url').select();$('share-status').textContent='Select and copy the link above.';}
+};
+let sharedLoad;
+async function loadSharedProgram(){
+  sharedLoad?.abort();
+  const encoded=new URLSearchParams(location.hash.slice(1)).get('code');
+  if(encoded===null)return;
+  const controller=new AbortController();sharedLoad=controller;
+  const request=++exampleRequest;
+  try{
+    const source=await decodeProgram(encoded);
+    await validateProgram(source,controller.signal);
+    if(controller.signal.aborted||request!==exampleRequest)return;
+    $('source').value=source;$('example').value='custom';$('share-program').hidden=false;
+    resetProgram();previewSource();xray?.view();
+  }catch(error){if(!controller.signal.aborted&&request===exampleRequest)$('message').textContent=error.message;}
+}
+window.addEventListener('hashchange',loadSharedProgram);
+loadSharedProgram();
+
+function clearEditorError(){
+  $('editor-error').hidden=true;$('editor-error').textContent='';sourceEditor.clearError();
+}
+function showCompileError(result){
+  setEditorOpen(true);
+  const line=result.error_location?.line;
+  $('editor-error').textContent=(line?`Line ${line}: `:'')+result.error;
+  $('editor-error').hidden=false;sourceEditor.showError(result);
+}

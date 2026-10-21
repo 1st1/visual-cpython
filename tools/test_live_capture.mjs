@@ -8,7 +8,7 @@ try {
   await page.goto(process.env.XRAY_URL || 'http://127.0.0.1:8000');
   await page.waitForFunction(()=>document.querySelector('#xray').dataset.rendered==='true');
   if(await page.locator('#editor-panel').isHidden()) await page.locator('#toggle-editor').click();
-  await page.locator('#source').fill('import asyncio\nasync def main():\n    print(1)\n    await asyncio.sleep(1)\n    print(2)\n    await asyncio.sleep(1)\nasyncio.run(main())');
+  await page.locator('.cm-content').fill('import asyncio\nasync def main():\n    print(1)\n    await asyncio.sleep(1)\n    print(2)\n    await asyncio.sleep(1)\nasyncio.run(main())');
   await page.waitForTimeout(300);
   await page.locator('#run').click();
   await page.waitForFunction(()=>!document.querySelector('#play').disabled,null,{timeout:60000});
