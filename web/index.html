@@ -12,6 +12,17 @@
   <div class="share-link-row"><input id="share-url" type="text" readonly spellcheck="false" aria-label="Share URL"><button id="copy-share" disabled>Copy link</button></div>
   <p id="share-status" role="status"></p>
 </dialog>
+<dialog id="about-dialog" aria-labelledby="about-title">
+  <div class="editor-heading"><h2 id="about-title">About CPython X-Ray</h2><button id="close-about" aria-label="Close About">×</button></div>
+  <ul>
+    <li><strong>Real CPython, in your browser.</strong> A WebAssembly build runs Python locally in a worker.</li>
+    <li><strong>Compilation made visible.</strong> Explore source, tokens, the syntax tree, and bytecode side by side.</li>
+    <li><strong>Live opcode stepping.</strong> Pause the interpreter between instructions, or revisit recent execution history.</li>
+    <li><strong>A navigable 3D scene.</strong> Three.js renders the program, with Graphviz helping lay out its control flow.</li>
+    <li><strong>Inspect the actual runtime.</strong> See frames, locals, the operand stack, and standard output and errors.</li>
+  </ul>
+  <a href="/lat.md/" target="_blank" rel="noopener noreferrer">Explore the architecture and implementation ↗</a>
+</dialog>
 <main>
   <div class="program-toolbar" role="group" aria-label="Program controls">
     <button id="toggle-minimap" aria-label="Toggle minimap" title="Toggle minimap" aria-pressed="true" aria-controls="pipeline-minimap"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m3 5 6-2 6 2 6-2v16l-6 2-6-2-6 2Z M9 3v16M15 5v16"/></svg></button>
@@ -44,6 +55,7 @@
       </div>
       <button id="next" disabled aria-label="Step forward" title="Step forward"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M19 5v14M5 5l10 7-10 7Z"/></svg></button>
       <button id="toggle-inspector" aria-expanded="false" aria-controls="inspector-panel" aria-label="Inspector" title="Inspector"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M14 3v18M17 8h1M17 12h1M17 16h1"/></svg><span>Inspector</span></button>
+      <button id="show-about" aria-haspopup="dialog" aria-controls="about-dialog">About</button>
     </div>
     <input id="seek" type="range" min="0" max="0" value="0" disabled aria-label="Execution event">
     <div id="counter" hidden>0 steps</div>

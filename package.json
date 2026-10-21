@@ -4,6 +4,7 @@
   "type": "module",
   "scripts": {
     "dev": "node tools/check_runtime.mjs && vite",
+    "build:docs": "node tools/build_docs.mjs",
     "build": "node tools/check_runtime.mjs && vite build",
     "preview": "vite preview",
     "check:runtime": "node tools/check_runtime.mjs",

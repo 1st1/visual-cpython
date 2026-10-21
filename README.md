@@ -55,7 +55,7 @@ records the CPython revision and content hash; frontend builds reject stale
 capture scripts or mismatched artifacts.
 
 Full build details and rebuild boundaries are in
-[Lat's runtime documentation](lat.md/cpython/runtime.md#build-pipeline).
+[Lat's runtime documentation](lat.md/runtime.md#build-pipeline).
 
 ## Validate
 

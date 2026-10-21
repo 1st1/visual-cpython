@@ -82,7 +82,7 @@ document.querySelector('.playback-run-slot').addEventListener('click',()=>{
 });
 $('run').onclick=()=>{hideCompileHint();startOperation('compile');};
 document.addEventListener('keydown',event=>{
-  if(event.key!=='Enter'||!(event.metaKey||event.ctrlKey)||event.altKey||event.isComposing||$('share-dialog').open)return;
+  if(event.key!=='Enter'||!(event.metaKey||event.ctrlKey)||event.altKey||event.isComposing||$('share-dialog').open||$('about-dialog').open)return;
   event.preventDefault();event.stopPropagation();
   if(!event.repeat&&!$('run').disabled)$('run').click();
 },{capture:true});
@@ -440,6 +440,9 @@ function showExecution() {
 
 
 sourceEditor.sync();
+
+$('show-about').onclick=()=>$('about-dialog').showModal();
+$('close-about').onclick=()=>$('about-dialog').close();
 
 let shareValidation;
 $('close-share').onclick=()=>$('share-dialog').close();

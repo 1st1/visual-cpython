@@ -201,9 +201,9 @@ html,body{touch-action:pan-x pan-y}
 @media(max-width:900px){:root:not(.mobile-device) .hosting-banner{right:8px;bottom:8px}}
 @media(max-width:380px){.navigation-controls{bottom:54px}}
 
-#share-dialog{width:min(480px,calc(100% - 32px));padding:20px;border:1px solid var(--control-outline);border-radius:10px;background:#171729;color:#edf0f5;box-shadow:0 20px 80px #0008}
-#share-dialog::backdrop{background:#05071299;backdrop-filter:blur(4px)}
-#share-dialog .editor-heading h2{font-size:18px}
+#share-dialog,#about-dialog{width:min(480px,calc(100% - 32px));padding:20px;border:1px solid var(--control-outline);border-radius:10px;background:#171729;color:#edf0f5;box-shadow:0 20px 80px #0008}
+#share-dialog::backdrop,#about-dialog::backdrop{background:#05071299;backdrop-filter:blur(4px)}
+#share-dialog .editor-heading h2,#about-dialog .editor-heading h2{font-size:18px}
 #share-dialog label{margin:16px 0 10px;line-height:1.6}
 #share-url{width:100%;min-width:0;padding:10px;font:12px ui-monospace,SFMono-Regular,Consolas,monospace;color:inherit;background:#0d1020;border:1px solid var(--control-outline);border-radius:5px}
 .share-link-row{display:flex;align-items:stretch;gap:8px;margin-bottom:12px}
@@ -215,3 +215,12 @@ html,body{touch-action:pan-x pan-y}
 #editor-error{margin:12px 0 0;padding:10px;border-left:2px solid #ee5788;background:#c923591a;color:#ffb3cb;font-size:12px;line-height:1.6;white-space:pre-wrap;overflow-wrap:anywhere}
 
 .source-editor .cm-editor{height:100%}
+
+#about-dialog{max-height:calc(100dvh - 32px);overflow:auto}
+#about-dialog ul{padding-left:20px;margin:20px 0;line-height:1.7;font-size:13px}
+#about-dialog li+li{margin-top:12px}
+#about-dialog strong{color:#edf0f5}
+#about-dialog li{color:var(--muted)}
+#about-dialog a{color:#64d8e5;font-size:13px;line-height:1.6}
+@media(max-width:400px){.playback-buttons button{padding-inline:8px}.playback-buttons #reset{margin-right:6px}.playback-buttons #toggle-inspector{margin-left:6px}}
+@media(max-width:360px){.playback-buttons{gap:4px}.playback-buttons button{padding-inline:6px;font-size:11px}.playback-buttons svg{width:17px;height:17px}.playback-buttons #reset{margin-right:4px}.playback-buttons #toggle-inspector{margin-left:4px;gap:5px}}
