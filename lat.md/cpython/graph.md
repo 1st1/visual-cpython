@@ -26,7 +26,7 @@ Every captured event has a deterministic map selection and frame chain. Runtime 
 
 A layout worker runs Graphviz through pinned Viz.js. Code-object clusters, block trays, and orthogonal connections form the SVG map. The 3D view expands each tray into opcode tiles.
 
-[web/layout-worker.mjs](../../web/layout-worker.mjs) uses the pinned dependency in [package.json](../../package.json). [tools/package_web.py](../../tools/package_web.py) stages its self-contained WASM bundle beside CPython assets. Layout has a separate deadline and is discarded on a new capture. The SVG, normalized geometry from [web/layout.mjs](../../web/layout.mjs), and engine version return to the main thread.
+[web/layout-worker.mjs](../../web/layout-worker.mjs) uses the pinned dependency in [package.json](../../package.json). [tools/package_web.py](../../tools/package_web.py) stages its self-contained WASM bundle beside CPython assets. Layout has a separate deadline and is discarded on a new capture. Graphviz imports and initialization run inside worker error handling. A failed layout is retried once automatically; callbacks from replaced workers are ignored, and failures without browser error details receive a readable fallback message. The SVG, normalized geometry from [web/layout.mjs](../../web/layout.mjs), and engine version return to the main thread.
 
 [web/app.mjs](../../web/app.mjs) keeps geometry fixed while replay updates node and edge classes. Users can zoom, scroll, select blocks with pointer or keyboard, inspect their instructions, and seek their next recorded opcode visit. Source, locals, and operand stack follow that event. Syntax failures clear the map. Layout failures leave the execution inspector usable.
 

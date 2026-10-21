@@ -8,6 +8,23 @@ try{
  // Exercise the fallback even when a future WebKit release provides JSPI.
  await page.addInitScript(()=>{
   Object.defineProperty(WebAssembly,'Suspending',{value:undefined,configurable:true});
+  const NativeWorker=window.Worker;
+  window.layoutStarts=0;
+  window.Worker=class extends NativeWorker {
+   constructor(url,options){
+    super(url,options);
+    if(String(url).includes('layout-worker')){
+     window.layoutStarts++;
+     if(window.layoutStarts===1){
+      this.terminate();
+      // Safari can report startup failures as an Event without a message.
+      setTimeout(()=>this.onerror?.(new Event('error')),0);
+      // An obsolete callback must not stop the replacement worker.
+      setTimeout(()=>this.onerror?.(new Event('error')),50);
+     }
+    }
+   }
+  };
   const original=window.setTimeout;window.setTimeout=(fn,ms,...args)=>original(fn,ms===100?0:ms,...args);
  });
  await page.route(/\/(?:assets\/worker-[^/]+\.js|worker\.mjs)(?:\?.*)?$/,async route=>{
@@ -23,7 +40,11 @@ try{
   await page.waitForFunction(()=>!document.querySelector('#play').disabled,null,{timeout:60000});
   await page.locator('#close-editor').click();
  }
- await compile('n=0\nwhile True:\n n=n+1');await page.locator('#play').click();
+ await compile('n=0\nwhile True:\n n=n+1');
+ assert.equal(await page.evaluate(()=>window.layoutStarts),2,'Automatically retry first layout startup failure');
+ await page.waitForFunction(()=>document.querySelector('#map-status').textContent.startsWith('Graphviz'));
+ assert.equal(await page.locator('#message').textContent(),'');
+ await page.locator('#play').click();
  await page.waitForFunction(()=>Number(document.querySelector('#seek').max)>=1999,null,{timeout:60000});
  await page.waitForTimeout(100);
  await page.locator('#play').click();await page.waitForTimeout(100);

@@ -118,4 +118,6 @@ Live controls must suspend the evaluator, advance real opcodes, survive history 
 
 Safari must execute live opcodes without JSPI, retaining responsive controls and bounded history.
 
+The browser check also injects a first-layout startup failure without an error message and a delayed obsolete callback, verifying automatic recovery on the initial Compile click.
+
 [tools/test_safari.mjs](../../tools/test_safari.mjs) uses WebKit with JSPI disabled in both the page and interpreter worker to verify isolation headers, a loop beyond the history limit, pause stability, single stepping, backward inspection, reset of a blocked worker, fresh runs, and asyncio completion.

@@ -266,7 +266,7 @@ function render() {
   $('stdout').textContent = index === count ? recording.stdout : event.stdout;
 }
 
-function buildMap(relayout=false,executed=false) {
+function buildMap(relayout=false,executed=false,attempt=0) {
   layoutWorker?.terminate(); clearTimeout(layoutTimer);
   const targetAspect=windowAspect(); layoutAspect=targetAspect;
   try {
@@ -278,14 +278,23 @@ function buildMap(relayout=false,executed=false) {
     $('map-status').textContent = 'Laying out program…';$('play').disabled=true;
     const current = graph;
     layoutWorker = new Worker(new URL('./layout-worker.mjs', import.meta.url), { type: 'module' });
-    const stop = () => { clearTimeout(layoutTimer); layoutWorker?.terminate(); layoutWorker = null; };
-    const error = message => { stop(); xray?.starfield?.setCapturing(false); $('map-status').textContent = `Layout failed: ${message}`; $('message').textContent=$('map-status').textContent; };
+    const activeWorker=layoutWorker;
+    const stop = () => { clearTimeout(layoutTimer); activeWorker.terminate(); layoutWorker = null; };
+    const error = message => {
+      if(layoutWorker!==activeWorker)return;
+      stop();
+      if(attempt===0)return buildMap(relayout,executed,1);
+      xray?.starfield?.setCapturing(false);
+      $('map-status').textContent = `Layout failed: ${message || 'could not start the layout worker'}`;
+      $('message').textContent=$('map-status').textContent;
+      render();
+    };
     layoutTimer = setTimeout(() => error('exceeded 15 seconds'), 15000);
     layoutWorker.onerror = e => error(e.message);
     layoutWorker.onmessage = ({ data }) => {
-      if (graph !== current) return;
+      if (layoutWorker!==activeWorker || graph !== current) return;
+      if (Object.hasOwn(data,'error')) return error(data.error);
       stop();
-      if (data.error) return error(data.error);
       const svg = new DOMParser().parseFromString(data.svg, 'image/svg+xml').documentElement;
       svg.setAttribute('aria-label', 'Program control-flow map');
       svg.removeAttribute('width'); svg.removeAttribute('height');
