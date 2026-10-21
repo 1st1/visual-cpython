@@ -104,9 +104,12 @@ class CaptureTests(unittest.TestCase):
         self.assertGreater(len(offsets), len(set(offsets)))
 
     def test_errors_are_not_successful_returns(self):
-        result = capture("def f(x):\n    return 1 / x\nf(0)")
+        result = capture("def f(x):\n    return 1 / x\nprint(7)\nf(0)")
         self.assertEqual(result["status"], "error")
         self.assertIn("ZeroDivisionError", result["error"])
+        self.assertEqual(result["stdout"], "7\n")
+        self.assertIn("ZeroDivisionError", result["stderr"])
+        self.assertEqual(result["events"][-1]["stderr"], "")
         self.assertTrue(any(e["kind"] == "exception" for e in result["events"]))
         self.assertEqual(result["events"][-1]["kind"], "unwind")
         syntax = capture("if")

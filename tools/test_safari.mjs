@@ -59,6 +59,12 @@ try{
  await page.waitForFunction(()=>document.querySelector('#state').textContent==='completed');assert.equal(await page.locator('#stdout').textContent(),'7\n');
  await compile('import asyncio\nasync def f():\n await asyncio.sleep(.01)\n print(9)\nasyncio.run(f())');await page.locator('#play').click();
  await page.waitForFunction(()=>document.querySelector('#state').textContent==='completed');assert.equal(await page.locator('#stdout').textContent(),'9\n');
+ await compile('print(7)\n1 / 0');await page.locator('#play').click();
+ await page.waitForFunction(()=>document.querySelector('#state').textContent==='error');
+ assert.match(await page.locator('#stdout').textContent(),/^7\nZeroDivisionError:/);
+ assert.equal(await page.locator('#message').textContent(),'','Python errors belong in Inspector output');
+ await page.locator('#back').click();
+ assert.doesNotMatch(await page.locator('#stdout').textContent(),/ZeroDivisionError/,'Rewind restores output before the error');
  assert.deepEqual(errors,[]);
  console.log('PASS WebKit shared-memory live stepping, history rollover, pause, step, back, reset, fresh run, asyncio');
 }finally{await browser.close();}

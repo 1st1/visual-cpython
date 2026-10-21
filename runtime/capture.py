@@ -97,6 +97,7 @@ class Observer:
         self.codes = {}
         self.artifacts = []
         self.output = Output(live)
+        self.stderr = Output(live)
 
     def value(self, obj, depth=0, seen=frozenset()):
         address = id(obj)
@@ -196,7 +197,7 @@ class Observer:
                   "parent": self.frames.get(frame.f_back), "code": self.codes[frame.f_code],
                   "offset": frame.f_lasti, "line": frame.f_lineno,
                   "locals": {name: self.value(value) for name, value in frame.f_locals.items() if name != "__builtins__"},
-                  "stdout": self.output.getvalue()}
+                  "stdout": self.output.getvalue(), "stderr": self.stderr.getvalue()}
         if event == "opcode":
             self.pending_exceptions.discard(frame)
             record["stack"] = [{"kind": kind, "value": self.value(value) if kind == "object" else value}
@@ -299,7 +300,7 @@ def capture(source, max_events=2000, progress=False, compile_only=False, live=Fa
         else:
             previous = sys.gettrace()
             try:
-                with contextlib.redirect_stdout(observer.output):
+                with contextlib.redirect_stdout(observer.output), contextlib.redirect_stderr(observer.stderr):
                     sys.settrace(observer.trace)
                     exec(code, {"__builtins__": dict(BUILTINS)})
             finally:
@@ -310,6 +311,9 @@ def capture(source, max_events=2000, progress=False, compile_only=False, live=Fa
     except Exception as exc:
         result.update(status="error", error=f"{type(exc).__name__}: {exc}")
     result["stdout"] = observer.output.getvalue()
+    result["stderr"] = observer.stderr.getvalue()
+    if result.get("error"):
+        result["stderr"] = (result["stderr"] + result["error"] + "\n")[-4096:]
     # Release retained frames/objects after serialization; never keep them between runs.
     observer.frames.clear()
     observer.pending_exceptions.clear()

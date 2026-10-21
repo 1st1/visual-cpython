@@ -85,7 +85,7 @@ function startOperation(mode) {
     $('map').replaceChildren();
     xray?.load(null,null,[],source,null,false);
   } else {
-    recording={...recording,events:[],stdout:'',status:'compiled'};delete recording.error;
+    recording={...recording,events:[],stdout:'',stderr:'',status:'compiled'};delete recording.error;
     mapStates=[];selectedBlock=null;index=0;
     if(xray){xray.instructionVisits.clear();xray.panelBlock=null;xray.opcodeTrail.clear();xray.previousOpcodeTile=null;}
     xray?.finishConstruction();
@@ -114,14 +114,14 @@ function startOperation(mode) {
       appendLiveEvent(data.event);
     }else if(data.type==='result'){
       if(mode==='run'){
-        recording.stdout=data.trace.stdout;recording.status=data.trace.status;
+        recording.stdout=data.trace.stdout;recording.stderr=data.trace.stderr;recording.status=data.trace.status;
         recording.error=data.trace.error;
         stopPlayback();stopWorker();index=recording.events.length;
-        $('state').textContent=recording.status;$('message').textContent=recording.error||'';
+        $('state').textContent=recording.status;$('message').textContent='';
         render();return;
       }
       stopWorker(false);recording=data.trace;index=0;runAfterLayout=mode==='run'&&recording.events.length>0;
-      $('state').textContent=recording.status;$('message').textContent=recording.error||'';
+      $('state').textContent=recording.status;$('message').textContent='';
       $('provenance').textContent=`CPython ${recording.provenance.python.split(' ')[0]} · ${recording.provenance.revision.slice(0,8)}`;
       if(!recording.codes.length)xray?.load(null,null,[],recording.source,recording.parsing,mode!=='compile');
       render();buildMap(false,mode==='run');
@@ -150,7 +150,7 @@ function appendLiveEvent(event){
   if(recording.events.length>HISTORY_LIMIT){recording.events.shift();mapStates.shift();index=Math.max(0,index-1);}
   // UI positions are local to the retained window; runtime sequence stays monotonic.
   for(let i=0;i<recording.events.length;i++)recording.events[i].seq=i;
-  recording.stdout=event.stdout;
+  recording.stdout=event.stdout;recording.stderr=event.stderr;
   if(xray){
     xray.instructionVisits.clear();xray.panelBlock=null;
     for(const e of recording.events)if(e.kind==='opcode'){
@@ -184,7 +184,7 @@ function resetProgram(){
 }
 function resetRun(){
   hideCompileHint();stopPlayback();stopWorker();
-  recording={...recording,events:[],stdout:'',status:'compiled'};delete recording.error;
+  recording={...recording,events:[],stdout:'',stderr:'',status:'compiled'};delete recording.error;
   mapStates=[];selectedBlock=null;index=0;
   if(xray){xray.instructionVisits.clear();xray.panelBlock=null;xray.opcodeTrail.clear();xray.previousOpcodeTile=null;}
   $('message').textContent='';$('state').textContent='compiled';render();
@@ -246,7 +246,7 @@ function render() {
   const event = recording?.events[Math.min(index, count - 1)];
   if (!event) {
     for (const id of ['source-view', 'locals', 'stack', 'stdout']) $(id).replaceChildren();
-    $('stdout').textContent = recording?.stdout || '';
+    $('stdout').textContent = (recording?.stdout || '') + (recording?.stderr || '');
     $('event').textContent = 'Run a program to inspect its execution.';
     return;
   }
@@ -263,7 +263,8 @@ function render() {
   }));
   rows($('locals'), Object.entries(event.locals).map(([name, value]) => `${name} → ${describe(value)}`));
   rows($('stack'), event.stack ? [...event.stack].reverse().map(v => v.kind === 'object' ? describe(v.value) : v.kind === 'null' ? 'NULL · internal call sentinel' : `tagged integer: ${v.value}`) : ['Stack sampled at opcode events only']);
-  $('stdout').textContent = index === count ? recording.stdout : event.stdout;
+  const output=index===count?recording:event;
+  $('stdout').textContent = (output.stdout || '') + (output.stderr || '');
 }
 
 function buildMap(relayout=false,executed=false,attempt=0) {

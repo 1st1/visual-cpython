@@ -69,7 +69,7 @@ Capture records distinct activations, reusable code identities, source positions
 
 [[runtime/capture.py#Observer#trace]] records coroutine yield and re-entry as suspend and resume, retaining the same frame identity across awaits. Replay updates the resumed frame's current caller, rather than treating suspension as completion or resumption as a new activation. Native, WASM, and Chrome tests exercise async sleep and output, with native/WASM assertions for stable suspension/resumption identity.
 
-Recordings distinguish completed, error, and limited outcomes. Exceptions followed by frame termination are labeled unwind rather than a successful return of None. Syntax errors produce no execution events. [[tools/capture.py#run]] launches a fresh native subprocess and applies a parent-enforced timeout; it is a local development tool, not an untrusted-code sandbox.
+Recordings distinguish completed, error, and limited outcomes. Both stdout and stderr are captured in event snapshots and final results. Python diagnostics are appended to final stderr and displayed with stdout in the Inspector’s program output, rather than the floating UI error label. Exceptions followed by frame termination are labeled unwind rather than a successful return of None. Syntax errors produce no execution events. [[tools/capture.py#run]] launches a fresh native subprocess and applies a parent-enforced timeout; it is a local development tool, not an untrusted-code sandbox.
 
 ## Browser workbench
 
@@ -118,6 +118,6 @@ Live controls must suspend the evaluator, advance real opcodes, survive history 
 
 Safari must execute live opcodes without JSPI, retaining responsive controls and bounded history.
 
-The browser check also injects a first-layout startup failure without an error message and a delayed obsolete callback, verifying automatic recovery on the initial Compile click.
+The browser check also injects a first-layout startup failure without an error message and a delayed obsolete callback, verifying automatic recovery on the initial Compile click. Runtime-error checks keep prior stdout and the Python diagnostic in Inspector output, leave the floating message empty, and remove the diagnostic when rewinding.
 
 [tools/test_safari.mjs](../../tools/test_safari.mjs) uses WebKit with JSPI disabled in both the page and interpreter worker to verify isolation headers, a loop beyond the history limit, pause stability, single stepping, backward inspection, reset of a blocked worker, fresh runs, and asyncio completion.
