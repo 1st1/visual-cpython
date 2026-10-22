@@ -115,8 +115,8 @@ button[aria-pressed=true]{background:#30206a;color:#65d4df;border-color:#7960aa}
 .minimap-tools-row #zoom-out{margin-left:7%}
 
 .minimap{top:var(--program-toolbar-bottom,64px);left:18px;right:auto;bottom:auto}
-.program-toolbar #toggle-minimap{width:36px;padding:7px;display:flex;align-items:center;justify-content:center}
-#toggle-minimap svg{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round}
+.program-toolbar #toggle-minimap,.program-toolbar #toggle-editor{width:36px;padding:7px;display:flex;align-items:center;justify-content:center}
+#toggle-minimap svg,#toggle-editor svg{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round}
 #toggle-minimap[aria-pressed="true"]{color:#65d4df;border-color:var(--control-outline-active);background:#65d4df12}
 #editor-panel{top:var(--program-toolbar-bottom,64px)}
 @media(max-width:900px){.minimap{left:8px;top:var(--program-toolbar-bottom,54px);bottom:auto}}
