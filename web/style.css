@@ -169,7 +169,7 @@ button[aria-pressed=true]{background:#30206a;color:#65d4df;border-color:#7960aa}
 html,body{touch-action:pan-x pan-y}
 .mobile-device .source-editor .cm-editor{font-size:16px}
 
-.mobile-device{--hosting-clearance:52px}
+.mobile-device{--hosting-clearance:0px}
 .mobile-device .program-toolbar{top:max(8px,env(safe-area-inset-top));left:max(8px,env(safe-area-inset-left));gap:5px}
 .mobile-device .minimap,.mobile-device #editor-panel{top:var(--program-toolbar-bottom,54px)}
 @media(orientation:landscape){
@@ -226,3 +226,12 @@ html,body{touch-action:pan-x pan-y}
 @media(max-width:360px){.playback-buttons{gap:4px}.playback-buttons button{padding-inline:6px;font-size:11px}.playback-buttons svg{width:17px;height:17px}.playback-buttons #reset{margin-right:4px}.playback-buttons #toggle-inspector{margin-left:4px;gap:5px}}
 
 .about-links{display:flex;flex-direction:column;align-items:flex-start;gap:10px}
+
+.hosting-mobile{display:none}
+.mobile-device .hosting-desktop{display:none}
+.mobile-device #toggle-inspector span{display:none}
+.mobile-device .playback-buttons .hosting-mobile{position:static;display:flex;flex:none;height:36px;padding:0 8px;gap:4px;box-shadow:none;color:#fff}
+.mobile-device .hosting-mobile img{display:block;width:20px;height:20px}
+.mobile-device .playback-buttons .hosting-mobile svg{width:19px;height:19px;fill:#fff;stroke:none}
+.mobile-device .playback-buttons button{padding-inline:8px}
+@media(max-width:360px){.mobile-device .playback-buttons button{padding-inline:6px}.mobile-device .playback-buttons .hosting-mobile{padding-inline:6px;gap:3px}}
