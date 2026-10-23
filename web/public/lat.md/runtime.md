@@ -2,11 +2,11 @@
 
 The implementation combines a revision-pinned CPython observation module, live opcode stepping, bounded inspection history, and a browser workbench with a generated program map and 3D scene.
 
-Build recipes and commands are in [README.md](../README.md). [[tools/build_native.py#build]] exports the pinned revision from the ignored reference checkout and adds [[runtime/probe.c]] as a static module in a disposable build. [[tools/build_wasm.py#build]] prepares a separate Emscripten build; [[tools/package_web.py#package]] stages generated browser assets.
+Build recipes and commands are in [[runtime#Capture runtime#Build pipeline]]. [[tools/build_native.py#build]] exports the pinned revision from the ignored reference checkout and adds [[runtime/probe.c]] as a static module in a disposable build. [[tools/build_wasm.py#build]] prepares a separate Emscripten build; [[tools/package_web.py#package]] stages generated browser assets.
 
 ## Build pipeline
 
-Vite bundles the browser application around a checked-in CPython WASM runtime. Frontend development and Vercel builds need Node and npm only; CPython compilation is an explicit local maintenance step.
+Vite bundles the browser application around a checked-in CPython WASM runtime. Frontend development and Vercel builds need Node 24 or newer and npm only; CPython compilation is an explicit local maintenance step.
 
 The browser artifacts live in [packaged runtime manifest](../web/public/runtime/runtime.json): the generated loader, WASM binary, standard-library ZIP, capture driver, CPython license, and revision/hash manifest. [[tools/package_web.py#package]] refreshes this directory from local build outputs. These artifacts are committed alongside their build recipes; `.build/`, the reference checkout, dependencies, and `dist/` remain ignored.
 
@@ -20,7 +20,7 @@ npm run build
 npm run preview
 ```
 
-Both servers default to 127.0.0.1:8000 with a strict port; run only one there, or pass -- --port 8001. [vercel.json](../vercel.json) selects Vite, npm run build, and dist. Runtime URLs revalidate rather than retaining stale files; hashed frontend assets use Vercel's normal asset caching. Deployment serves static files and needs no Python compiler, Emscripten SDK, CPython checkout, or server-side Python execution.
+Open http://127.0.0.1:8000 after starting development or preview. Both servers default to 127.0.0.1:8000 with a strict port; run only one there, or pass -- --port 8001. [vercel.json](../vercel.json) selects Vite, npm run build, and dist. Runtime URLs revalidate rather than retaining stale files; hashed frontend assets use Vercel's normal asset caching. Deployment serves static files and needs no Python compiler, Emscripten SDK, CPython checkout, or server-side Python execution.
 
 ### Published architecture browser
 
@@ -51,7 +51,7 @@ Commit the refreshed [packaged runtime manifest](../web/public/runtime/runtime.j
 
 Runtime integrity, compilation, capture correctness, and production-browser behavior are separate checks. Browser tests accept XRAY_URL so the same suites can target Vite development or the built preview.
 
-Run the native interpreter with `-m unittest discover -s tests -v` (`.build/native/python.exe` on this macOS build, or `.build/native/python` where applicable). npm run test:wasm checks the committed runtime; npm run test:graph additionally requires the local native interpreter. With Vite development or preview running, npm run test:browser, npm run test:xray, npm run test:parsing, and npm run test:memory exercise capture, rendering, parser replay, and resource bounds. Run lat check for documentation validation. Screenshots remain ignored under artifacts/.
+Run the native interpreter with `-m unittest discover -s tests -v` (`.build/native/python.exe` on this macOS build, or `.build/native/python` where applicable). npm run test:wasm checks the committed runtime; npm run test:graph additionally requires the local native interpreter. With Vite development or preview running and Google Chrome installed, npm run test:browser, npm run test:xray, npm run test:parsing, and npm run test:memory exercise capture, rendering, parser replay, and resource bounds. Run lat check for documentation validation. Screenshots remain ignored under artifacts/. For Safari-engine coverage, install WebKit with `npx playwright install webkit`, then run `npm run test:safari`. Set `XRAY_URL=http://127.0.0.1:8001` to test a preview on another port.
 
 ## Observed instruction stacks
 
