@@ -224,3 +224,5 @@ html,body{touch-action:pan-x pan-y}
 #about-dialog a{color:#64d8e5;font-size:13px;line-height:1.6}
 @media(max-width:400px){.playback-buttons button{padding-inline:8px}.playback-buttons #reset{margin-right:6px}.playback-buttons #toggle-inspector{margin-left:6px}}
 @media(max-width:360px){.playback-buttons{gap:4px}.playback-buttons button{padding-inline:6px;font-size:11px}.playback-buttons svg{width:17px;height:17px}.playback-buttons #reset{margin-right:4px}.playback-buttons #toggle-inspector{margin-left:4px;gap:5px}}
+
+.about-links{display:flex;flex-direction:column;align-items:flex-start;gap:10px}
